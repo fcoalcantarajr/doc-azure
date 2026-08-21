@@ -1,0 +1,13 @@
+{
+  "name": "User Story",
+  "referenceName": "Microsoft.VSTS.WorkItemTypes.UserStory",
+  "states": [
+    {"name": "New", "category": "Proposed"},
+    {"name": "Active", "category": "InProgress"},
+    {"name": "Closed", "category": "Completed"}
+  ],
+  "fields": [
+    {"referenceName": "System.Title", "name": "Title", "alwaysRequired": true},
+    {"referenceName": "System.Description", "name": "Description", "alwaysRequired": false}
+  ]
+}

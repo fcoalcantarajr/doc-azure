@@ -1,0 +1,8 @@
+{
+  "id": "R001",
+  "claim_pt": "O processo define o estado 'Resolved' para User Stories",
+  "class": "DIVERGENT",
+  "doc_evidence": "out/wiki/leiame.md#L3",
+  "azure_evidence": "out/process/userstory.json#/states/2/name",
+  "consequence": "Wiki afirma Resolved existe; processo só tem New/Active/Closed."
+}

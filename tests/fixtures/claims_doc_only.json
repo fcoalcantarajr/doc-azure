@@ -1,0 +1,8 @@
+{
+  "id": "R003",
+  "claim_pt": "Wiki afirma que existe papel 'Scrum Master'",
+  "class": "DOC_ONLY",
+  "doc_evidence": "out/wiki/leiame.md#L14",
+  "azure_evidence": "n/a",
+  "consequence": "Papéis não são configurados via API de processo; não verificável."
+}
