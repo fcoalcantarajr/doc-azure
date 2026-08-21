@@ -3,6 +3,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 
 class SettingsError(ValueError):
@@ -13,13 +14,13 @@ class SettingsError(ValueError):
 class Settings:
     organization: str
     project: str
-    wiki_id: str
     page_ids: tuple[int, ...]
     process_name: str
-    process_id: str
     api_version: str
     pat: str
     output_root: Path
+    wiki_id: Optional[str] = None
+    process_id: Optional[str] = None
 
     @classmethod
     def load(cls, project_root: Path) -> "Settings":
@@ -32,10 +33,8 @@ class Settings:
         return cls(
             organization="bancodonordeste",
             project="Torre CCR - Concessão de Crédito",
-            wiki_id="87014e24-4977-4d27-8e12-c05208008d95",
             page_ids=(35, 10, 9, 37),
             process_name="Processo-Agil",
-            process_id="9d82e632-9028-4a6b-86f8-3edb3281cb15",
             api_version="7.1",
             pat=pat,
             output_root=project_root / "out",
@@ -48,7 +47,7 @@ class Settings:
         )
 
 
-def _load_dotenv_pat(project_root: Path) -> str | None:
+def _load_dotenv_pat(project_root: Path) -> Optional[str]:
     env_path = project_root / ".env"
     if not env_path.exists():
         return None

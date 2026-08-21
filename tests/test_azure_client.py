@@ -48,7 +48,7 @@ class ReadOnlyBoundaryTests(TestCase):
         handler_class = getattr(azure_client, "_RejectRedirectHandler", None)
         self.assertIsNotNone(handler_class)
         handler = handler_class()
-        request = Request("https://dev.azure.com/org/_apis/work/processes")
+        request = Request("https://example.com/org/_apis/work/processes")
 
         with self.assertRaises(HTTPError) as raised:
             handler.redirect_request(
@@ -137,7 +137,7 @@ class ReadOnlyBoundaryTests(TestCase):
             raise URLError("connection failed")
 
         client = AzureClient(
-            "https://dev.azure.com/org",
+            "https://example.com/org",
             "top-secret",
             failing_transport,
         )
@@ -156,7 +156,7 @@ class ReadOnlyBoundaryTests(TestCase):
             seen["timeout"] = timeout
             return _JsonResponse({"count": 1}, {"X-Trace": "trace-1"})
 
-        client = AzureClient("https://dev.azure.com/org/", "safe-pat", transport)
+        client = AzureClient("https://example.com/org/", "safe-pat", transport)
         response = client.request_json(
             "GET",
             "/_apis/work/processes",
@@ -165,7 +165,7 @@ class ReadOnlyBoundaryTests(TestCase):
 
         self.assertEqual(
             seen["request"].full_url,
-            "https://dev.azure.com/org/_apis/work/processes?%24top=1&api-version=7.1",
+            "https://example.com/org/_apis/work/processes?%24top=1&api-version=7.1",
         )
         self.assertEqual(seen["request"].method, "GET")
         self.assertEqual(seen["timeout"], 30)
@@ -181,7 +181,7 @@ class ReadOnlyBoundaryTests(TestCase):
             seen["url"] = request.full_url
             return _JsonResponse({"count": 0}, {})
 
-        client = AzureClient("https://dev.azure.com/org", "safe-pat", transport)
+        client = AzureClient("https://example.com/org", "safe-pat", transport)
         client.request_json(
             "GET",
             "/_apis/work/processes",
@@ -190,22 +190,23 @@ class ReadOnlyBoundaryTests(TestCase):
 
         self.assertEqual(
             seen["url"],
-            "https://dev.azure.com/org/_apis/work/processes?%24top=2&api-version=7.1",
+            "https://example.com/org/_apis/work/processes?%24top=2&api-version=7.1",
         )
 
     def test_response_url_redacts_sensitive_query_values(self):
         def transport(request, timeout):
             return _JsonResponse({"count": 0}, {})
 
-        client = AzureClient("https://dev.azure.com/org", "local-secret", transport)
+        client = AzureClient("https://example.com/org", "local-secret", transport)
         response = client.request_json(
             "GET",
             "/_apis/work/processes",
-            query={"pat": "local-secret"},
+            query={"pat": "sensitive-param-value"},
         )
 
+        # Sensitive key "pat" gets redacted, and PAT is never exposed
         self.assertNotIn("local-secret", response.url)
-        self.assertNotIn("Basic", response.url)
+        self.assertNotIn("authorization", response.url)
         self.assertIn("%3Credacted%3E", response.url)
 
     def test_query_with_pat_is_rejected_before_transport_and_never_leaks(self):
@@ -215,7 +216,7 @@ class ReadOnlyBoundaryTests(TestCase):
         def transport(request, timeout):
             self.fail("transport must not receive a query containing the PAT")
 
-        client = AzureClient("https://dev.azure.com/org", pat, transport)
+        client = AzureClient("https://example.com/org", pat, transport)
 
         for secret_value in (pat, encoded_pat, quote_plus(pat)):
             with self.subTest(secret_value=secret_value):
@@ -236,7 +237,7 @@ class ReadOnlyBoundaryTests(TestCase):
             seen["url"] = request.full_url
             return _JsonResponse({"count": 0}, {})
 
-        client = AzureClient("https://dev.azure.com/org", "safe-pat", transport)
+        client = AzureClient("https://example.com/org", "safe-pat", transport)
         client.request_json(
             "GET",
             "/_apis/work/processes",
@@ -276,7 +277,7 @@ class ReadOnlyBoundaryTests(TestCase):
             seen["request"] = request
             return _JsonResponse({"workItems": []}, {})
 
-        client = AzureClient("https://dev.azure.com/org", "safe-pat", transport)
+        client = AzureClient("https://example.com/org", "safe-pat", transport)
         client.request_json(
             "POST",
             "/project/_apis/wit/wiql",
@@ -295,7 +296,7 @@ class ReadOnlyBoundaryTests(TestCase):
         def transport(request, timeout):
             self.fail("GET with a body must not reach transport")
 
-        client = AzureClient("https://dev.azure.com/org", "safe-pat", transport)
+        client = AzureClient("https://example.com/org", "safe-pat", transport)
 
         with self.assertRaisesRegex(AzureReadError, "bodies"):
             client.request_json(
@@ -306,7 +307,7 @@ class ReadOnlyBoundaryTests(TestCase):
         def transport(request, timeout):
             self.fail("non-JSON body must not reach transport")
 
-        client = AzureClient("https://dev.azure.com/org", "safe-pat", transport)
+        client = AzureClient("https://example.com/org", "safe-pat", transport)
 
         with self.assertRaises(AzureReadError) as raised:
             client.request_json(
@@ -321,7 +322,7 @@ class ReadOnlyBoundaryTests(TestCase):
         def transport(request, timeout):
             return _RawResponse(b"{")
 
-        client = AzureClient("https://dev.azure.com/org", "safe-pat", transport)
+        client = AzureClient("https://example.com/org", "safe-pat", transport)
 
         with self.assertRaises(AzureReadError) as raised:
             client.request_json("GET", "/_apis/work/processes")
@@ -332,7 +333,7 @@ class ReadOnlyBoundaryTests(TestCase):
         def transport(request, timeout):
             return _RawResponse(b"[]")
 
-        client = AzureClient("https://dev.azure.com/org", "safe-pat", transport)
+        client = AzureClient("https://example.com/org", "safe-pat", transport)
 
         with self.assertRaises(AzureReadError) as raised:
             client.request_json("GET", "/_apis/work/processes")
@@ -349,7 +350,7 @@ class ReadOnlyBoundaryTests(TestCase):
                 _BrokenRead(),
             )
 
-        client = AzureClient("https://dev.azure.com/org", "safe-pat", transport)
+        client = AzureClient("https://example.com/org", "safe-pat", transport)
 
         with self.assertRaises(AzureReadError) as raised:
             client.request_json("GET", "/_apis/work/processes")
@@ -369,7 +370,7 @@ class ReadOnlyBoundaryTests(TestCase):
                 },
             )
 
-        client = AzureClient("https://dev.azure.com/org", "safe-pat", transport)
+        client = AzureClient("https://example.com/org", "safe-pat", transport)
         response = client.request_json("GET", "/_apis/work/processes")
 
         self.assertNotIn("Authorization", response.headers)
@@ -381,7 +382,7 @@ class ReadOnlyBoundaryTests(TestCase):
         def transport(request, timeout):
             self.fail("transport must not be called for a rejected route")
 
-        client = AzureClient("https://dev.azure.com/org", "safe-pat", transport)
+        client = AzureClient("https://example.com/org", "safe-pat", transport)
 
         with self.assertRaisesRegex(AzureReadError, "not allowlisted"):
             client.request_json("POST", "/project/_apis/wit/queries")
@@ -398,7 +399,7 @@ class ReadOnlyBoundaryTests(TestCase):
                 io.BytesIO(body),
             )
 
-        client = AzureClient("https://dev.azure.com/org", "local-secret", failing_transport)
+        client = AzureClient("https://example.com/org", "local-secret", failing_transport)
 
         with self.assertRaises(AzureReadError) as raised:
             client.request_json("GET", "/_apis/work/processes")
