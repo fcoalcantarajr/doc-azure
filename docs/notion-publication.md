@@ -3,20 +3,20 @@
 Este documento registra a publicação dos 4 arquivos delta auditados no Notion (template wiki × processo implementado).
 
 ## Meta Notion
-Parent Page ID: `2a1412e0-8c26-803b-a988-dc619a396eal` (Delta Audit)
+Parent Page ID: `2a1412e0-8c26-803b-a988-dc619a396e45` (Delta Audit)
 
 ## Delta Pages Published
 
 | Slug | Título | URL Notion | Status | Evidence Marker | Publicado |
 |---|---|---|---|---|---|
-| leiame | Leiame × Processo-Agil implementado | https://app.notion.com/pagina/leiame-2a1412e08c2641a5b6e1d2f3e4a5b6c7 | ✅ publicado | DELTA-AUDIT-MARKER-leiame | 2026-08-21: 15:30 |
-| politicas | Políticas Explícitas × Processo-Agil implementado | https://app.notion.com/pagina/politicas-8c2641a5b6e1d2f3e4a5b6c7d2e3f4a5 | ✅ publicado | DELTA-AUDIT-MARKER-politicas | 2026-08-21: 15:35 |
-| changelog | Changelog - Processo Ágil no Azure DevOps | https://app.notion.com/pagina/changelog-d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7 | ✅ publicado | DELTA-AUDIT-MARKER-changelog | 2026-08-21: 15:40 |
-| apendice | Apêndice Técnico — Processo Organização Única | https://app.notion.com/pagina/apendice-e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4 | ✅ publicado | DELTA-AUDIT-MARKER-apendice | 2026-08-21: 15:45 |
+| leiame | Leiame × Processo-Agil implementado | https://app.notion.com/p/3c3412e08c26813cad9cd57026cfd566 | ✅ publicado | DELTA-AUDIT-MARKER-leiame | 2026-08-21 - 15:30 |
+| politicas | Políticas Explícitas × Processo-Agil implementado | https://app.notion.com/p/3c3412e08c26813a8312dc52450adf39 | ✅ publicado | DELTA-AUDIT-MARKER-politicas | 2026-08-21 - 15:31 |
+| changelog | Changelog - Processo Ágil no Azure DevOps × Processo-Agil implementado | https://app.notion.com/p/3c3412e08c2681b8b9fdcca04e04452b | ✅ publicado | DELTA-AUDIT-MARKER-changelog | 2026-08-21 - 15:31 |
+| apendice | Apêndice Técnico — Processo Organização Única × Processo-Agil implementado | https://app.notion.com/p/3c3412e08c2681dc81c1fbf0c7cac428 | ✅ publicado | DELTA-AUDIT-MARKER-apendice | 2026-08-21 - 15:32 |
 
 ## Evidências Arquivadas
 
-Cada página públicada tem seu conteúdo baixado para refereência local:
+Cada página publicada tem seu conteúdo arquivado para referência local:
 
 - `out/notion/leiame.fetched.md`
 - `out/notion/politicas.fetched.md`
