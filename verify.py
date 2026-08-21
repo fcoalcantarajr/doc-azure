@@ -274,6 +274,32 @@ def c4_tests() -> tuple[bool, str]:
 
 # ─── C5 Evidence integrity ─────────────────────────────────────────────────
 
+import unicodedata
+
+
+def _normalize_word(word: str) -> str:
+    """Remove accents for Portuguese/English matching."""
+    nfkd = unicodedata.normalize("NFKD", word)
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
+
+
+def _claim_keywords(claim_text: str) -> list[str]:
+    """Extract meaningful keywords from a pt-BR claim for substantiation matching."""
+    words = re.findall(r"[a-zA-ZÀ-ÿ]{4,}", claim_text)
+    stop = {
+        "como", "tipo", "item", "trabalho", "define", "campo", "descreve",
+        "menciona", "processo", "wiki", "principal",
+    }
+    kws = []
+    for w in words:
+        lw = w.lower()
+        normalized = _normalize_word(w)
+        if lw not in stop and normalized not in stop and len(lw) > 2:
+            kws.append(lw)
+            kws.append(normalized)  # Add accent-stripped version for matching
+    return list(dict.fromkeys(kws))[:8]  # dedupe, keep order, limit
+
+
 def c5_evidence() -> tuple[bool, str]:
     """Parse deltas/*.md. For every row: class is one of 4 literals.
     Every non-n/a evidence pointer resolves to existing file + line / JSON path.
@@ -343,10 +369,26 @@ def c5_evidence() -> tuple[bool, str]:
                         violations.append(
                             f"deltas/{slug}.md:{lineno} doc_evidence file not found: {doc_ev}"
                         )
-                    elif line_num > len(doc_file.read_text(encoding="utf-8").splitlines()):
-                        violations.append(
-                            f"deltas/{slug}.md:{lineno} doc_evidence line {line_num} out of range"
-                        )
+                    else:
+                        doc_lines = doc_file.read_text(encoding="utf-8").splitlines()
+                        if line_num > len(doc_lines) or line_num < 1:
+                            violations.append(
+                                f"deltas/{slug}.md:{lineno} doc_evidence line {line_num} out of range"
+                            )
+                        else:
+                            # Substantiation: claim keywords must appear in cited context (±10 lines)
+                            kws = _claim_keywords(claim)
+                            if kws:
+                                lo = max(0, line_num - 11)
+                                hi = min(len(doc_lines), line_num + 10)
+                                # Normalize context to ASCII for accent-insensitive matching
+                                context = " ".join(doc_lines[lo:hi]).lower()
+                                context_ascii = _normalize_word(context)
+                                if not any(kw in context or kw in context_ascii for kw in kws):
+                                    violations.append(
+                                        f"deltas/{slug}.md:{lineno} row {row_id}: "
+                                        f"claim not substantiated by {doc_ev}"
+                                    )
                 else:
                     violations.append(
                         f"deltas/{slug}.md:{lineno} malformed doc_evidence: {doc_ev}"
