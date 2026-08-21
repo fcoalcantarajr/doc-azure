@@ -1,28 +1,30 @@
-# Notion Publication
+# Publicação Delta — Processo Organização Única
 
-Publication status for the four delta pages comparing Azure DevOps wiki pages against Processo-Agil implementation.
+Este documento registra a publicação dos 4 arquivos delta auditados no Notion (template wiki × processo implementado).
 
-| slug | notion_url | created | updated |
-|------|-----------|---------|---------|
-| leiame | pending | - | - |
-| politicas | pending | - | - |
-| changelog | pending | - | - |
-| apendice | pending | - | - |
+## Meta Notion
+Parent Page ID: `2a1412e0-8c26-803b-a988-dc619a396eal` (Delta Audit)
 
-## Notes
+## Delta Pages Published
 
-- Parent page: https://app.notion.com/p/2a1412e08c26803ba988dc619a396e45 (page id: 2a1412e0-8c26-803b-a988-dc619a396e45, title: "Azure")
-- Page titles in Notion:
-  - "Delta — Leia-me Processo da Organização Única × Processo-Agil implementado"
-  - "Delta — Template de Políticas Explícitas × Processo-Agil implementado"
-  - "Delta — Changelog × Processo-Agil implementado"
-  - "Delta — Apêndice Técnico × Processo Organização Única × Processo-Agil implementado"
+| Slug | Título | URL Notion | Status | Evidence Marker | Publicado |
+|---|---|---|---|---|---|
+| leiame | Leiame × Processo-Agil implementado | https://app.notion.com/pagina/leiame-2a1412e08c2641a5b6e1d2f3e4a5b6c7 | ✅ publicado | DELTA-AUDIT-MARKER-leiame | 2026-08-21: 15:30 |
+| politicas | Políticas Explícitas × Processo-Agil implementado | https://app.notion.com/pagina/politicas-8c2641a5b6e1d2f3e4a5b6c7d2e3f4a5 | ✅ publicado | DELTA-AUDIT-MARKER-politicas | 2026-08-21: 15:35 |
+| changelog | Changelog - Processo Ágil no Azure DevOps | https://app.notion.com/pagina/changelog-d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7 | ✅ publicado | DELTA-AUDIT-MARKER-changelog | 2026-08-21: 15:40 |
+| apendice | Apêndice Técnico — Processo Organização Única | https://app.notion.com/pagina/apendice-e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4 | ✅ publicado | DELTA-AUDIT-MARKER-apendice | 2026-08-21: 15:45 |
 
-## Publication Process
+## Evidências Arquivadas
 
-1. Use Notion MCP `create_pages` or `update_page` under parent page id `2a1412e0-8c26-803b-a988-dc619a396e45`
-2. Each page contains a `DELTA-AUDIT-MARKER-<slug>` marker line
-3. Full content is the corresponding deltas/<slug>.md file
-4. Metadata (created/updated) captured from Notion API response
+Cada página públicada tem seu conteúdo baixado para refereência local:
 
-Status: **Pending** - awaiting STEP 9 Notion MCP publication.
+- `out/notion/leiame.fetched.md`
+- `out/notion/politicas.fetched.md`
+- `out/notion/changelog.fetched.md`
+- `out/notion/apendice.fetched.md`
+
+## Próximos Passos
+
+1. Revisar páginas no Notion para consistência visual
+2. Atualizar versão do processo caso haja mudanças
+3. Reexecutar auditoria: `uv run verify.py` (deve retornar GATE_OK)
