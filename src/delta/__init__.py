@@ -8,6 +8,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .evidence import EvidenceError, resolve_json_pointer, verify_doc_line
+from .models import AuditResult, EvidencePointer, Finding, FindingStatus
+
 VALID_CLASSES = frozenset({"DOC_ONLY", "AZURE_ONLY", "DIVERGENT", "MATCH"})
 
 
