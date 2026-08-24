@@ -201,6 +201,35 @@ def test_rejects_credential_query_keys_before_http(key: str) -> None:
     assert transport.requests == []
 
 
+@pytest.mark.parametrize(
+    "key",
+    (
+        "client_secret",
+        "password_hash",
+        "credential_blob",
+        "X-HTTP-Method-Override",
+    ),
+)
+def test_rejects_sensitive_and_method_override_query_metadata_before_http(
+    key: str,
+) -> None:
+    transport = SequencedTransport([])
+
+    async def scenario() -> tuple[RequestRecord, ...]:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            client = make_client(http)
+            with pytest.raises(AzureReadError, match="credential|method-override"):
+                await client.request_json(
+                    "GET", "/_apis/work/processes", query={key: "value"}
+                )
+            return client.request_records
+
+    records = asyncio.run(scenario())
+
+    assert transport.requests == []
+    assert records == ()
+
+
 def test_rejects_literal_encoded_or_authorization_query_values_without_leaking() -> None:
     pat = "a/b private value"
     basic = base64.b64encode(f":{pat}".encode()).decode()

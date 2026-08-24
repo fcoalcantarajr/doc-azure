@@ -522,7 +522,7 @@ def _validate_relative_path(relative_path: object) -> PurePosixPath:
     raw_path = str(relative_path)
     if (
         not raw_path
-        or "\x00" in raw_path
+        or any(unicodedata.category(character) == "Cc" for character in raw_path)
         or "\\" in raw_path
         or raw_path.startswith("/")
         or raw_path.endswith("/")

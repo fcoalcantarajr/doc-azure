@@ -119,6 +119,23 @@ _SENSITIVE_QUERY_KEYS = frozenset(
         "apikey",
     }
 )
+_METHOD_OVERRIDE_QUERY_KEYS = frozenset(
+    {
+        "method",
+        "methodoverride",
+        "httpmethod",
+        "httpmethodoverride",
+        "xhttpmethod",
+        "xhttpmethodoverride",
+        "xmethodoverride",
+    }
+)
+_SENSITIVE_QUERY_FRAGMENTS = (
+    "authorization",
+    "credential",
+    "password",
+    "secret",
+)
 _AUTHORIZATION_MATERIAL = re.compile(
     r"\b(?:proxy-)?authorization\s*[:=]\s*[^\r\n]*", re.IGNORECASE
 )
@@ -307,7 +324,9 @@ def _validated_query(
             raise AzureReadError("query contains credential material")
         normalized_key = re.sub(r"[^a-z0-9]", "", raw_key.casefold())
         if _is_sensitive_query_key(normalized_key):
-            raise AzureReadError("query contains credential material")
+            raise AzureReadError(
+                "query contains credential or method-override metadata"
+            )
         if raw_key.casefold() == "api-version":
             continue
         if value is not None and type(value) not in {str, int, float, bool}:
@@ -320,11 +339,17 @@ def _validated_query(
 
 
 def _is_sensitive_query_key(normalized_key: str) -> bool:
-    if normalized_key in _SENSITIVE_QUERY_KEYS:
-        return True
     if normalized_key == "continuationtoken":
         return False
-    return normalized_key.endswith("token") or "authorization" in normalized_key
+    return (
+        normalized_key in _SENSITIVE_QUERY_KEYS
+        or normalized_key in _METHOD_OVERRIDE_QUERY_KEYS
+        or normalized_key.endswith("token")
+        or any(
+            fragment in normalized_key
+            for fragment in _SENSITIVE_QUERY_FRAGMENTS
+        )
+    )
 
 
 def _copy_scalar(value: object) -> object:

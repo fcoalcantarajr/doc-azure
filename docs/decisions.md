@@ -179,3 +179,40 @@ process crashes around CURRENT publication. This task does not claim power-loss
 durability because files and parent directories are not fsynced. It also does
 not implement multiprocess stress tests or garbage collection; neither is
 required for Tasks 3–6, and retaining generations is the safer audit default.
+
+## Task 2 second scoped re-review — RED evidence
+
+Command: `uv run pytest
+tests/test_azure_client.py::test_rejects_sensitive_and_method_override_query_metadata_before_http
+tests/test_snapshot.py::test_rejects_noncanonical_or_reserved_artifact_paths -q`
+
+Result: `7 failed, 12 passed in 0.26s`. The four normalized query keys
+`client_secret`, `password_hash`, `credential_blob`, and
+`X-HTTP-Method-Override` reached the transport instead of failing before a
+request record. Snapshot paths containing newline, tab, or DEL were written
+instead of raising `SnapshotError`.
+
+## Task 2 second scoped re-review — GREEN evidence and rulings
+
+Focused command: `uv run pytest tests/test_azure_client.py
+tests/test_snapshot.py -q`
+
+Result: `102 passed in 0.15s` with no warnings.
+
+Compile command: `uv run python -m compileall -q src tests`
+
+Result: exit code 0 with no output.
+
+Full command: `uv run pytest -q`
+
+Result: `150 passed in 0.16s` with no warnings.
+
+Ruling: the exact normalized key `continuationtoken` remains allowed, but all
+other normalized keys are rejected when they contain `authorization`,
+`credential`, `password`, or `secret`, end in `token`, or match a normalized
+HTTP method-override alias. Rejection happens before both the transport and
+request-record append.
+
+Ruling: snapshot artifact paths reject every Unicode `Cc` control character,
+including NUL, newline, tab, DEL, and the C1 control range, before filesystem
+access.
