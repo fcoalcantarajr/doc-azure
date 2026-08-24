@@ -313,3 +313,12 @@ its empty staging directory and returns the competing complete snapshot with
 zero requests and no byte changes. Publication after the second check remains
 protected by `SnapshotWriter` compare-and-swap and fails stale rather than
 overwriting newer evidence.
+
+## User-added adversarial Notion AI gate
+
+Decision: before the four pages are updated, the final sanitized delta packet
+will receive two separate reviews in the Notion desktop app through the
+explicitly requested Computer Use plugin: Kimi K3 and Opus 5, both visibly set
+to maximum effort. Their findings must be reconciled against raw evidence and
+cannot substitute for the deterministic verifier. Missing model/effort, login,
+MFA, or CAPTCHA fails closed; no alternative surface or model is substituted.

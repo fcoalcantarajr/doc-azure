@@ -577,7 +577,7 @@ Commit: `docs(delta): publish evidence-backed audit reports`
 
 ---
 
-### Task 8: Update and verify Notion, then close the audit
+### Task 8: Adversarially review, update, and verify Notion, then close the audit
 
 **Files:**
 - Modify: `docs/notion-publication.md`
@@ -586,21 +586,44 @@ Commit: `docs(delta): publish evidence-backed audit reports`
 
 **Interfaces:**
 - Consumes: four prepared Notion bodies and publication manifest.
-- Produces: verified hub/four-page receipts and final gate evidence.
+- Produces: two model-specific adversarial review receipts, reconciled reports,
+  verified hub/four-page receipts, and final gate evidence.
 
 - [ ] **Step 1: Read the Notion enhanced Markdown specification**
 
 Fetch `notion://docs/enhanced-markdown-spec` through the Notion connector before any update.
 
-- [ ] **Step 2: Resolve the existing page hierarchy**
+- [ ] **Step 2: Run two adversarial reviews in the Notion desktop app**
+
+Use the explicitly requested Computer Use plugin to operate the Notion app.
+Create two separate Notion AI chats from the same sanitized review packet: the
+four prepared delta bodies, methodology/status definitions, and material
+limitations. Select exactly Kimi K3 in one chat and Opus 5 in the other, with
+maximum effort for each. Ask both to find unsupported conclusions, missing
+material comparisons, wrong evidence/status, historical claims inferred from
+current state, and publication risks. Verify the selected model and effort in
+the visible UI before sending. Do not silently substitute a model, effort, app,
+or connector; stop at login, MFA, CAPTCHA, missing model, or unavailable effort.
+Do not transmit raw employee records, credentials, or ignored evidence files.
+
+- [ ] **Step 3: Reconcile both model reviews against raw evidence**
+
+Record each chat receipt, verdict, and finding in ignored runtime evidence and
+summarize it in `docs/session-2026-08-24.md`. Resolve every material finding by
+checking the catalog and exact raw pointers; model agreement is not proof. If a
+finding changes the catalog or reports, rerun Tasks 5–7 builders, tests,
+verification, hashes, and Notion preparation before publication. Document
+rejected model advice with evidence.
+
+- [ ] **Step 4: Resolve the existing page hierarchy**
 
 Fetch the existing Azure parent, audit hub, and four child pages from the IDs/URLs in `docs/notion-publication.md`. Verify all report pages share the same direct parent. Do not create duplicates.
 
-- [ ] **Step 3: Update the four child pages**
+- [ ] **Step 5: Update the four child pages**
 
 Replace only each report page body with its prepared current Markdown. Keep titles and parent unchanged. Record returned page ID and URL.
 
-- [ ] **Step 4: Fetch and verify all five pages**
+- [ ] **Step 6: Fetch and verify all five pages**
 
 Fetch hub plus four children after update. Save sanitized snapshots/receipts under ignored `out/notion/`; run:
 
@@ -608,13 +631,13 @@ Fetch hub plus four children after update. Save sanitized snapshots/receipts und
 
 Expected: page IDs, common parent, URLs, and all four content hashes match.
 
-- [ ] **Step 5: Update publication/session docs and commit**
+- [ ] **Step 7: Update publication/session docs and commit**
 
 Record verified URLs, IDs, common parent, timestamps, hashes, and connector receipts without credentials.
 
 Commit: `docs(notion): record verified delta publication`
 
-- [ ] **Step 6: Final verification**
+- [ ] **Step 8: Final verification**
 
 Run fresh:
 
@@ -628,10 +651,10 @@ git status --short --branch
 
 Expected: test suite passes, verifier prints its success marker and exits zero, compilation is silent, diff check is clean, and the branch worktree is clean.
 
-- [ ] **Step 7: Independent whole-branch review**
+- [ ] **Step 9: Independent whole-branch review**
 
 Generate a review package from merge base `31078f9` to HEAD. The reviewer must inspect spec compliance, exact evidence truth, GET/optional-query boundary, secrets, reproducibility, Notion equivalence, documentation, and deferred ledger findings. Resolve every Critical/Important finding through one scoped fix wave and re-review.
 
-- [ ] **Step 8: Finish without unauthorized integration**
+- [ ] **Step 10: Finish without unauthorized integration**
 
 Use `superpowers:finishing-a-development-branch`. Do not merge, push, or remove the worktree automatically. Report branch, commits, test/gate evidence, Notion URLs, original `main` status, and every recorded ruling with its cost if wrong.
