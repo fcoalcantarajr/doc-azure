@@ -216,3 +216,50 @@ request-record append.
 Ruling: snapshot artifact paths reject every Unicode `Cc` control character,
 including NUL, newline, tab, DEL, and the C1 control range, before filesystem
 access.
+
+## Task 3 — RED evidence
+
+Command: `uv run pytest tests/test_wiki_collector.py -q`
+
+Result: collection failed as expected with `1 error in 0.08s` and
+`ModuleNotFoundError: No module named 'doc_azure.wiki_collector'`. This proves
+the cache-first wiki collector, exact page-ID plan, fail-closed validation, and
+atomic publication behavior did not exist before the Task 3 production change.
+
+## Task 3 — GREEN evidence and rulings
+
+Focused command: `uv run pytest tests/test_wiki_collector.py -q`
+
+Result: `13 passed in 0.10s` with no warnings.
+
+Full command: `uv run pytest -q`
+
+Result: `163 passed in 0.22s` with no warnings.
+
+Compile command: `uv run python -m compileall -q src tests
+scripts/01_fetch_wiki.py`
+
+Result: exit code 0 with no output. The standalone help command `uv run python
+scripts/01_fetch_wiki.py --help` also exited 0 without loading credentials or
+making a request.
+
+Ruling: `out/wiki` is a logical snapshot root. A non-refresh run resolves and
+validates the complete `CURRENT` generation before settings, PAT access, HTTP
+client construction, clock evaluation, or `asyncio.run`. A cache hit reports
+zero requests and leaves every logical-root byte, including `CURRENT`,
+unchanged.
+
+Ruling: the only requested pages are IDs 35, 10, 9, and 37 at the approved
+page-by-ID route with `includeContent=true`. Each response must carry its exact
+integer ID, a non-blank title, and non-blank string content. A 404, malformed
+response, or failed refresh aborts staging and cannot publish an empty stub or
+replace the previous generation.
+
+Ruling: Markdown content is stored verbatim in `<slug>.md`; every non-content
+response member is preserved semantically in `<slug>.metadata.json`. The
+manifest records only sanitized method/path receipts, with query values kept
+out of receipt paths.
+
+Rejected alternative: keep the old path-based, per-file cache. It could create
+empty 404 stubs, mix stale and refreshed files, load the PAT on complete cache
+hits, and offered no complete-snapshot identity for later evidence pointers.
