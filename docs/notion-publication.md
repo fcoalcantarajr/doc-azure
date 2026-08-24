@@ -28,10 +28,10 @@ receipts.
 
 | Slug | Prepared/report SHA-256 |
 | --- | --- |
-| `leiame` | `4cd0b1c76b5e67950d206989155191b229a3d696435a232315f97f99bb48b124` |
+| `leiame` | `0ed68ff1d706d1a46a9b331f622f0fae6cfbdab1cde5da6b5287e398f71969db` |
 | `politicas` | `76600376c81fe8cb0c64e804e8a5d1d374d973289e1f40b9cca442f751f13157` |
-| `changelog` | `139bf8cb1b4fa56da4f130a021f63f6acdd990e22adaf3a9896fd4e0b045c149` |
-| `apendice` | `827c50e5883a09e668a9d52ca89c354ffa2d4ba4e12643104d46e320074c8bf7` |
+| `changelog` | `497b87a21aac19df4c77861aa43602c4d6768564cf65bdcf265c223cefcf279d` |
+| `apendice` | `ffc1916547413f77e6559298a33231f6ccf01498bab3125427dc482cc619dc17` |
 
 ## Mandatory adversarial review gate
 

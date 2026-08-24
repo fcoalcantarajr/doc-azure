@@ -45,7 +45,8 @@ rejected before transport.
 Each claim declares one evaluator instead of a prose comparison. Supported
 evaluators cover exact JSON values and counts; filtered active WIT sets and
 required-field counts; WIT/state/field presence; exact state sequences and set
-equality; field/state properties; transition-field coverage; rule counts,
+equality; field/state properties; documented-versus-implemented field
+alternatives with exact identity and label pointers; transition-field coverage; rule counts,
 presence, and actions; layout controls and local order; unique technically
 custom field minima; exact technical context; explicit API limitations; and
 genuine ambiguity.

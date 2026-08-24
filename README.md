@@ -41,7 +41,7 @@ Outputs:
   `deltas/changelog.md`, and `deltas/apendice.md`;
 - ignored prepared Notion bodies and manifest: `out/notion`.
 
-The current audit evaluates 223 explicit claims backed by exact documentary
+The current audit evaluates 222 explicit claims backed by exact documentary
 fragments. Reports identify the wiki/process generations, collection times,
 manifest hashes, process name, and process UUID used for evaluation.
 

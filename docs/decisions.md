@@ -623,7 +623,7 @@ selected process generation `73fca39c089f4f729909385a432c6405`, collected at
 `2026-08-24T19:56:55.605291+00:00`, with complete manifest SHA-256
 `999c80597a527e1ba0316e2eeaffacaf0f17be172458d4609874cdadc5453987`.
 
-Ruling: the production catalog contains 223 source-backed claims. Technical
+Ruling: the production catalog contains 222 source-backed claims. Technical
 behavior ranks and WIT associations are current process facts, but remain
 `AMBIGUO` with respect to Flight Levels, real parentage, and board placement.
 Current configuration can corroborate a changelog claim, but cannot prove its
@@ -633,6 +633,14 @@ Ruling: the four reports were rebuilt twice from the same immutable generations
 and produced identical hashes. Local Notion preparation reproduced those exact
 hashes and `uv run python verify.py` returned `GATE_OK`. External Notion review,
 update, and connector read-back remain a separate Task 8 gate.
+
+Controller adjudication: generation `73fca39c089f4f729909385a432c6405`
+supersedes the earlier fixed generation
+`0a3d5d62e8384b039e238ab235da96b5`. The refresh used 109 GET-only receipts;
+all raw Azure payload bytes are identical between the generations, while only
+`manifest.json` and `artifact-map.json` changed to bind the corrected schema-2
+layout mapping. This recorded ruling, rather than reviewer prose, authorizes the
+new generation for final evaluation.
 
 ## Task 6 — independent adversarial review
 
