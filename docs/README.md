@@ -6,7 +6,9 @@ Audit project comparing Azure DevOps wiki pages against Processo-Agil implementa
 
 Compared 4 wiki pages (leiame, politicas, changelog, apendice) against the
 Processo-Agil custom process in the bancodonordeste org, produced delta markdown
-files, and published to Notion.
+files, and prepared the fixed existing Notion pages for publication. Publication
+remains pending until the mandatory dual-model adversarial review, reconciliation,
+connector update, and verified read-back all pass.
 
 ## Why
 

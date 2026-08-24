@@ -358,7 +358,7 @@ missing or unsafe `typeId` fail closed. The exact process response must repeat
 both the selected name and `typeId`.
 
 Ruling: `workitemtypes.json` preserves every active and disabled index entry.
-The deterministic plan requests fields, states, rules, direct layout, and WIT
+The deterministic plan requests fields, states, rules, expanded layout, and WIT
 behavior associations for every entry, using its validated `referenceName` in
 the modern 7.1 routes. Case-folded or Unicode-normalized route/file collisions
 are rejected. A versioned `artifact-map.json` records the raw identity and the
@@ -367,10 +367,14 @@ five evidence paths for downstream evaluators.
 Ruling: all fetched JSON objects are written to unpublished staging before
 shape interpretation and are published only after every response validates.
 List families use exact `count`/`value` envelopes, states use
-`stateCategory`, layout is a direct `pages` object, process behavior ranks are
-preserved, and behavior associations require `behavior.id` without inventing
-an optional `isLegacyDefault`. A 404 or malformed family names the failing
-artifact and aborts the generation.
+`stateCategory`, process behavior ranks are preserved, and behavior
+associations require `behavior.id` without inventing an optional
+`isLegacyDefault`. The original root-`pages` layout contract was superseded
+after the live direct-layout GET returned HTTP 400 for Test Case. Layout now
+uses the base Work Item Type GET with `$expand=layout`, preserves the complete
+raw WIT response, verifies its `referenceName`, and traverses
+`/layout/pages`. A 404 or malformed family names the failing artifact and
+aborts the generation.
 
 Ruling: a complete non-refresh snapshot returns before settings, PAT, client,
 clock, coroutine, or network work. A valid partial generation is copied through
@@ -603,6 +607,32 @@ effort in Notion AI. Per the user's explicit correction, this UI work must run
 only in the browser integrated into ChatGPT. The external Notion desktop app is
 not an authorized fallback. Missing exact model/effort controls or an
 authentication barrier fails the publication gate closed.
+
+## Task 7 — adversarial catalog reconciliation
+
+Ruling: compound documentary claims retain multiple exact fragments from one
+page hash instead of weakening evidence to a range or nearby-text search. Every
+fragment is verified and rendered. A confirmed current-state finding retains
+its cataloged limit when that limit qualifies historical chronology, practice,
+or semantics.
+
+Ruling: artifact-map schema 2 is required because layout artifacts now preserve
+the complete expanded WIT response. Old schema-1 layout evidence fails closed;
+it is never reinterpreted or rewritten in place. The successful GET-only refresh
+selected process generation `73fca39c089f4f729909385a432c6405`, collected at
+`2026-08-24T19:56:55.605291+00:00`, with complete manifest SHA-256
+`999c80597a527e1ba0316e2eeaffacaf0f17be172458d4609874cdadc5453987`.
+
+Ruling: the production catalog contains 223 source-backed claims. Technical
+behavior ranks and WIT associations are current process facts, but remain
+`AMBIGUO` with respect to Flight Levels, real parentage, and board placement.
+Current configuration can corroborate a changelog claim, but cannot prove its
+date, authorship, sequence, or causal account.
+
+Ruling: the four reports were rebuilt twice from the same immutable generations
+and produced identical hashes. Local Notion preparation reproduced those exact
+hashes and `uv run python verify.py` returned `GATE_OK`. External Notion review,
+update, and connector read-back remain a separate Task 8 gate.
 
 ## Task 6 — independent adversarial review
 

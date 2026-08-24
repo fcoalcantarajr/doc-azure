@@ -22,6 +22,17 @@ reports pass the offline build. The script writes ignored prepared bodies and a
 manifest below `out/notion`; it performs no external operation and does not
 claim publication.
 
+The 2026-08-24 local handoff is prepared from the verified report hashes below.
+These hashes prove local identity only; they are not external publication
+receipts.
+
+| Slug | Prepared/report SHA-256 |
+| --- | --- |
+| `leiame` | `4cd0b1c76b5e67950d206989155191b229a3d696435a232315f97f99bb48b124` |
+| `politicas` | `76600376c81fe8cb0c64e804e8a5d1d374d973289e1f40b9cca442f751f13157` |
+| `changelog` | `139bf8cb1b4fa56da4f130a021f63f6acdd990e22adaf3a9896fd4e0b045c149` |
+| `apendice` | `827c50e5883a09e668a9d52ca89c354ffa2d4ba4e12643104d46e320074c8bf7` |
+
 ## Mandatory adversarial review gate
 
 Before any page update, review the prepared reports in two independent Notion

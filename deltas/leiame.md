@@ -1,17 +1,47 @@
-# Delta — Leiame × Processo-Agil implementado
-
-Gerado automaticamente pelo audit.
+# Delta — Leia-me Processo da Organização Única × Processo-Agil implementado
 
 DELTA-AUDIT-MARKER-leiame
-| id | claim (pt-BR) | class | doc_evidence | azure_evidence | consequence |
-| --- | --- | --- | --- | --- | --- |
-| R001 | O wiki menciona 'Bug' como tipo de item de trabalho | MATCH | out/wiki/leiame.md#L21 | out/process/Bug.json#/count |  |
-| R002 | O wiki descreve História de Usuário como WIT principal | MATCH | out/wiki/leiame.md#L84 | out/process/História_de_Usuário.json#/count |  |
-| R003 | Processo rastreia estado dos itens no Azure DevOps | MATCH | out/wiki/leiame.md#L311 | out/process/História_de_Usuário.json#/count |  |
-| R004 | O wiki descreve o processo como 'Processo-Agil' | MATCH | out/wiki/leiame.md#L144 | out/process/process.json#/name |  |
-| R005 | O wiki descreve 7 níveis de Flight Levels | DOC_ONLY | out/wiki/leiame.md#L54 | n/a | Conceitos estratégicos ou governança não são representados na API de processo. |
-SUMMARY
-DOC_ONLY=1
-AZURE_ONLY=0
-DIVERGENT=0
-MATCH=4
+
+## Metodologia e status
+
+Este relatório compara afirmações documentais explícitas com a configuração atual coletada do Processo-Agil. Cada achado preserva os apontadores exatos das evidências usadas na comparação.
+
+- `CONFIRMADO`: a documentação e a configuração atual concordam.
+- `DIVERGENTE`: a documentação e a configuração atual são comparáveis, mas diferem.
+- `NAO_VERIFICAVEL_API_PROCESSO`: a API de processo não consegue comprovar a afirmação.
+- `AMBIGUO`: a evidência disponível admite mais de uma interpretação material.
+
+## Proveniência dos snapshots
+
+- Wiki: coletada em `2026-08-24T18:25:50.043008+00:00`; geração `1597553afc864b3a9abf828eeda50793`; SHA-256 do manifesto `0863597d1a109c0b470e6a705fb8f6f87143ed91140095bec7d5d4fc9c2af9a1`.
+- Processo: coletado em `2026-08-24T19:56:55.605291+00:00`; geração `73fca39c089f4f729909385a432c6405`; SHA-256 do manifesto `999c80597a527e1ba0316e2eeaffacaf0f17be172458d4609874cdadc5453987`.
+- Processo avaliado: `Processo-Agil` (ID `9d82e632-9028-4a6b-86f8-3edb3281cb15`).
+- Os caminhos lógicos `out/wiki/...` e `out/process/...` resolvem pelas gerações imutáveis identificadas acima.
+
+## Resumo por status
+
+| Status | Quantidade |
+| --- | ---: |
+| CONFIRMADO | 3 |
+| DIVERGENTE | 1 |
+| NAO_VERIFICAVEL_API_PROCESSO | 6 |
+| AMBIGUO | 4 |
+
+## Achados detalhados
+
+| ID | Achado | Status | Documentado | Implementado | Evidência documental | Evidência Azure | Impacto ou limite |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 35-PROCESS-001 | Identidade do processo customizado | CONFIRMADO | Processo-Agil | Processo-Agil | out/wiki/leiame.md#L144 | out/process/process.json#/name | Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental. |
+| 35-WITS-001 | Inventário ativo de Work Item Types | CONFIRMADO | 12 WITs de negócio | ["Custom.6e7885f2-afb5-4d19-8763-084dd2f934be", "Custom.a21aba08-34d1-4bde-80dc-90bb8371be5d", "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb", "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4", "Processo-Agil.Incidente", "Processo-Kanban.AtendimentoExpresso", "Processo-Kanban.Bug", "Processo-Kanban.Iniciativa", "Processo-Kanban.Kaizen", "Processo-Kanban.ProblemaouOportunidade", "Processo-Kanban.ResultadoChave", "Processo-Kanban.Tarefa"] | out/wiki/leiame.md#L129<br>out/wiki/leiame.md#L131<br>out/wiki/leiame.md#L132<br>out/wiki/leiame.md#L133<br>out/wiki/leiame.md#L134<br>out/wiki/leiame.md#L135<br>out/wiki/leiame.md#L136<br>out/wiki/leiame.md#L137<br>out/wiki/leiame.md#L138<br>out/wiki/leiame.md#L139<br>out/wiki/leiame.md#L140<br>out/wiki/leiame.md#L141<br>out/wiki/leiame.md#L142 | out/process/artifact-map.json#/work_item_types | A comparação exclui os três WITs de teste ativos com customization=system. Seis WITs desabilitados são contexto de implementação e não integram o inventário documental ativo. |
+| 35-HIER-001 | Cadeia hierárquica completa em sete níveis | NAO_VERIFICAVEL_API_PROCESSO | 7 níveis parent-child | Os endpoints coletados expõem WITs e associações de behavior, não a cadeia parent-child completa. | out/wiki/leiame.md#L54 | n/a | A API de processo não contém evidência suficiente para confirmar esta prática organizacional. |
+| 35-HIER-002 | Equivalência entre Flight Levels e behaviors do Azure | AMBIGUO | 7 níveis em 3 Flight Levels | Ranks e associações de behavior existem, mas não codificam diretamente os sete níveis descritos. | out/wiki/leiame.md#L91 | n/a | A equivalência precisa de uma regra documental de mapeamento entre níveis e behaviors. |
+| 35-BOARD-001 | Política de mapeamento entre estados e colunas | NAO_VERIFICAVEL_API_PROCESSO | 1 estado para N colunas | A API de processo não expõe a configuração de colunas de cada board de squad. | out/wiki/leiame.md#L205 | n/a | A regra depende de configurações de boards, fora do snapshot do processo herdado. |
+| 35-BLOCK-001 | Quantidade de WITs ativos com Bloqueado obrigatório | DIVERGENTE | 10 WITs operacionais | 8 WITs ativos: Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb, Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4, Processo-Agil.Incidente, Processo-Kanban.AtendimentoExpresso, Processo-Kanban.Bug, Processo-Kanban.Kaizen, Processo-Kanban.ProblemaouOportunidade, Processo-Kanban.Tarefa | out/wiki/leiame.md#L318 | out/process/artifact-map.json#/work_item_types<br>out/process/workitemtypes/Custom.6e7885f2-afb5-4d19-8763-084dd2f934be/fields.json#/value<br>out/process/workitemtypes/Custom.a21aba08-34d1-4bde-80dc-90bb8371be5d/fields.json#/value<br>out/process/workitemtypes/Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb/fields.json#/value/20/required<br>out/process/workitemtypes/Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4/fields.json#/value/20/required<br>out/process/workitemtypes/Processo-Agil.Incidente/fields.json#/value/15/required<br>out/process/workitemtypes/Processo-Kanban.AtendimentoExpresso/fields.json#/value/18/required<br>out/process/workitemtypes/Processo-Kanban.Bug/fields.json#/value/5/required<br>out/process/workitemtypes/Processo-Kanban.Iniciativa/fields.json#/value<br>out/process/workitemtypes/Processo-Kanban.Kaizen/fields.json#/value/16/required<br>out/process/workitemtypes/Processo-Kanban.ProblemaouOportunidade/fields.json#/value/15/required<br>out/process/workitemtypes/Processo-Kanban.ResultadoChave/fields.json#/value<br>out/process/workitemtypes/Processo-Kanban.Tarefa/fields.json#/value/18/required | A API encontra oito WITs de negócio ativos com o campo obrigatório; somente sete pertencem à camada operacional nomeada pelo documento. A linha não identifica quais seriam os dez. |
+| 35-FIELDS-001 | Piso global de campos tecnicamente customizados | CONFIRMADO | 50+ campos customizados | 209 campos tecnicamente customizados únicos | out/wiki/leiame.md#L293 | out/process/workitemtypes/Custom.6e7885f2-afb5-4d19-8763-084dd2f934be/fields.json#/value<br>out/process/workitemtypes/Processo-Kanban.ResultadoChave/fields.json#/value<br>out/process/workitemtypes/Processo-Kanban.Iniciativa/fields.json#/value<br>out/process/workitemtypes/Processo-Kanban.ProblemaouOportunidade/fields.json#/value<br>out/process/workitemtypes/Custom.a21aba08-34d1-4bde-80dc-90bb8371be5d/fields.json#/value<br>out/process/workitemtypes/Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4/fields.json#/value<br>out/process/workitemtypes/Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb/fields.json#/value<br>out/process/workitemtypes/Processo-Kanban.AtendimentoExpresso/fields.json#/value<br>out/process/workitemtypes/Processo-Agil.Incidente/fields.json#/value<br>out/process/workitemtypes/Processo-Kanban.Kaizen/fields.json#/value<br>out/process/workitemtypes/Processo-Kanban.Bug/fields.json#/value<br>out/process/workitemtypes/Processo-Kanban.Tarefa/fields.json#/value | A união usa referenceName único apenas quando customization=custom nos doze WITs de negócio ativos; não valida a classificação funcional. |
+| 35-DATES-001 | Campo de entrada em estado na História de Usuário | AMBIGUO | presente | A linha define famílias genéricas, mas não declara quais WITs devem implementá-las. | out/wiki/leiame.md#L311 | n/a | O escopo exato é avaliado somente onde changelog e apêndice nomeiam os WITs; esta linha genérica não pode ser atribuída a HU isoladamente. |
+| 35-DATES-002 | Campo de saída de estado na História de Usuário | AMBIGUO | presente | A linha define famílias genéricas, mas não declara quais WITs devem implementá-las. | out/wiki/leiame.md#L311 | n/a | O escopo exato é avaliado somente onde changelog e apêndice nomeiam os WITs; esta linha genérica não pode ser atribuída a HU isoladamente. |
+| 35-JOB-001 | Execução do script diário de horas | NAO_VERIFICAVEL_API_PROCESSO | script diário ativo | O snapshot do processo não informa execução, agenda ou sucesso de pipeline externo. | out/wiki/leiame.md#L81 | n/a | Presença de campos ou regras não prova que o job externo esteja ativo. |
+| 35-ROLLOUT-001 | Adoção por onze squads | NAO_VERIFICAVEL_API_PROCESSO | 11 squads migradas | A API de processo não mede adoção ou migração por squad. | out/wiki/leiame.md#L10 | n/a | A API de processo não contém evidência suficiente para confirmar esta prática organizacional. |
+| 35-BENEFITS-001 | Benefícios organizacionais declarados | NAO_VERIFICAVEL_API_PROCESSO | benefícios de governança e eficiência | Metadados de processo não medem custos, retrabalho, compliance ou benefícios realizados. | out/wiki/leiame.md#L73 | n/a | A API de processo não contém evidência suficiente para confirmar esta prática organizacional. |
+| 35-ROLES-001 | Atribuições e próximos passos por papel | NAO_VERIFICAVEL_API_PROCESSO | orientações por papel | A API de processo não registra responsabilidades organizacionais ou adesão às orientações. | out/wiki/leiame.md#L394 | n/a | A API de processo não contém evidência suficiente para confirmar esta prática organizacional. |
+| 35-FIELDS-002 | Seis categorias funcionais de campos | AMBIGUO | 6 categorias funcionais | A API de processo não expõe metadados de categoria funcional para os campos. | out/wiki/leiame.md#L293 | n/a | A contagem técnica não confirma a taxonomia editorial de seis categorias. |

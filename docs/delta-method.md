@@ -17,11 +17,12 @@ current process API as historical evidence.
 | 37 | `apendice` | Apêndice Técnico Processo Organização Única |
 
 `config/wiki_claims.json` is the versioned comparison contract. Every entry
-contains a stable ID, page and slug, material finding, exact source path, exact
-line and excerpt, full source SHA-256, documented value, one typed evaluator,
-and an explicit limit. The strict loader rejects unknown fields, unsupported
-evaluator kinds, duplicate IDs, inconsistent page/slug/path identities, and
-malformed evaluator parameters.
+contains a stable ID, page and slug, material finding, one or more exact source
+fragments from the same page/hash, documented value, one typed evaluator, and
+an explicit limit. Compound claims preserve every exact source line required to
+prove both property and scope. The strict loader rejects unknown fields,
+unsupported evaluator kinds, duplicate IDs, inconsistent page/slug/path
+identities, mixed fragment hashes, and malformed evaluator parameters.
 
 ## Evidence snapshots
 
@@ -42,12 +43,15 @@ rejected before transport.
 ## Typed evaluation
 
 Each claim declares one evaluator instead of a prose comparison. Supported
-evaluators cover exact JSON values, counts, active work-item-type sets,
-work-item-type/state/field presence, field requiredness, rule counts, layout
-controls, behavior ranks, explicit API limitations, and genuine ambiguity.
+evaluators cover exact JSON values and counts; filtered active WIT sets and
+required-field counts; WIT/state/field presence; exact state sequences and set
+equality; field/state properties; transition-field coverage; rule counts,
+presence, and actions; layout controls and local order; unique technically
+custom field minima; exact technical context; explicit API limitations; and
+genuine ambiguity.
 
-Before evaluation, the documentary source hash, line number, and complete line
-text must all match. Process values are read only from manifested artifacts.
+Before evaluation, every documentary source hash, line number, and complete
+line text must match. Process values are read only from manifested artifacts.
 JSON pointers use RFC 6901 and resolve to the exact compared value. Presence
 and numeric checks are type-strict, so Boolean values cannot silently equal
 integers. The artifact map is schema-checked and its process name and ID must
@@ -79,12 +83,15 @@ uv run python scripts/03_build_delta.py
 The builder performs no network operation. It loads every catalog claim,
 revalidates both snapshot families, evaluates claims in catalog order, renders
 one Brazilian-Portuguese report per fixed slug, stages all four files, and
-atomically replaces each destination. The same inputs produce identical UTF-8
-bytes. Catalog, evidence, evaluator, and rendering failures stop before any
-replacement. If a later file replacement fails, verified backups restore every
-file already replaced. This rollback protects ordinary I/O failures; it does
-not claim a single filesystem transaction across four paths if the process or
-machine terminates between replacements.
+atomically replaces each destination. Every report records both collection
+times, generation IDs, manifest hashes, and the exact process identity. The
+builder re-reads provenance after evaluation and aborts if either selected
+generation changed. The same inputs produce identical UTF-8 bytes. Catalog,
+evidence, evaluator, and rendering failures stop before any replacement. If a
+later file replacement fails, verified backups restore every file already
+replaced. This rollback protects ordinary I/O failures; it does not claim a
+single filesystem transaction across four paths if the process or machine
+terminates between replacements.
 
 Custom local paths are explicit:
 

@@ -158,12 +158,19 @@ post-publication cleanup failures from changing a successful result.
 ---
 
 ### Layout of a Work Item Type
-- Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}/workitemtypes/{witRefName}/layout?api-version=7.1`
-- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/layouts/get?view=azure-devops-rest-7.1
-- Query params: `api-version`
-- Response shape: Returns the process `FormLayout` with pages, sections,
+- Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}/workitemtypes/{witRefName}?$expand=layout&api-version=7.1`
+- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/work-item-types/get?view=azure-devops-rest-7.1
+- Query params: `api-version`, `$expand=layout`
+- Response shape: Returns the complete raw `ProcessWorkItemType`, including
+  its identity and nested `layout` property. `layout.pages` contains sections,
   groups, and controls.
-- Notes: Layout controls form tabs, groups, columns, and controls.
+- Notes: The direct documented `.../{witRefName}/layout` GET returned HTTP 400
+  for the inherited system Test Case WIT in the live organization. The equally
+  documented base-WIT GET with `$expand=layout` returned that WIT and its layout
+  successfully. The collector therefore uses the latter for every WIT, keeps
+  the complete raw response, and verifies `referenceName` before traversing
+  `/layout/pages`. This is an observed compatibility choice, not a claim that
+  the direct endpoint is undocumented or universally unsupported.
 
 ---
 
@@ -209,9 +216,12 @@ A current process snapshot contains four raw global responses
 (`processes.json`, `process.json`, `workitemtypes.json`, and `behaviors.json`),
 one versioned `artifact-map.json`, and fields, states, rules, layout, and WIT
 behavior-association payloads for every indexed work-item type, including
-disabled types. Lists must be `count`/`value` envelopes; layout is the direct
-`pages` object. A 404 or malformed family aborts staging instead of becoming an
-empty list.
+disabled types. Lists must be `count`/`value` envelopes; each layout artifact is
+the complete expanded Work Item Type response with matching `referenceName` and
+nested `layout.pages`. A 404 or malformed family aborts staging instead of
+becoming an empty list. Artifact-map schema 2 distinguishes these expanded raw
+responses from the earlier root-`pages` layout shape. A non-refresh run reuses
+other valid evidence but refetches stale layout artifacts before publication.
 
 Without `--refresh`, a complete snapshot is returned before settings, PAT,
 client, clock, or coroutine creation. A valid partial generation is copied into
@@ -229,7 +239,7 @@ the previously selected CURRENT generation unchanged.
 3. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/work-item-types/list
 4. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/states/list
 5. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/fields/get-work-item-type-fields?view=azure-devops-rest-7.1
-6. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/layouts/get?view=azure-devops-rest-7.1
+6. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/work-item-types/get?view=azure-devops-rest-7.1
 7. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/rules/list
 8. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/work-item-types-behaviors/list?view=azure-devops-rest-7.1
 9. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/behaviors/list
