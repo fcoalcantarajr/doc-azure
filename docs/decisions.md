@@ -420,3 +420,47 @@ Result: exit code 0 with no output. Corrected validation now requires the
 official nested layout chain, `referenceName` plus integer `rank` for global
 behaviors, `behavior.id` plus boolean `isDefault` for associations, and boolean
 types for optional `required` and `isLegacyDefault` only when those keys exist.
+
+## Task 4 adversarial cleanup — RED evidence
+
+Command: `.venv/bin/pytest
+tests/test_process_collector.py::test_process_selection_rejects_non_uuid_type_id
+tests/test_process_collector.py::test_failed_artifact_cancels_and_awaits_siblings_before_abort
+-q`
+
+Result: `2 failed in 0.13s`. The selector accepted the documented `typeId`
+field even when it was not a UUID. Separately, the first artifact failure
+escaped `asyncio.gather` while a sibling request remained live; the outer abort
+therefore ran before sibling cancellation and cleanup completed. The direct
+virtual-environment pytest entry point was used for this RED observation only
+because the sandboxed `uv run` process could not access uv's existing cache;
+all GREEN and completion gates still require the documented `uv run` commands.
+
+## Task 4 adversarial cleanup — GREEN evidence
+
+Focused command: `env UV_CACHE_DIR=/private/tmp/doc-azure-uv-cache uv run
+--no-sync pytest tests/test_process_collector.py -q`
+
+Result: `25 passed in 0.14s` with no warnings.
+
+Full command: `env UV_CACHE_DIR=/private/tmp/doc-azure-uv-cache uv run
+--no-sync pytest -q`
+
+Result: `199 passed in 0.35s` with no warnings.
+
+Compile command: `env UV_CACHE_DIR=/private/tmp/doc-azure-uv-cache uv run
+--no-sync python -m compileall -q src scripts tests`
+
+Result: exit code 0 with no output. The `--no-sync` and temporary cache path
+only isolate uv from sandbox-inaccessible user cache metadata; the existing
+lockfile-managed virtual environment remains the execution environment.
+
+Ruling: the process `typeId` must be both a safe route segment and parseable as
+a UUID. Its original text is preserved for route construction and evidence.
+Artifact fetches are explicit tasks; on any exception or cancellation, every
+sibling is cancelled and awaited with `return_exceptions=True` before the
+original exception reaches the outer snapshot-abort boundary.
+
+Independent scoped review verdict: `APPROVED`. The reviewer confirmed that the
+cleanup settles sibling tasks before snapshot abort and that UUID validation
+blocks arbitrary route identifiers while preserving the literal API identity.

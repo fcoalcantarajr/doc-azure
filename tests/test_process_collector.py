@@ -35,7 +35,7 @@ FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "audit"
 PROCESS_FIXTURE_ROOT = FIXTURE_ROOT / "process"
 SCRIPT_PATH = Path(__file__).parents[1] / "scripts" / "02_fetch_process.py"
 COLLECTED_AT = datetime(2026, 8, 24, 16, 45, tzinfo=timezone.utc)
-PROCESS_ID = "process-123"
+PROCESS_ID = "9b6f2d8e-8d31-4f26-a781-8e2a9e9a0f47"
 EPIC_REFERENCE = "Microsoft.VSTS.WorkItemTypes.Epic"
 USER_STORY_REFERENCE = "Custom.UserStory"
 
@@ -129,6 +129,53 @@ class FixtureClient:
         return copy.deepcopy(self.payloads[path])
 
 
+class CoordinatedFailureClient(FixtureClient):
+    """Hold one request open until a sibling fails, exposing task cleanup."""
+
+    def __init__(self, *, failure_path: str, blocked_path: str) -> None:
+        super().__init__()
+        self.failure_path = failure_path
+        self.blocked_path = blocked_path
+        self.blocked_started = asyncio.Event()
+        self.blocked_cancelled = False
+        self.active_special_requests = 0
+
+    async def request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        query: Mapping[str, object] | None = None,
+        body: Mapping[str, object] | None = None,
+    ) -> dict[str, object]:
+        if path not in {self.failure_path, self.blocked_path}:
+            return await super().request_json(
+                method,
+                path,
+                query=query,
+                body=body,
+            )
+
+        assert method == "GET"
+        assert query is None
+        assert body is None
+        self.calls.append(path)
+        self._request_records.append(RequestRecord("GET", path))
+        self.active_special_requests += 1
+        try:
+            if path == self.blocked_path:
+                self.blocked_started.set()
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    self.blocked_cancelled = True
+                    raise
+            await self.blocked_started.wait()
+            raise AzureReadError("coordinated artifact failure")
+        finally:
+            self.active_special_requests -= 1
+
+
 def expected_artifacts() -> dict[str, dict[str, object]]:
     payloads = fixture_payloads()
     plan = ProcessCollectionPlan.from_index(load_index())
@@ -220,6 +267,15 @@ def test_process_selection_rejects_missing_type_id() -> None:
     del selected["typeId"]  # type: ignore[index]
 
     with pytest.raises(ProcessCollectionError, match="typeId"):
+        select_process_id(payload)
+
+
+def test_process_selection_rejects_non_uuid_type_id() -> None:
+    payload = load_json(PROCESS_FIXTURE_ROOT / "processes.json")
+    selected = payload["value"][1]  # type: ignore[index]
+    selected["typeId"] = "process-123"  # type: ignore[index]
+
+    with pytest.raises(ProcessCollectionError, match="UUID"):
         select_process_id(payload)
 
 
@@ -340,7 +396,10 @@ def test_partial_cache_fetches_only_missing_artifacts_and_seeds_bytes_verbatim(
         for request in plan.requests_for("História de Usuário")
         if request.kind == "rules"
     )
-    unusual_process_text = '{"name":"Processo-Agil", "typeId":"process-123"}\n'
+    unusual_process_text = (
+        '{"name":"Processo-Agil", '
+        f'"typeId":"{PROCESS_ID}"}}\n'
+    )
     seed_process_snapshot(
         tmp_path,
         omitted=frozenset({epic_fields, user_story_rules}),
@@ -384,6 +443,33 @@ def test_404_names_the_failed_artifact_and_does_not_publish(tmp_path: Path) -> N
 
     logical_root = tmp_path / "out" / "process"
     assert not (logical_root / "CURRENT").exists()
+
+
+def test_failed_artifact_cancels_and_awaits_siblings_before_abort(
+    tmp_path: Path,
+) -> None:
+    plan = ProcessCollectionPlan.from_index(load_index())
+    failure_request = plan.requests[0]
+    blocked_request = plan.requests[1]
+    client = CoordinatedFailureClient(
+        failure_path=failure_request.api_path(PROCESS_ID),
+        blocked_path=blocked_request.api_path(PROCESS_ID),
+    )
+
+    async def exercise() -> None:
+        with pytest.raises(ProcessArtifactError, match="coordinated"):
+            await collect_process(
+                tmp_path,
+                client,
+                refresh=False,
+                now=fixed_now,
+            )
+        assert client.blocked_started.is_set()
+        assert client.blocked_cancelled is True
+        assert client.active_special_requests == 0
+
+    asyncio.run(exercise())
+    assert not (tmp_path / "out" / "process" / "CURRENT").exists()
 
 
 def test_malformed_family_aborts_instead_of_becoming_an_empty_list(

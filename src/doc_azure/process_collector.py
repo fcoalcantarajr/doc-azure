@@ -10,6 +10,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from uuid import UUID
 
 from doc_azure.azure_client import AzureReadClient, AzureReadError, RequestRecord
 from doc_azure.snapshot import (
@@ -66,7 +67,7 @@ class ArtifactRequest:
     def api_path(self, process_id: str) -> str:
         """Return the exact Azure DevOps 7.1 route for this artifact."""
 
-        _validate_route_segment(process_id, label="process typeId")
+        _validate_process_id(process_id)
         if self.kind == "behaviors":
             return (
                 f"/_apis/work/processes/{process_id}/workitemtypesbehaviors/"
@@ -131,7 +132,7 @@ class ProcessCollectionPlan:
     def mapping_payload(self, process_id: str) -> dict[str, object]:
         """Return the versioned reference-name-to-artifact mapping."""
 
-        _validate_route_segment(process_id, label="process typeId")
+        _validate_process_id(process_id)
         return {
             "schema_version": MAPPING_SCHEMA_VERSION,
             "process_name": PROCESS_NAME,
@@ -205,7 +206,7 @@ def select_process_id(processes_payload: Mapping[str, object]) -> str:
     process_id = matches[0].get("typeId")
     if not isinstance(process_id, str) or not process_id.strip():
         raise ProcessCollectionError("selected process has an invalid typeId")
-    _validate_route_segment(process_id, label="process typeId")
+    _validate_process_id(process_id)
     return process_id
 
 
@@ -299,11 +300,11 @@ async def collect_process(
             else:
                 missing_requests.append(request)
 
-        fetched = await asyncio.gather(
-            *(
-                _fetch_artifact(writer, client, request, process_id)
-                for request in missing_requests
-            )
+        fetched = await _fetch_missing_artifacts(
+            writer,
+            client,
+            tuple(missing_requests),
+            process_id,
         )
         if len(fetched) != len(missing_requests):
             raise AssertionError("artifact request and response counts diverged")
@@ -404,6 +405,27 @@ async def _fetch_artifact(
         raise ProcessArtifactError(
             f"{request.kind} artifact is malformed: {error}"
         ) from None
+
+
+async def _fetch_missing_artifacts(
+    writer: SnapshotWriter,
+    client: AzureReadClient,
+    requests: tuple[ArtifactRequest, ...],
+    process_id: str,
+) -> tuple[dict[str, object], ...]:
+    """Fetch one family set and settle every task before returning or raising."""
+
+    tasks = tuple(
+        asyncio.create_task(_fetch_artifact(writer, client, request, process_id))
+        for request in requests
+    )
+    try:
+        return tuple(await asyncio.gather(*tasks))
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
 
 
 def _load_snapshot_state(logical_root: Path) -> _SnapshotState | None:
@@ -516,6 +538,14 @@ def _validate_route_segment(value: str, *, label: str) -> None:
         or any(unicodedata.category(character) == "Cc" for character in value)
     ):
         raise ProcessCollectionError(f"{label} is not a safe path segment")
+
+
+def _validate_process_id(value: str) -> None:
+    _validate_route_segment(value, label="process typeId")
+    try:
+        UUID(value)
+    except ValueError:
+        raise ProcessCollectionError("process typeId is not a UUID") from None
 
 
 def _validate_process(payload: Mapping[str, object], process_id: str) -> None:

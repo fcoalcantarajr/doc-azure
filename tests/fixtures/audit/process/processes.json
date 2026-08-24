@@ -2,15 +2,15 @@
   "count": 2,
   "value": [
     {
-      "typeId": "system-agile",
+      "typeId": "adcc42ab-9882-485e-a3ed-7678f01f66bc",
       "name": "Agile",
       "customizationType": "system"
     },
     {
-      "typeId": "process-123",
+      "typeId": "9b6f2d8e-8d31-4f26-a781-8e2a9e9a0f47",
       "name": "Processo-Agil",
       "customizationType": "inherited",
-      "parentProcessTypeId": "system-agile"
+      "parentProcessTypeId": "adcc42ab-9882-485e-a3ed-7678f01f66bc"
     }
   ]
 }
