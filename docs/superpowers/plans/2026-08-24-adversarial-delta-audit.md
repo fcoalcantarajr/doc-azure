@@ -283,7 +283,7 @@ Run: `uv run pytest tests/test_wiki_collector.py -q`
 
 Run the fixture entry point twice in a temporary root through the test; assert second-run request count zero and identical hashes.
 
-- [ ] **Step 6: Commit exact paths**
+- [x] **Step 6: Commit exact paths**
 
 Commit: `fix(wiki): make page collection cache-first`
 
