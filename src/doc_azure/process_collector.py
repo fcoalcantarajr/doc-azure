@@ -30,7 +30,7 @@ GLOBAL_ARTIFACT_PATHS = (
 )
 MAPPING_ARTIFACT_PATH = "artifact-map.json"
 ARTIFACT_KINDS = ("fields", "states", "rules", "layout", "behaviors")
-MAPPING_SCHEMA_VERSION = 1
+MAPPING_SCHEMA_VERSION = 2
 
 
 class ProcessCollectionError(RuntimeError):
@@ -68,6 +68,11 @@ class ArtifactRequest:
         """Return the exact Azure DevOps 7.1 route for this artifact."""
 
         _validate_process_id(process_id)
+        if self.kind == "layout":
+            return (
+                f"/_apis/work/processes/{process_id}/workitemtypes/"
+                f"{self.reference_name}"
+            )
         if self.kind == "behaviors":
             return (
                 f"/_apis/work/processes/{process_id}/workitemtypesbehaviors/"
@@ -77,6 +82,13 @@ class ArtifactRequest:
             f"/_apis/work/processes/{process_id}/workitemtypes/"
             f"{self.reference_name}/{self.kind}"
         )
+
+    def api_query(self) -> dict[str, object] | None:
+        """Return the read-only query required by this evidence family."""
+
+        if self.kind == "layout":
+            return {"$expand": "layout"}
+        return None
 
 
 @dataclass(frozen=True)
@@ -282,8 +294,10 @@ async def collect_process(
         _validate_process_behaviors(process_behaviors)
 
         mapping = plan.mapping_payload(process_id)
+        prior_mapping_is_current = prior_state is None
         if prior_state is not None and prior_state.has(MAPPING_ARTIFACT_PATH):
             cached_mapping = prior_state.read_json(MAPPING_ARTIFACT_PATH)
+            prior_mapping_is_current = cached_mapping == mapping
             if cached_mapping == mapping:
                 prior_state.seed(writer, MAPPING_ARTIFACT_PATH)
             else:
@@ -293,9 +307,19 @@ async def collect_process(
 
         missing_requests: list[ArtifactRequest] = []
         for request in plan.requests:
-            if prior_state is not None and prior_state.has(request.artifact_path):
+            can_reuse = (
+                request.kind != "layout" or prior_mapping_is_current
+            )
+            if (
+                can_reuse
+                and prior_state is not None
+                and prior_state.has(request.artifact_path)
+            ):
                 cached_payload = prior_state.read_json(request.artifact_path)
-                _validate_artifact_payload(request.kind, cached_payload)
+                if _is_legacy_layout_payload(request, cached_payload):
+                    missing_requests.append(request)
+                    continue
+                _validate_artifact_payload(request, cached_payload)
                 prior_state.seed(writer, request.artifact_path)
             else:
                 missing_requests.append(request)
@@ -349,8 +373,11 @@ def read_cached_process_manifest(root: Path) -> SnapshotManifest | None:
         if state.artifact_paths != expected_paths:
             raise _IncompleteSnapshot("process snapshot artifact set is incomplete")
         for request in plan.requests:
+            payload = _required_json(state, request.artifact_path)
+            if _is_legacy_layout_payload(request, payload):
+                raise _IncompleteSnapshot("process layout artifact schema is stale")
             _validate_artifact_payload(
-                request.kind, _required_json(state, request.artifact_path)
+                request, payload
             )
         return state.manifest
     except _IncompleteSnapshot:
@@ -393,9 +420,13 @@ async def _fetch_artifact(
     process_id: str,
 ) -> dict[str, object]:
     try:
-        payload = await client.request_json("GET", request.api_path(process_id))
+        payload = await client.request_json(
+            "GET",
+            request.api_path(process_id),
+            query=request.api_query(),
+        )
         writer.write_json(request.artifact_path, payload)
-        _validate_artifact_payload(request.kind, payload)
+        _validate_artifact_payload(request, payload)
         return payload
     except AzureReadError as error:
         raise ProcessArtifactError(
@@ -571,12 +602,18 @@ def _validate_process_behaviors(payload: Mapping[str, object]) -> None:
 
 
 def _validate_artifact_payload(
-    kind: str, payload: Mapping[str, object]
+    request: ArtifactRequest, payload: Mapping[str, object]
 ) -> None:
+    kind = request.kind
     if kind not in ARTIFACT_KINDS:
         raise ProcessCollectionError("process artifact family is unsupported")
     if kind == "layout":
-        _validate_layout(payload)
+        if payload.get("referenceName") != request.reference_name:
+            raise ProcessCollectionError("layout work item type identity is malformed")
+        layout = payload.get("layout")
+        if not isinstance(layout, dict):
+            raise ProcessCollectionError("expanded layout is malformed")
+        _validate_layout(layout)
         return
 
     entries = _validate_envelope(payload, f"{kind} artifact")
@@ -614,6 +651,20 @@ def _validate_artifact_payload(
             raise ProcessCollectionError(
                 "behavior association booleans or id are malformed"
             )
+
+
+def _is_legacy_layout_payload(
+    request: ArtifactRequest,
+    payload: Mapping[str, object],
+) -> bool:
+    """Recognize only the prior raw FormLayout-at-root evidence shape."""
+
+    return (
+        request.kind == "layout"
+        and "pages" in payload
+        and "layout" not in payload
+        and "referenceName" not in payload
+    )
 
 
 def _validate_layout(payload: Mapping[str, object]) -> None:

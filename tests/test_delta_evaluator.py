@@ -14,12 +14,14 @@ from delta.evaluator import EvaluationError, evaluate_claim
 from delta.evidence import EvidenceError
 from delta.models import FindingStatus
 from doc_azure.snapshot import SnapshotWriter
+from doc_azure.process_collector import MAPPING_SCHEMA_VERSION
 
 
 PROCESS_ID = "9b6f2d8e-8d31-4f26-a781-8e2a9e9a0f47"
 OTHER_PROCESS_ID = "7a35dc12-6ca5-4358-9afe-a9aeb9540171"
 USER_STORY = "Custom.UserStory"
 EPIC = "Microsoft.VSTS.WorkItemTypes.Epic"
+TEST_CASE = "Microsoft.VSTS.WorkItemTypes.TestCase"
 WIKI_TEXT = "# Wiki\nCampo Bloqueado\nHistórico do campo\nWITs ativos\n"
 COLLECTED_AT = datetime(2026, 8, 24, tzinfo=timezone.utc)
 
@@ -29,6 +31,7 @@ def seed_evidence(
     *,
     process_type_id: str = PROCESS_ID,
     map_process_id: str = PROCESS_ID,
+    layout_payload: object | None = None,
 ) -> None:
     wiki = SnapshotWriter(root / "out" / "wiki")
     wiki.write_text("leiame.md", WIKI_TEXT)
@@ -42,7 +45,7 @@ def seed_evidence(
     process.write_json(
         "artifact-map.json",
         {
-            "schema_version": 1,
+            "schema_version": MAPPING_SCHEMA_VERSION,
             "process_name": "Processo-Agil",
             "process_id": map_process_id,
             "globals": {
@@ -66,6 +69,13 @@ def seed_evidence(
                     "is_disabled": False,
                     "artifacts": _artifact_paths(USER_STORY),
                 },
+                {
+                    "name": "Test Case",
+                    "reference_name": TEST_CASE,
+                    "customization": "system",
+                    "is_disabled": False,
+                    "artifacts": _artifact_paths(TEST_CASE),
+                },
             ],
         },
     )
@@ -81,16 +91,28 @@ def seed_evidence(
     process.write_json(
         f"workitemtypes/{USER_STORY}/fields.json",
         {
-            "count": 2,
+            "count": 4,
             "value": [
                 {
                     "referenceName": "Custom.Bloqueado",
                     "name": "Bloqueado",
+                    "customization": "custom",
                     "required": True,
                 },
                 {
                     "referenceName": "Custom.Optional",
                     "name": "Opcional",
+                    "customization": "custom",
+                },
+                {
+                    "referenceName": "Custom.EntrouemEstadoBacklogDate",
+                    "name": "Entrou em Estado Backlog Date",
+                    "customization": "custom",
+                },
+                {
+                    "referenceName": "Custom.EntrouemEstadoConcluidoDate",
+                    "name": "Entrou em Estado Concluído Date",
+                    "customization": "custom",
                 },
             ],
         },
@@ -100,33 +122,91 @@ def seed_evidence(
         {
             "count": 2,
             "value": [
-                {"name": "Backlog", "stateCategory": "Proposed"},
-                {"name": "Concluído", "stateCategory": "Completed"},
+                {"name": "Backlog", "stateCategory": "Proposed", "order": 1},
+                {"name": "Concluído", "stateCategory": "Completed", "order": 2},
             ],
         },
     )
     process.write_json(
         f"workitemtypes/{USER_STORY}/rules.json",
-        {"count": 1, "value": [{"name": "Require blocked reason"}]},
+        {
+            "count": 1,
+            "value": [
+                {
+                    "name": "Require blocked reason",
+                    "conditions": [
+                        {
+                            "conditionType": "when",
+                            "field": "System.State",
+                            "value": "Backlog",
+                        }
+                    ],
+                    "actions": [
+                        {
+                            "actionType": "copyFromField",
+                            "targetField": "Custom.EntrouemEstadoBacklogDate",
+                            "value": "Microsoft.VSTS.Common.StateChangeDate",
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    process.write_json(
+        f"workitemtypes/{EPIC}/states.json",
+        {
+            "count": 1,
+            "value": [
+                {"name": "Backlog", "stateCategory": "Proposed", "order": 1}
+            ],
+        },
+    )
+    process.write_json(
+        f"workitemtypes/{TEST_CASE}/fields.json",
+        {
+            "count": 2,
+            "value": [
+                {
+                    "referenceName": "Custom.Bloqueado",
+                    "name": "Bloqueado",
+                    "customization": "custom",
+                },
+                {
+                    "referenceName": "Custom.TestOnly",
+                    "name": "Somente Teste",
+                    "customization": "custom",
+                },
+            ],
+        },
     )
     process.write_json(
         f"workitemtypes/{USER_STORY}/layout.json",
-        {
-            "pages": [
-                {
-                    "sections": [
-                        {
-                            "groups": [
-                                {
-                                    "controls": [
-                                        {"id": "Custom.Bloqueado", "label": "Bloqueado"}
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
+        layout_payload
+        if layout_payload is not None
+        else {
+            "name": "História de Usuário",
+            "referenceName": USER_STORY,
+            "layout": {
+                "pages": [
+                    {
+                        "sections": [
+                            {
+                                "groups": [
+                                    {
+                                        "controls": [
+                                            {
+                                                "id": "Custom.Bloqueado",
+                                                "label": "Bloqueado",
+                                                "order": 0,
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
         },
     )
     process.commit_manifest(collected_at=COLLECTED_AT, requests=())
@@ -177,6 +257,76 @@ def test_field_presence_returns_exact_field_pointer(tmp_path: Path) -> None:
     assert finding.azure_evidence.selector == "/value/0/referenceName"
 
 
+def test_confirmed_current_state_preserves_a_historical_qualification(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "field_presence",
+        wit=USER_STORY,
+        field="Custom.Bloqueado",
+        expected=True,
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.CONFIRMADO
+    assert finding.impact_or_limit == claim.limit
+
+
+def test_compound_claim_verifies_and_returns_every_exact_document_fragment(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "field_presence",
+        wit=USER_STORY,
+        field="Custom.Bloqueado",
+        expected=True,
+    )
+    claim = replace(
+        claim,
+        doc_fragments=(
+            DocumentaryClaim(
+                path="out/wiki/leiame.md",
+                line=3,
+                excerpt="Histórico do campo",
+                sha256=claim.doc.sha256,
+                value=claim.doc.value,
+            ),
+        ),
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert [pointer.selector for pointer in finding.doc_evidence] == ["L2", "L3"]
+
+
+def test_compound_claim_fails_when_any_fragment_is_not_exact(tmp_path: Path) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "field_presence",
+        wit=USER_STORY,
+        field="Custom.Bloqueado",
+        expected=True,
+    )
+    claim = replace(
+        claim,
+        doc_fragments=(
+            DocumentaryClaim(
+                path="out/wiki/leiame.md",
+                line=3,
+                excerpt="linha próxima, mas incorreta",
+                sha256=claim.doc.sha256,
+                value=claim.doc.value,
+            ),
+        ),
+    )
+
+    with pytest.raises(EvidenceError, match="exact excerpt"):
+        evaluate_claim(claim, tmp_path)
+
+
 def test_historical_claim_is_not_proven_by_current_field_presence(
     tmp_path: Path,
 ) -> None:
@@ -199,6 +349,7 @@ def test_active_wit_set_excludes_disabled_work_item_types(tmp_path: Path) -> Non
         "active_wit_set",
         expected=[USER_STORY],
         identity="reference_name",
+        exclude_customizations=["system"],
     )
 
     finding = evaluate_claim(claim, tmp_path)
@@ -207,6 +358,22 @@ def test_active_wit_set_excludes_disabled_work_item_types(tmp_path: Path) -> Non
     assert finding.azure_evidence is not None
     assert finding.azure_evidence.selector == "/work_item_types"
     assert EPIC not in finding.implemented
+    assert TEST_CASE not in finding.implemented
+
+
+def test_active_wit_set_includes_system_types_without_explicit_filter(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "active_wit_set",
+        expected=[USER_STORY, TEST_CASE],
+        identity="reference_name",
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.CONFIRMADO
 
 
 def test_wit_presence_returns_the_exact_reference_pointer(tmp_path: Path) -> None:
@@ -255,6 +422,222 @@ def test_state_presence_returns_the_exact_state_name_pointer(tmp_path: Path) -> 
     assert finding.status is FindingStatus.CONFIRMADO
     assert finding.azure_evidence is not None
     assert finding.azure_evidence.selector == "/value/1/name"
+
+
+def test_state_sequence_compares_api_order_as_one_documentary_claim(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    confirmed = make_claim(
+        "state_sequence",
+        wit=USER_STORY,
+        expected=["Backlog", "Concluído"],
+    )
+    divergent = make_claim(
+        "state_sequence",
+        wit=USER_STORY,
+        expected=["Concluído", "Backlog"],
+    )
+
+    confirmed_finding = evaluate_claim(confirmed, tmp_path)
+    divergent_finding = evaluate_claim(divergent, tmp_path)
+
+    assert confirmed_finding.status is FindingStatus.CONFIRMADO
+    assert divergent_finding.status is FindingStatus.DIVERGENTE
+    assert confirmed_finding.azure_evidence is not None
+    assert confirmed_finding.azure_evidence.selector == "/value"
+
+
+def test_wit_state_set_equality_does_not_collapse_sequence_or_membership(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "wit_state_set_equal",
+        left_wit=USER_STORY,
+        right_wit=EPIC,
+        expected=True,
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.DIVERGENTE
+    assert "Concluído" in finding.implemented
+    assert len(finding.azure_evidence) == 2
+
+
+def test_exact_field_and_state_properties_return_value_pointers(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    field = make_claim(
+        "field_property",
+        wit=USER_STORY,
+        field="Custom.Bloqueado",
+        property="customization",
+        expected="custom",
+    )
+    state = make_claim(
+        "state_property",
+        wit=USER_STORY,
+        state="Backlog",
+        property="stateCategory",
+        expected="Proposed",
+    )
+
+    field_finding = evaluate_claim(field, tmp_path)
+    state_finding = evaluate_claim(state, tmp_path)
+
+    assert field_finding.status is FindingStatus.CONFIRMADO
+    assert field_finding.azure_evidence.selector == "/value/0/customization"
+    assert state_finding.status is FindingStatus.CONFIRMADO
+    assert state_finding.azure_evidence.selector == "/value/0/stateCategory"
+
+
+def test_technical_context_reports_an_exact_current_fact_without_claiming_semantics(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "technical_context",
+        artifact="behaviors.json",
+        pointer="/value/0/rank",
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.AMBIGUO
+    assert finding.implemented == "20"
+    assert finding.azure_evidence.selector == "/value/0/rank"
+
+
+def test_transition_field_coverage_compares_every_current_named_state(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "transition_field_coverage",
+        wit=USER_STORY,
+        direction="entry",
+        expected=True,
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.CONFIRMADO
+    assert "2 de 2" in finding.implemented
+    assert len(finding.azure_evidence) == 2
+
+
+def test_rule_action_matches_the_exact_condition_and_action(tmp_path: Path) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "rule_action",
+        wit=USER_STORY,
+        condition_field="System.State",
+        condition_value="Backlog",
+        action_type="copyFromField",
+        target_field="Custom.EntrouemEstadoBacklogDate",
+        action_value="Microsoft.VSTS.Common.StateChangeDate",
+        expected=True,
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.CONFIRMADO
+    assert finding.azure_evidence.selector == "/value/0/actions/0"
+
+
+def test_unique_custom_field_minimum_deduplicates_reference_names_across_wits(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "unique_custom_field_minimum",
+        wits=[USER_STORY, TEST_CASE],
+        expected_minimum=5,
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.CONFIRMADO
+    assert finding.implemented.startswith("5 campos")
+    assert len(finding.azure_evidence) == 2
+
+
+def test_active_required_field_count_excludes_disabled_and_system_wits(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "active_required_field_count",
+        field="Custom.Bloqueado",
+        expected=2,
+        exclude_customizations=["system"],
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.DIVERGENTE
+    assert finding.implemented.startswith("1 WIT ativo")
+    assert USER_STORY in finding.implemented
+    assert EPIC not in finding.implemented
+    assert TEST_CASE not in finding.implemented
+    assert finding.azure_evidence is not None
+    assert len(finding.azure_evidence) == 2
+    assert finding.azure_evidence[0].selector == "/work_item_types"
+    assert finding.azure_evidence[1].path.endswith(
+        f"workitemtypes/{USER_STORY}/fields.json"
+    )
+    assert finding.azure_evidence[1].selector.endswith("/required")
+
+
+def test_field_name_pattern_minimum_reports_exact_matching_count(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "field_name_pattern_minimum",
+        wit=USER_STORY,
+        prefix="Entrou em Estado ",
+        suffix=" Date",
+        expected_minimum=3,
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.DIVERGENTE
+    assert finding.implemented.startswith("2 campos")
+    assert finding.azure_evidence is not None
+    assert finding.azure_evidence.selector == "/value"
+
+
+def test_rule_presence_and_layout_order_return_exact_pointers(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    rule = make_claim(
+        "rule_presence",
+        wit=USER_STORY,
+        rule="Require blocked reason",
+        expected=True,
+    )
+    order = make_claim(
+        "layout_control_order",
+        wit=USER_STORY,
+        control="Custom.Bloqueado",
+        expected=0,
+    )
+
+    rule_finding = evaluate_claim(rule, tmp_path)
+    order_finding = evaluate_claim(order, tmp_path)
+
+    assert rule_finding.status is FindingStatus.CONFIRMADO
+    assert rule_finding.azure_evidence is not None
+    assert rule_finding.azure_evidence.selector == "/value/0/name"
+    assert order_finding.status is FindingStatus.CONFIRMADO
+    assert order_finding.azure_evidence is not None
+    assert order_finding.azure_evidence.selector.endswith("/controls/0/order")
 
 
 def test_field_required_uses_exact_boolean_or_reports_ambiguity(
@@ -306,7 +689,7 @@ def test_field_required_uses_exact_boolean_or_reports_ambiguity(
         (
             "layout_control",
             {"wit": USER_STORY, "control": "Custom.Bloqueado", "expected": True},
-            "/pages/0/sections/0/groups/0/controls/0/id",
+            "/layout/pages/0/sections/0/groups/0/controls/0/id",
         ),
         (
             "behavior_rank",
@@ -328,6 +711,46 @@ def test_typed_evaluators_target_the_exact_proving_value(
     assert finding.status is FindingStatus.CONFIRMADO
     assert finding.azure_evidence is not None
     assert finding.azure_evidence.selector == selector
+
+
+def test_layout_control_absence_points_to_expanded_pages(tmp_path: Path) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "layout_control",
+        wit=USER_STORY,
+        control="Custom.DoesNotExist",
+        expected=False,
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.CONFIRMADO
+    assert finding.azure_evidence is not None
+    assert finding.azure_evidence.selector == "/layout/pages"
+
+
+@pytest.mark.parametrize(
+    "layout_payload",
+    (
+        {"referenceName": USER_STORY},
+        {"referenceName": "Custom.Wrong", "layout": {"pages": []}},
+        {"referenceName": USER_STORY, "layout": []},
+    ),
+)
+def test_layout_control_rejects_malformed_expanded_response(
+    tmp_path: Path,
+    layout_payload: dict[str, object],
+) -> None:
+    seed_evidence(tmp_path, layout_payload=layout_payload)
+    claim = make_claim(
+        "layout_control",
+        wit=USER_STORY,
+        control="Custom.Bloqueado",
+        expected=True,
+    )
+
+    with pytest.raises(EvaluationError, match="layout"):
+        evaluate_claim(claim, tmp_path)
 
 
 def test_equals_does_not_equate_boolean_and_integer(tmp_path: Path) -> None:

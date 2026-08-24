@@ -22,13 +22,25 @@ SUPPORTED_CHECK_KINDS = frozenset(
         "equals",
         "count_equals",
         "active_wit_set",
+        "active_required_field_count",
         "wit_presence",
         "field_presence",
         "field_required",
+        "field_name_pattern_minimum",
+        "field_property",
         "state_presence",
+        "state_sequence",
+        "state_property",
+        "wit_state_set_equal",
+        "transition_field_coverage",
         "rule_count",
+        "rule_presence",
+        "rule_action",
         "layout_control",
+        "layout_control_order",
+        "unique_custom_field_minimum",
         "behavior_rank",
+        "technical_context",
         "limitation",
         "ambiguous",
     }
@@ -49,7 +61,11 @@ _CHECK_KEYS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     ),
     "active_wit_set": (
         frozenset({"expected", "identity"}),
-        frozenset(),
+        frozenset({"exclude_customizations"}),
+    ),
+    "active_required_field_count": (
+        frozenset({"field", "expected"}),
+        frozenset({"exclude_customizations"}),
     ),
     "wit_presence": (
         frozenset({"wit", "expected"}),
@@ -63,20 +79,74 @@ _CHECK_KEYS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
         frozenset({"wit", "field", "expected"}),
         frozenset(),
     ),
+    "field_name_pattern_minimum": (
+        frozenset({"wit", "prefix", "suffix", "expected_minimum"}),
+        frozenset(),
+    ),
+    "field_property": (
+        frozenset({"wit", "field", "property", "expected"}),
+        frozenset(),
+    ),
     "state_presence": (
         frozenset({"wit", "state", "expected"}),
+        frozenset(),
+    ),
+    "state_sequence": (
+        frozenset({"wit", "expected"}),
+        frozenset(),
+    ),
+    "state_property": (
+        frozenset({"wit", "state", "property", "expected"}),
+        frozenset(),
+    ),
+    "wit_state_set_equal": (
+        frozenset({"left_wit", "right_wit", "expected"}),
+        frozenset(),
+    ),
+    "transition_field_coverage": (
+        frozenset({"wit", "direction", "expected"}),
         frozenset(),
     ),
     "rule_count": (
         frozenset({"wit", "expected"}),
         frozenset(),
     ),
+    "rule_presence": (
+        frozenset({"wit", "rule", "expected"}),
+        frozenset(),
+    ),
+    "rule_action": (
+        frozenset(
+            {
+                "wit",
+                "condition_field",
+                "condition_value",
+                "action_type",
+                "target_field",
+                "action_value",
+                "expected",
+            }
+        ),
+        frozenset(),
+    ),
     "layout_control": (
         frozenset({"wit", "control", "expected"}),
         frozenset(),
     ),
+    "layout_control_order": (
+        frozenset({"wit", "control", "expected"}),
+        frozenset(),
+    ),
+    "unique_custom_field_minimum": (
+        frozenset({"wits", "expected_minimum"}),
+        frozenset(),
+    ),
     "behavior_rank": (
         frozenset({"behavior", "expected"}),
+        frozenset(),
+    ),
+    "technical_context": (
+        frozenset({"artifact", "pointer"}),
         frozenset(),
     ),
     "limitation": (
@@ -144,23 +214,42 @@ class ClaimSpec:
     doc: DocumentaryClaim
     check: CheckSpec
     limit: str
+    doc_fragments: tuple[DocumentaryClaim, ...] = ()
 
     def __post_init__(self) -> None:
         _require_string(self.id, "id")
         _require_positive_int(self.page_id, "page_id")
         _require_string(self.slug, "slug")
         _require_string(self.finding, "finding")
-        _require_string(self.limit, "limit")
+        if not isinstance(self.limit, str) or (
+            self.limit != "" and not self.limit.strip()
+        ):
+            raise CatalogError("limit must be a string")
         if not isinstance(self.doc, DocumentaryClaim):
             raise CatalogError("doc must be a DocumentaryClaim")
         if not isinstance(self.check, CheckSpec):
             raise CatalogError("check must be a CheckSpec")
+        if any(
+            not isinstance(fragment, DocumentaryClaim)
+            for fragment in self.doc_fragments
+        ):
+            raise CatalogError("doc fragments must be DocumentaryClaim values")
         expected_slug = PAGE_SLUGS.get(self.page_id)
         if expected_slug != self.slug:
             raise CatalogError("page_id and slug do not identify the same fixed page")
         expected_path = f"out/wiki/{self.slug}.md"
         if self.doc.path != expected_path:
             raise CatalogError(f"doc.path must be {expected_path!r}")
+        if any(fragment.path != expected_path for fragment in self.doc_fragments):
+            raise CatalogError(f"doc.path must be {expected_path!r}")
+        if any(fragment.sha256 != self.doc.sha256 for fragment in self.doc_fragments):
+            raise CatalogError("all documentary fragments must use the same page hash")
+
+    @property
+    def documents(self) -> tuple[DocumentaryClaim, ...]:
+        """Return every exact fragment supporting this claim in source order."""
+
+        return (self.doc, *self.doc_fragments)
 
 
 def load_catalog(path: Path) -> tuple[ClaimSpec, ...]:
@@ -190,26 +279,36 @@ def _parse_claim(raw_claim: object) -> ClaimSpec:
         raise CatalogError("each claim must contain the exact claim schema")
     raw_doc = raw_claim["doc"]
     raw_check = raw_claim["check"]
-    if not isinstance(raw_doc, dict) or set(raw_doc) != _DOC_KEYS:
-        raise CatalogError("doc must contain the exact documentary schema")
+    raw_documents = raw_doc if isinstance(raw_doc, list) else [raw_doc]
+    if not raw_documents or any(
+        not isinstance(document, dict) or set(document) != _DOC_KEYS
+        for document in raw_documents
+    ):
+        raise CatalogError("doc must contain one or more exact documentary fragments")
     if not isinstance(raw_check, dict) or "kind" not in raw_check:
         raise CatalogError("check must contain kind")
     kind = raw_check["kind"]
     parameters = {key: value for key, value in raw_check.items() if key != "kind"}
+    documents = tuple(_parse_document(document) for document in raw_documents)
     return ClaimSpec(
         id=raw_claim["id"],
         page_id=raw_claim["page_id"],
         slug=raw_claim["slug"],
         finding=raw_claim["finding"],
-        doc=DocumentaryClaim(
-            path=raw_doc["path"],
-            line=raw_doc["line"],
-            excerpt=raw_doc["excerpt"],
-            sha256=raw_doc["sha256"],
-            value=raw_doc["value"],
-        ),
+        doc=documents[0],
         check=CheckSpec(kind=kind, parameters=parameters),
         limit=raw_claim["limit"],
+        doc_fragments=documents[1:],
+    )
+
+
+def _parse_document(raw_doc: Mapping[str, object]) -> DocumentaryClaim:
+    return DocumentaryClaim(
+        path=raw_doc["path"],
+        line=raw_doc["line"],
+        excerpt=raw_doc["excerpt"],
+        sha256=raw_doc["sha256"],
+        value=raw_doc["value"],
     )
 
 
@@ -231,11 +330,23 @@ def _validate_check_parameters(kind: str, parameters: Mapping[str, object]) -> N
         "wit",
         "family",
         "field",
+        "rule",
         "state",
         "identity",
         "control",
         "behavior",
         "implemented",
+        "prefix",
+        "suffix",
+        "property",
+        "left_wit",
+        "right_wit",
+        "direction",
+        "condition_field",
+        "condition_value",
+        "action_type",
+        "target_field",
+        "action_value",
     ):
         if name in parameters:
             _require_string(parameters[name], f"check.{name}")
@@ -250,12 +361,44 @@ def _validate_check_parameters(kind: str, parameters: Mapping[str, object]) -> N
         "field_presence",
         "field_required",
         "state_presence",
+        "rule_presence",
         "layout_control",
         "wit_presence",
+        "wit_state_set_equal",
+        "transition_field_coverage",
+        "rule_action",
     }:
         _require_bool(parameters["expected"], "check.expected")
-    elif kind in {"count_equals", "rule_count", "behavior_rank"}:
+    elif kind in {
+        "count_equals",
+        "rule_count",
+        "behavior_rank",
+        "layout_control_order",
+        "active_required_field_count",
+    }:
         _require_non_negative_int(parameters["expected"], "check.expected")
+    elif kind in {"field_name_pattern_minimum", "unique_custom_field_minimum"}:
+        _require_non_negative_int(
+            parameters["expected_minimum"],
+            "check.expected_minimum",
+        )
+        if parameters["expected_minimum"] == 0:
+            raise CatalogError("check.expected_minimum must be positive")
+    elif kind == "state_sequence":
+        _validate_unique_strings(parameters["expected"], "state_sequence expected")
+    elif kind == "field_property":
+        if parameters["property"] != "customization":
+            raise CatalogError("field_property property is unsupported")
+    elif kind == "state_property":
+        if parameters["property"] != "stateCategory":
+            raise CatalogError("state_property property is unsupported")
+    if kind == "transition_field_coverage" and parameters["direction"] not in {
+        "entry",
+        "exit",
+    }:
+        raise CatalogError("transition_field_coverage direction is unsupported")
+    if kind == "unique_custom_field_minimum":
+        _validate_unique_strings(parameters["wits"], "unique custom field WITs")
     elif kind == "active_wit_set":
         if parameters["identity"] not in {"name", "reference_name"}:
             raise CatalogError("active_wit_set identity is unsupported")
@@ -268,6 +411,17 @@ def _validate_check_parameters(kind: str, parameters: Mapping[str, object]) -> N
             or len(set(expected)) != len(expected)
         ):
             raise CatalogError("active_wit_set expected must be unique strings")
+        _validate_unique_strings(
+            parameters.get("exclude_customizations", ()),
+            "active_wit_set exclude_customizations",
+            allow_empty=True,
+        )
+    if kind == "active_required_field_count":
+        _validate_unique_strings(
+            parameters.get("exclude_customizations", ()),
+            "active_required_field_count exclude_customizations",
+            allow_empty=True,
+        )
     if kind == "count_equals":
         if parameters["family"] not in {
             "fields",
@@ -276,6 +430,22 @@ def _validate_check_parameters(kind: str, parameters: Mapping[str, object]) -> N
             "behaviors",
         }:
             raise CatalogError("count_equals family is unsupported")
+
+
+def _validate_unique_strings(
+    value: object,
+    label: str,
+    *,
+    allow_empty: bool = False,
+) -> None:
+    if (
+        not isinstance(value, Sequence)
+        or isinstance(value, (str, bytes))
+        or (not allow_empty and not value)
+        or any(not isinstance(item, str) or not item.strip() for item in value)
+        or len(set(value)) != len(value)
+    ):
+        raise CatalogError(f"{label} must be unique strings")
 
 
 def _validate_artifact_path(value: object) -> None:

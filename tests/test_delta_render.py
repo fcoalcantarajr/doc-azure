@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from delta.models import AuditResult, EvidencePointer, Finding, FindingStatus
+from delta.models import (
+    AuditResult,
+    EvidencePointer,
+    Finding,
+    FindingStatus,
+    ReportProvenance,
+)
 from delta.render import render_report
 
 
@@ -14,6 +20,16 @@ TITLES = {
     "changelog": "Changelog",
     "apendice": "Apêndice Técnico Processo Organização Única",
 }
+PROVENANCE = ReportProvenance(
+    wiki_collected_at="2026-08-24T18:25:50+00:00",
+    wiki_generation_id="1" * 32,
+    wiki_manifest_sha256="2" * 64,
+    process_collected_at="2026-08-24T18:35:59+00:00",
+    process_generation_id="3" * 32,
+    process_manifest_sha256="4" * 64,
+    process_name="Processo-Agil",
+    process_id="9d82e632-9028-4a6b-86f8-3edb3281cb15",
+)
 
 
 def make_finding(
@@ -49,7 +65,7 @@ def make_finding(
 def test_report_uses_the_page_title_and_publication_marker(
     slug: str, title: str
 ) -> None:
-    report = render_report(AuditResult((make_finding(slug=slug),)))
+    report = render_report(AuditResult((make_finding(slug=slug),)), PROVENANCE)
 
     assert report.startswith(
         f"# Delta — {title} × Processo-Agil implementado\n"
@@ -58,6 +74,12 @@ def test_report_uses_the_page_title_and_publication_marker(
     assert "## Metodologia e status" in report
     assert "## Resumo por status" in report
     assert "## Achados detalhados" in report
+    assert "## Proveniência dos snapshots" in report
+    assert "`11111111111111111111111111111111`" in report
+    assert "`33333333333333333333333333333333`" in report
+    assert "`Processo-Agil`" in report
+    assert "`9d82e632-9028-4a6b-86f8-3edb3281cb15`" in report
+    assert "caminhos lógicos" in report
 
 
 def test_report_uses_exact_portuguese_statuses_and_stable_summary_counts() -> None:
@@ -94,7 +116,7 @@ def test_report_uses_exact_portuguese_statuses_and_stable_summary_counts() -> No
         ),
     )
 
-    report = render_report(AuditResult(findings))
+    report = render_report(AuditResult(findings), PROVENANCE)
 
     summary = "\n".join(
         (
@@ -132,14 +154,56 @@ def test_report_preserves_catalog_order_and_exact_evidence_pointers() -> None:
         )
     )
 
-    first_render = render_report(result)
-    second_render = render_report(result)
+    first_render = render_report(result, PROVENANCE)
+    second_render = render_report(result, PROVENANCE)
 
     assert first_render == second_render
     assert first_render.index("35-SECOND-002") < first_render.index("35-FIRST-001")
     assert "out/wiki/leiame.md#L20" in first_render
     assert "out/process/process.json#/value/1/referenceName" in first_render
     assert first_render.endswith("\n")
+
+
+def test_report_renders_every_exact_documentary_fragment() -> None:
+    finding = make_finding()
+    finding = Finding(
+        id=finding.id,
+        finding=finding.finding,
+        status=finding.status,
+        documented=finding.documented,
+        implemented=finding.implemented,
+        doc_evidence=(
+            EvidencePointer("out/wiki/leiame.md", "L93"),
+            EvidencePointer("out/wiki/leiame.md", "L100"),
+        ),
+        azure_evidence=finding.azure_evidence,
+        impact_or_limit=finding.impact_or_limit,
+    )
+
+    report = render_report(AuditResult((finding,)), PROVENANCE)
+
+    assert "out/wiki/leiame.md#L93<br>out/wiki/leiame.md#L100" in report
+
+
+def test_report_renders_every_exact_azure_pointer() -> None:
+    finding = make_finding()
+    finding = Finding(
+        id=finding.id,
+        finding=finding.finding,
+        status=finding.status,
+        documented=finding.documented,
+        implemented=finding.implemented,
+        doc_evidence=finding.doc_evidence,
+        azure_evidence=(
+            EvidencePointer("out/process/a.json", "/value"),
+            EvidencePointer("out/process/b.json", "/value"),
+        ),
+        impact_or_limit=finding.impact_or_limit,
+    )
+
+    report = render_report(AuditResult((finding,)), PROVENANCE)
+
+    assert "out/process/a.json#/value<br>out/process/b.json#/value" in report
 
 
 def test_report_escapes_markdown_table_cells_without_losing_line_breaks() -> None:
@@ -152,7 +216,7 @@ def test_report_escapes_markdown_table_cells_without_losing_line_breaks() -> Non
         azure_selector="/a|b",
     )
 
-    report = render_report(AuditResult((finding,)))
+    report = render_report(AuditResult((finding,)), PROVENANCE)
 
     assert r"35-PIPE\|BACK\\SLASH" in report
     assert "Achado \\| principal<br>segunda linha" in report
@@ -164,7 +228,7 @@ def test_report_escapes_markdown_table_cells_without_losing_line_breaks() -> Non
 
 def test_report_rejects_empty_or_mixed_page_results() -> None:
     with pytest.raises(ValueError, match="at least one finding"):
-        render_report(AuditResult(()))
+        render_report(AuditResult(()), PROVENANCE)
 
     mixed = AuditResult(
         (
@@ -173,11 +237,11 @@ def test_report_rejects_empty_or_mixed_page_results() -> None:
         )
     )
     with pytest.raises(ValueError, match="exactly one wiki page"):
-        render_report(mixed)
+        render_report(mixed, PROVENANCE)
 
 
 def test_report_rejects_an_unknown_documentary_evidence_path() -> None:
     result = AuditResult((make_finding(slug="desconhecido"),))
 
     with pytest.raises(ValueError, match="approved wiki page"):
-        render_report(result)
+        render_report(result, PROVENANCE)

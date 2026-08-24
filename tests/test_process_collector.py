@@ -17,6 +17,7 @@ from doc_azure.azure_client import AzureReadClient, AzureReadError, RequestRecor
 from doc_azure.process_collector import (
     ARTIFACT_KINDS,
     GLOBAL_ARTIFACT_PATHS,
+    MAPPING_SCHEMA_VERSION,
     MAPPING_ARTIFACT_PATH,
     PROCESS_NAME,
     ProcessArtifactError,
@@ -59,6 +60,11 @@ def load_index() -> dict[str, object]:
 
 
 def fixture_payloads() -> dict[str, dict[str, object]]:
+    index = load_index()
+    index_entries = {
+        entry["referenceName"]: entry
+        for entry in index["value"]
+    }
     payloads = {
         "/_apis/work/processes": load_json(
             PROCESS_FIXTURE_ROOT / "processes.json"
@@ -66,7 +72,7 @@ def fixture_payloads() -> dict[str, dict[str, object]]:
         f"/_apis/work/processes/{PROCESS_ID}": load_json(
             PROCESS_FIXTURE_ROOT / "process.json"
         ),
-        f"/_apis/work/processes/{PROCESS_ID}/workitemtypes": load_index(),
+        f"/_apis/work/processes/{PROCESS_ID}/workitemtypes": index,
         f"/_apis/work/processes/{PROCESS_ID}/behaviors": load_json(
             PROCESS_FIXTURE_ROOT / "process-behaviors.json"
         ),
@@ -78,6 +84,16 @@ def fixture_payloads() -> dict[str, dict[str, object]]:
     for reference_name, stem in fixture_stems.items():
         for kind in ARTIFACT_KINDS:
             fixture_path = PROCESS_FIXTURE_ROOT / f"{stem}-{kind}.json"
+            if kind == "layout":
+                route = (
+                    f"/_apis/work/processes/{PROCESS_ID}/workitemtypes/"
+                    f"{reference_name}"
+                )
+                payloads[route] = {
+                    **copy.deepcopy(index_entries[reference_name]),
+                    "layout": load_json(fixture_path),
+                }
+                continue
             if kind == "behaviors":
                 route = (
                     f"/_apis/work/processes/{PROCESS_ID}/"
@@ -90,6 +106,13 @@ def fixture_payloads() -> dict[str, dict[str, object]]:
                 )
             payloads[route] = load_json(fixture_path)
     return payloads
+
+
+def is_layout_route(path: str) -> bool:
+    return path in {
+        f"/_apis/work/processes/{PROCESS_ID}/workitemtypes/{reference_name}"
+        for reference_name in (EPIC_REFERENCE, USER_STORY_REFERENCE)
+    }
 
 
 class FixtureClient:
@@ -119,7 +142,8 @@ class FixtureClient:
         body: Mapping[str, object] | None = None,
     ) -> dict[str, object]:
         assert method == "GET"
-        assert query is None
+        expected_query = {"$expand": "layout"} if is_layout_route(path) else None
+        assert query == expected_query
         assert body is None
         self.calls.append(path)
         self._request_records.append(RequestRecord("GET", path))
@@ -315,6 +339,21 @@ def test_plan_is_deterministic_and_uses_safe_unique_reference_paths() -> None:
     )
 
 
+def test_layout_uses_official_work_item_type_get_expansion() -> None:
+    plan = ProcessCollectionPlan.from_index(load_index())
+    request = next(
+        candidate
+        for candidate in plan.requests_for("História de Usuário")
+        if candidate.kind == "layout"
+    )
+
+    assert request.api_path(PROCESS_ID) == (
+        f"/_apis/work/processes/{PROCESS_ID}/workitemtypes/"
+        f"{USER_STORY_REFERENCE}"
+    )
+    assert request.api_query() == {"$expand": "layout"}
+
+
 @pytest.mark.parametrize(
     "reference_names",
     (
@@ -355,7 +394,7 @@ def test_collection_preserves_raw_payloads_mapping_and_behavior_ranks(
     ]
     assert ranks == [10, 20, 30, 40]
     mapping = load_json(resolved / MAPPING_ARTIFACT_PATH)
-    assert mapping["schema_version"] == 1
+    assert mapping["schema_version"] == MAPPING_SCHEMA_VERSION
     assert mapping["process_id"] == PROCESS_ID
     assert {item["reference_name"] for item in mapping["work_item_types"]} == {
         EPIC_REFERENCE,
@@ -380,6 +419,42 @@ def test_complete_cache_returns_before_client_and_clock_are_required(
 
     assert manifest.complete is True
     assert snapshot_bytes(logical_root) == before
+
+
+def test_legacy_layout_schema_refetches_only_expanded_layouts(
+    tmp_path: Path,
+) -> None:
+    artifacts = expected_artifacts()
+    legacy_mapping = copy.deepcopy(artifacts[MAPPING_ARTIFACT_PATH])
+    legacy_mapping["schema_version"] = 1
+    custom_text = {
+        MAPPING_ARTIFACT_PATH: json.dumps(legacy_mapping, ensure_ascii=False),
+    }
+    plan = ProcessCollectionPlan.from_index(load_index())
+    layout_requests = tuple(
+        request for request in plan.requests if request.kind == "layout"
+    )
+    for request in layout_requests:
+        expanded = artifacts[request.artifact_path]
+        custom_text[request.artifact_path] = json.dumps(
+            expanded["layout"],
+            ensure_ascii=False,
+        )
+    seed_process_snapshot(tmp_path, custom_text=custom_text)
+    client = FixtureClient()
+
+    asyncio.run(collect_process(tmp_path, client, refresh=False, now=fixed_now))
+
+    assert MAPPING_SCHEMA_VERSION == 2
+    assert set(client.calls) == {
+        request.api_path(PROCESS_ID) for request in layout_requests
+    }
+    resolved = resolve_snapshot_root(tmp_path / "out" / "process")
+    assert load_json(resolved / MAPPING_ARTIFACT_PATH)["schema_version"] == 2
+    assert all(
+        "layout" in load_json(resolved / request.artifact_path)
+        for request in layout_requests
+    )
 
 
 def test_partial_cache_fetches_only_missing_artifacts_and_seeds_bytes_verbatim(
@@ -495,7 +570,16 @@ def test_malformed_family_aborts_instead_of_becoming_an_empty_list(
 @pytest.mark.parametrize(
     ("route_suffix", "remove_path", "error_family"),
     (
-        ("/layout", ("pages", 0, "sections"), "layout"),
+        (
+            f"/{USER_STORY_REFERENCE}",
+            ("layout", "pages", 0, "sections"),
+            "layout",
+        ),
+        (
+            f"/{USER_STORY_REFERENCE}",
+            ("referenceName",),
+            "layout",
+        ),
         ("/behaviors", ("value", 0, "isDefault"), "behaviors"),
         (
             f"/{PROCESS_ID}/behaviors",
@@ -683,6 +767,21 @@ def test_script_uses_one_http_client_one_read_client_and_semaphore_eight(
     assert constructed[0][0] is http_instances[0]
     assert constructed[0][1]._value == 8
     assert len(transport_requests) == 14
+    layout_requests = [
+        request
+        for request in transport_requests
+        if is_layout_route(request.url.path.removeprefix("/bancodonordeste"))
+    ]
+    assert len(layout_requests) == 2
+    assert all(
+        request.url.params.get("$expand") == "layout"
+        for request in layout_requests
+    )
+    assert all(
+        "$expand" not in request.url.params
+        for request in transport_requests
+        if request not in layout_requests
+    )
 
 
 def test_entry_point_cache_hit_precedes_settings_client_and_asyncio(

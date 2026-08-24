@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from delta.build import BuildError, build_all_reports
+from delta.render import render_report as real_render_report
 from doc_azure.snapshot import SnapshotWriter
 
 
@@ -50,6 +51,12 @@ def seed_catalog_and_wiki(root: Path) -> Path:
             }
         )
     writer.commit_manifest(collected_at=COLLECTED_AT, requests=())
+    process = SnapshotWriter(root / "out" / "process")
+    process.write_json(
+        "process.json",
+        {"name": "Processo-Agil", "typeId": "9d82e632-9028-4a6b-86f8-3edb3281cb15"},
+    )
+    process.commit_manifest(collected_at=COLLECTED_AT, requests=())
     catalog = root / "claims.json"
     catalog.write_text(
         json.dumps({"schema_version": 1, "claims": claims}),
@@ -75,6 +82,36 @@ def test_build_all_reports_is_deterministic_and_returns_fixed_slug_order(
         "apendice.md",
     )
     assert first_bytes == {path.name: path.read_bytes() for path in second}
+    report = first[0].read_text(encoding="utf-8")
+    assert "## Proveniência dos snapshots" in report
+    assert "Processo-Agil" in report
+    assert "9d82e632-9028-4a6b-86f8-3edb3281cb15" in report
+
+
+def test_build_rejects_snapshot_generation_that_changes_after_metadata_capture(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    catalog = seed_catalog_and_wiki(tmp_path)
+    output = tmp_path / "reports"
+    changed = False
+
+    def change_wiki_generation(result: object, provenance: object) -> str:
+        nonlocal changed
+        if not changed:
+            changed = True
+            replacement = SnapshotWriter(tmp_path / "out" / "wiki")
+            for slug in PAGES.values():
+                replacement.write_text(slug + ".md", f"# {slug}\nAlegação {slug}\n")
+            replacement.commit_manifest(collected_at=COLLECTED_AT, requests=())
+        return real_render_report(result, provenance)  # type: ignore[arg-type]
+
+    monkeypatch.setattr("delta.build.render_report", change_wiki_generation)
+
+    with pytest.raises(BuildError, match="changed during report build"):
+        build_all_reports(tmp_path, catalog, output)
+
+    assert not output.exists()
 
 
 def test_build_all_reports_rejects_a_missing_fixed_page_before_writing(

@@ -66,7 +66,10 @@ def seed_verified_repository(root: Path) -> Path:
     process_writer = SnapshotWriter(root / "out" / "process")
     process_writer.write_json(
         "process.json",
-        {"name": "Processo-Agil", "typeId": "not-the-name"},
+        {
+            "name": "Processo-Agil",
+            "typeId": "9d82e632-9028-4a6b-86f8-3edb3281cb15",
+        },
     )
     process_writer.commit_manifest(collected_at=COLLECTED_AT, requests=())
 

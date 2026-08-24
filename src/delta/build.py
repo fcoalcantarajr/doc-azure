@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import stat
 import tempfile
@@ -9,8 +11,13 @@ from pathlib import Path
 
 from delta.catalog import CatalogError, PAGE_SLUGS, load_catalog
 from delta.evaluator import EvaluationError, evaluate_claim
-from delta.models import AuditResult
+from delta.models import AuditResult, ReportProvenance
 from delta.render import render_report
+from doc_azure.snapshot import (
+    SnapshotError,
+    read_snapshot_artifact,
+    resolve_snapshot_root,
+)
 
 
 class BuildError(RuntimeError):
@@ -40,15 +47,18 @@ def build_all_reports(
     if any(not grouped[slug] for slug in FIXED_SLUGS):
         raise BuildError("catalog must contain exactly the four fixed pages")
 
+    provenance = _load_report_provenance(repository_root)
     rendered: dict[str, str] = {}
     try:
         for slug in FIXED_SLUGS:
             result = AuditResult(
                 tuple(evaluate_claim(claim, repository_root) for claim in grouped[slug])
             )
-            rendered[slug] = render_report(result)
+            rendered[slug] = render_report(result, provenance)
     except (EvaluationError, ValueError) as error:
         raise BuildError(f"claim evaluation failed: {error}") from None
+    if _load_report_provenance(repository_root) != provenance:
+        raise BuildError("snapshot generation changed during report build")
 
     _ensure_output_directory(destination)
     temporary_paths: list[Path] = []
@@ -84,6 +94,53 @@ def build_all_reports(
                 pass
 
     return tuple(final_paths)
+
+
+def _load_report_provenance(root: Path) -> ReportProvenance:
+    try:
+        wiki_generation, wiki_collected_at, wiki_manifest_hash = (
+            _snapshot_metadata(root / "out" / "wiki")
+        )
+        process_generation, process_collected_at, process_manifest_hash = (
+            _snapshot_metadata(root / "out" / "process")
+        )
+        process_payload = json.loads(
+            read_snapshot_artifact(root / "out" / "process", "process.json")
+        )
+        if not isinstance(process_payload, dict):
+            raise ValueError("process response is not an object")
+        return ReportProvenance(
+            wiki_collected_at=wiki_collected_at,
+            wiki_generation_id=wiki_generation,
+            wiki_manifest_sha256=wiki_manifest_hash,
+            process_collected_at=process_collected_at,
+            process_generation_id=process_generation,
+            process_manifest_sha256=process_manifest_hash,
+            process_name=process_payload.get("name"),
+            process_id=process_payload.get("typeId"),
+        )
+    except (OSError, UnicodeError, ValueError, SnapshotError):
+        raise BuildError("snapshot provenance is malformed or incomplete") from None
+
+
+def _snapshot_metadata(logical_root: Path) -> tuple[str, str, str]:
+    resolved = resolve_snapshot_root(logical_root)
+    if resolved.parent.name != "snapshots":
+        raise ValueError("versioned snapshot generation is required")
+    manifest_bytes = _read_existing_regular(resolved / "manifest.json")
+    if manifest_bytes is None:
+        raise ValueError("snapshot manifest is missing")
+    manifest = json.loads(manifest_bytes)
+    if not isinstance(manifest, dict):
+        raise ValueError("snapshot manifest is not an object")
+    collected_at = manifest.get("collected_at")
+    if not isinstance(collected_at, str):
+        raise ValueError("snapshot collected_at is malformed")
+    return (
+        resolved.name,
+        collected_at,
+        hashlib.sha256(manifest_bytes).hexdigest(),
+    )
 
 
 def _stage_text(final_path: Path, contents: str) -> Path:

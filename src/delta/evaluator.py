@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from uuid import UUID
 
-from delta.catalog import ClaimSpec
+from delta.catalog import ClaimSpec, DocumentaryClaim
 from delta.evidence import EvidenceError, resolve_json_pointer, verify_doc_content
 from delta.models import EvidencePointer, Finding, FindingStatus
 from doc_azure.snapshot import SnapshotError, read_snapshot_artifact
+from doc_azure.process_collector import MAPPING_SCHEMA_VERSION
 
 
 class EvaluationError(ValueError):
@@ -22,7 +24,7 @@ class EvaluationError(ValueError):
 class _Observed:
     status: FindingStatus
     implemented: str
-    evidence: EvidencePointer | None
+    evidence: EvidencePointer | tuple[EvidencePointer, ...] | None
 
 
 class _EvidenceContext:
@@ -32,11 +34,11 @@ class _EvidenceContext:
         self.root = Path(root)
         self._mapping: dict[str, object] | None = None
 
-    def verify_document(self, claim: ClaimSpec) -> EvidencePointer:
+    def verify_document(self, document: DocumentaryClaim) -> EvidencePointer:
         prefix = "out/wiki/"
-        if not claim.doc.path.startswith(prefix):
+        if not document.path.startswith(prefix):
             raise EvaluationError("document evidence path is outside out/wiki")
-        relative_path = claim.doc.path.removeprefix(prefix)
+        relative_path = document.path.removeprefix(prefix)
         contents = _read_snapshot(
             self.root / "out" / "wiki",
             relative_path,
@@ -44,12 +46,12 @@ class _EvidenceContext:
         )
         verify_doc_content(
             contents,
-            claim.doc.line,
-            claim.doc.excerpt,
-            claim.doc.sha256,
-            label=claim.doc.path,
+            document.line,
+            document.excerpt,
+            document.sha256,
+            label=document.path,
         )
-        return EvidencePointer(claim.doc.path, f"L{claim.doc.line}")
+        return EvidencePointer(document.path, f"L{document.line}")
 
     def load_process_artifact(
         self, relative_path: str
@@ -123,7 +125,9 @@ def evaluate_claim(claim: ClaimSpec, evidence_root: Path) -> Finding:
     if not isinstance(claim, ClaimSpec):
         raise EvaluationError("claim must be a ClaimSpec")
     context = _EvidenceContext(evidence_root)
-    doc_evidence = context.verify_document(claim)
+    doc_evidence = tuple(
+        context.verify_document(document) for document in claim.documents
+    )
     try:
         evaluator = _EVALUATORS[claim.check.kind]
     except KeyError:
@@ -139,9 +143,7 @@ def evaluate_claim(claim: ClaimSpec, evidence_root: Path) -> Finding:
         implemented=observed.implemented,
         doc_evidence=doc_evidence,
         azure_evidence=observed.evidence,
-        impact_or_limit=(
-            "" if observed.status is FindingStatus.CONFIRMADO else claim.limit
-        ),
+        impact_or_limit=claim.limit,
     )
 
 
@@ -176,9 +178,13 @@ def _active_wit_set(
     identity = _string_parameter(parameters, "identity")
     mapping = context.artifact_map()
     entries = mapping["work_item_types"]
+    excluded_customizations = _customization_filter(parameters)
     active: list[str] = []
     for entry in entries:
-        if entry["is_disabled"]:
+        if (
+            entry["is_disabled"]
+            or entry["customization"] in excluded_customizations
+        ):
             continue
         value = entry[identity]
         if not isinstance(value, str) or not value.strip():
@@ -199,6 +205,69 @@ def _active_wit_set(
         "out/process/artifact-map.json", "/work_item_types"
     )
     return _comparison(actual, expected, evidence)
+
+
+def _active_required_field_count(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    field = _string_parameter(parameters, "field")
+    expected = parameters["expected"]
+    excluded_customizations = _customization_filter(parameters)
+    matching_wits: list[str] = []
+    evidence: list[EvidencePointer] = [
+        EvidencePointer("out/process/artifact-map.json", "/work_item_types")
+    ]
+    for entry in context.artifact_map()["work_item_types"]:
+        if (
+            entry["is_disabled"]
+            or entry["customization"] in excluded_customizations
+        ):
+            continue
+        wit = entry["reference_name"]
+        artifact = context.wit_artifact(wit, "fields")
+        payload, base_pointer = context.load_process_artifact(artifact)
+        entries = _envelope(payload, f"fields for {wit}")
+        matches = [
+            (index, candidate)
+            for index, candidate in enumerate(entries)
+            if candidate.get("referenceName") == field
+        ]
+        if len(matches) > 1:
+            raise EvaluationError(f"field {field!r} occurs more than once in {wit!r}")
+        if not matches:
+            evidence.append(EvidencePointer(base_pointer.path, "/value"))
+            continue
+        index, candidate = matches[0]
+        evidence.append(
+            EvidencePointer(base_pointer.path, f"/value/{index}/required")
+        )
+        required = candidate.get("required")
+        if type(required) is not bool:
+            return _Observed(
+                FindingStatus.AMBIGUO,
+                f"obrigatoriedade não declarada em {wit}",
+                tuple(
+                    (
+                        *evidence[:-1],
+                        EvidencePointer(base_pointer.path, f"/value/{index}"),
+                    )
+                ),
+            )
+        if required:
+            matching_wits.append(wit)
+    count = len(matching_wits)
+    status = (
+        FindingStatus.CONFIRMADO
+        if type(expected) is int and count == expected
+        else FindingStatus.DIVERGENTE
+    )
+    noun = "WIT ativo" if count == 1 else "WITs ativos"
+    implemented = f"{count} {noun}: " + ", ".join(matching_wits)
+    return _Observed(
+        status,
+        implemented,
+        tuple(evidence),
+    )
 
 
 def _wit_presence(
@@ -288,6 +357,65 @@ def _field_required(
     return _comparison(actual, parameters["expected"], evidence)
 
 
+def _field_name_pattern_minimum(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    wit = _string_parameter(parameters, "wit")
+    prefix = _string_parameter(parameters, "prefix")
+    suffix = _string_parameter(parameters, "suffix")
+    expected_minimum = parameters["expected_minimum"]
+    artifact = context.wit_artifact(wit, "fields")
+    payload, base_pointer = context.load_process_artifact(artifact)
+    entries = _envelope(payload, f"fields for {wit}")
+    matches: list[str] = []
+    for entry in entries:
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise EvaluationError(f"field name is malformed in {wit!r}")
+        if name.startswith(prefix) and name.endswith(suffix):
+            matches.append(name)
+    count = len(matches)
+    status = (
+        FindingStatus.CONFIRMADO
+        if type(expected_minimum) is int and count >= expected_minimum
+        else FindingStatus.DIVERGENTE
+    )
+    noun = "campo" if count == 1 else "campos"
+    return _Observed(
+        status,
+        f"{count} {noun}: " + ", ".join(matches),
+        EvidencePointer(base_pointer.path, "/value"),
+    )
+
+
+def _field_property(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    wit = _string_parameter(parameters, "wit")
+    field = _string_parameter(parameters, "field")
+    property_name = _string_parameter(parameters, "property")
+    artifact = context.wit_artifact(wit, "fields")
+    payload, base_pointer = context.load_process_artifact(artifact)
+    entries = _envelope(payload, f"fields for {wit}")
+    matches = [
+        (index, entry)
+        for index, entry in enumerate(entries)
+        if entry.get("referenceName") == field
+    ]
+    if len(matches) != 1:
+        raise EvaluationError(f"field {field!r} must occur exactly once in {wit!r}")
+    index, entry = matches[0]
+    if property_name not in entry:
+        raise EvaluationError(
+            f"field {field!r} property {property_name!r} is absent"
+        )
+    return _comparison(
+        entry[property_name],
+        parameters["expected"],
+        EvidencePointer(base_pointer.path, f"/value/{index}/{property_name}"),
+    )
+
+
 def _state_presence(
     context: _EvidenceContext, parameters: Mapping[str, object]
 ) -> _Observed:
@@ -309,6 +437,146 @@ def _state_presence(
     return _presence_comparison(actual, parameters["expected"], evidence)
 
 
+def _state_sequence(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    wit = _string_parameter(parameters, "wit")
+    artifact = context.wit_artifact(wit, "states")
+    payload, base_pointer = context.load_process_artifact(artifact)
+    entries = _envelope(payload, f"states for {wit}")
+    ordered: list[tuple[int, str]] = []
+    for entry in entries:
+        order = entry.get("order")
+        name = entry.get("name")
+        if (
+            not isinstance(order, int)
+            or isinstance(order, bool)
+            or not isinstance(name, str)
+            or not name.strip()
+        ):
+            raise EvaluationError(f"state order/name is malformed in {wit!r}")
+        ordered.append((order, name))
+    if len({order for order, _ in ordered}) != len(ordered):
+        raise EvaluationError(f"state order is not unique in {wit!r}")
+    actual = tuple(name for _, name in sorted(ordered))
+    return _comparison(
+        actual,
+        parameters["expected"],
+        EvidencePointer(base_pointer.path, "/value"),
+    )
+
+
+def _state_property(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    wit = _string_parameter(parameters, "wit")
+    state = _string_parameter(parameters, "state")
+    property_name = _string_parameter(parameters, "property")
+    artifact = context.wit_artifact(wit, "states")
+    payload, base_pointer = context.load_process_artifact(artifact)
+    entries = _envelope(payload, f"states for {wit}")
+    matches = [
+        (index, entry)
+        for index, entry in enumerate(entries)
+        if entry.get("name") == state
+    ]
+    if len(matches) != 1:
+        raise EvaluationError(f"state {state!r} must occur exactly once in {wit!r}")
+    index, entry = matches[0]
+    if property_name not in entry:
+        raise EvaluationError(
+            f"state {state!r} property {property_name!r} is absent"
+        )
+    return _comparison(
+        entry[property_name],
+        parameters["expected"],
+        EvidencePointer(base_pointer.path, f"/value/{index}/{property_name}"),
+    )
+
+
+def _wit_state_set_equal(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    left_wit = _string_parameter(parameters, "left_wit")
+    right_wit = _string_parameter(parameters, "right_wit")
+    left, left_pointer = _state_names(context, left_wit)
+    right, right_pointer = _state_names(context, right_wit)
+    actual = set(left) == set(right)
+    implemented = (
+        f"{left_wit}={_format_value(tuple(sorted(left)))}; "
+        f"{right_wit}={_format_value(tuple(sorted(right)))}"
+    )
+    status = (
+        FindingStatus.CONFIRMADO
+        if type(parameters["expected"]) is bool
+        and actual is parameters["expected"]
+        else FindingStatus.DIVERGENTE
+    )
+    return _Observed(status, implemented, (left_pointer, right_pointer))
+
+
+def _state_names(
+    context: _EvidenceContext, wit: str
+) -> tuple[tuple[str, ...], EvidencePointer]:
+    artifact = context.wit_artifact(wit, "states")
+    payload, base_pointer = context.load_process_artifact(artifact)
+    entries = _envelope(payload, f"states for {wit}")
+    names = tuple(entry.get("name") for entry in entries)
+    if any(not isinstance(name, str) or not name.strip() for name in names):
+        raise EvaluationError(f"state names are malformed in {wit!r}")
+    if len(names) != len(set(names)):
+        raise EvaluationError(f"state names are not unique in {wit!r}")
+    return names, EvidencePointer(base_pointer.path, "/value")
+
+
+def _transition_field_coverage(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    wit = _string_parameter(parameters, "wit")
+    direction = _string_parameter(parameters, "direction")
+    state_names, state_pointer = _state_names(context, wit)
+    fields_artifact = context.wit_artifact(wit, "fields")
+    fields_payload, fields_pointer = context.load_process_artifact(fields_artifact)
+    fields = _envelope(fields_payload, f"fields for {wit}")
+    references: set[str] = set()
+    for field in fields:
+        reference = field.get("referenceName")
+        if not isinstance(reference, str) or not reference.strip():
+            raise EvaluationError(f"field referenceName is malformed in {wit!r}")
+        references.add(reference)
+    prefix = "EntrouemEstado" if direction == "entry" else "SaiudoEstado"
+    expected_references = {
+        state: f"Custom.{prefix}{_identifier_text(state)}Date"
+        for state in state_names
+    }
+    missing = [
+        state
+        for state, reference in expected_references.items()
+        if reference not in references
+    ]
+    actual = not missing
+    status = (
+        FindingStatus.CONFIRMADO
+        if type(parameters["expected"]) is bool
+        and actual is parameters["expected"]
+        else FindingStatus.DIVERGENTE
+    )
+    covered = len(state_names) - len(missing)
+    implemented = f"{covered} de {len(state_names)} estados cobertos"
+    if missing:
+        implemented += "; ausentes: " + ", ".join(missing)
+    return _Observed(
+        status,
+        implemented,
+        (fields_pointer, state_pointer),
+    )
+
+
+def _identifier_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value)
+    return "".join(character for character in normalized if character.isalnum())
+
+
 def _rule_count(
     context: _EvidenceContext, parameters: Mapping[str, object]
 ) -> _Observed:
@@ -320,15 +588,156 @@ def _rule_count(
     )
 
 
+def _rule_presence(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    wit = _string_parameter(parameters, "wit")
+    target = _string_parameter(parameters, "rule")
+    artifact = context.wit_artifact(wit, "rules")
+    payload, base_pointer = context.load_process_artifact(artifact)
+    entries = _envelope(payload, f"rules for {wit}")
+    matches = [
+        (index, entry)
+        for index, entry in enumerate(entries)
+        if entry.get("name") == target
+    ]
+    if len(matches) > 1:
+        raise EvaluationError(f"rule {target!r} occurs more than once in {wit!r}")
+    actual = bool(matches)
+    selector = f"/value/{matches[0][0]}/name" if matches else "/value"
+    return _presence_comparison(
+        actual,
+        parameters["expected"],
+        EvidencePointer(base_pointer.path, selector),
+    )
+
+
+def _rule_action(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    wit = _string_parameter(parameters, "wit")
+    artifact = context.wit_artifact(wit, "rules")
+    payload, base_pointer = context.load_process_artifact(artifact)
+    rules = _envelope(payload, f"rules for {wit}")
+    matches: list[tuple[int, int]] = []
+    for rule_index, rule in enumerate(rules):
+        conditions = _list_member(rule, "conditions", f"rule conditions for {wit}")
+        actions = _list_member(rule, "actions", f"rule actions for {wit}")
+        condition_matches = any(
+            condition.get("field") == parameters["condition_field"]
+            and condition.get("value") == parameters["condition_value"]
+            for condition in conditions
+        )
+        if not condition_matches:
+            continue
+        for action_index, action in enumerate(actions):
+            if (
+                action.get("actionType") == parameters["action_type"]
+                and action.get("targetField") == parameters["target_field"]
+                and action.get("value") == parameters["action_value"]
+            ):
+                matches.append((rule_index, action_index))
+    if len(matches) > 1:
+        raise EvaluationError(f"rule action predicate is not unique in {wit!r}")
+    actual = bool(matches)
+    selector = (
+        f"/value/{matches[0][0]}/actions/{matches[0][1]}"
+        if matches
+        else "/value"
+    )
+    return _presence_comparison(
+        actual,
+        parameters["expected"],
+        EvidencePointer(base_pointer.path, selector),
+    )
+
+
+def _unique_custom_field_minimum(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    raw_wits = parameters["wits"]
+    if not isinstance(raw_wits, Sequence) or isinstance(raw_wits, (str, bytes)):
+        raise EvaluationError("unique custom field WITs are malformed")
+    references: set[str] = set()
+    evidence: list[EvidencePointer] = []
+    for raw_wit in raw_wits:
+        if not isinstance(raw_wit, str) or not raw_wit.strip():
+            raise EvaluationError("unique custom field WITs are malformed")
+        artifact = context.wit_artifact(raw_wit, "fields")
+        payload, base_pointer = context.load_process_artifact(artifact)
+        entries = _envelope(payload, f"fields for {raw_wit}")
+        for entry in entries:
+            reference = entry.get("referenceName")
+            customization = entry.get("customization")
+            if (
+                not isinstance(reference, str)
+                or not reference.strip()
+                or not isinstance(customization, str)
+                or not customization.strip()
+            ):
+                raise EvaluationError(f"field identity is malformed in {raw_wit!r}")
+            if customization == "custom":
+                references.add(reference)
+        evidence.append(EvidencePointer(base_pointer.path, "/value"))
+    expected_minimum = parameters["expected_minimum"]
+    status = (
+        FindingStatus.CONFIRMADO
+        if type(expected_minimum) is int and len(references) >= expected_minimum
+        else FindingStatus.DIVERGENTE
+    )
+    return _Observed(
+        status,
+        f"{len(references)} campos tecnicamente customizados únicos",
+        tuple(evidence),
+    )
+
+
 def _layout_control(
     context: _EvidenceContext, parameters: Mapping[str, object]
 ) -> _Observed:
     wit = _string_parameter(parameters, "wit")
     target = _string_parameter(parameters, "control")
+    control, evidence, identity_key = _find_layout_control(context, wit, target)
+    if control is not None:
+        evidence = EvidencePointer(
+            evidence.path,
+            f"{evidence.selector}/{identity_key}",
+        )
+    return _presence_comparison(control is not None, parameters["expected"], evidence)
+
+
+def _layout_control_order(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    wit = _string_parameter(parameters, "wit")
+    target = _string_parameter(parameters, "control")
+    control, evidence, _ = _find_layout_control(context, wit, target)
+    if control is None:
+        raise EvaluationError(f"layout control {target!r} is absent in {wit!r}")
+    order = control.get("order")
+    if not isinstance(order, int) or isinstance(order, bool):
+        raise EvaluationError(f"layout control {target!r} order is malformed")
+    return _comparison(
+        order,
+        parameters["expected"],
+        EvidencePointer(evidence.path, f"{evidence.selector}/order"),
+    )
+
+
+def _find_layout_control(
+    context: _EvidenceContext,
+    wit: str,
+    target: str,
+) -> tuple[dict[str, object] | None, EvidencePointer, str | None]:
     artifact = context.wit_artifact(wit, "layout")
     payload, base_pointer = context.load_process_artifact(artifact)
-    matches: list[str] = []
-    pages = _list_member(payload, "pages", "layout pages")
+    if payload.get("referenceName") != wit:
+        raise EvaluationError(f"layout artifact identity does not match {wit!r}")
+    layout = payload.get("layout")
+    if not isinstance(layout, dict):
+        raise EvaluationError("expanded layout is malformed")
+    matches: list[tuple[str, dict[str, object], str]] = []
+    pages = _list_member(layout, "pages", "layout pages")
     for page_index, page in enumerate(pages):
         sections = _list_member(page, "sections", "layout sections")
         for section_index, section in enumerate(sections):
@@ -339,17 +748,21 @@ def _layout_control(
                     for key in ("id", "referenceName"):
                         if control.get(key) == target:
                             matches.append(
-                                "/pages/"
-                                f"{page_index}/sections/{section_index}/groups/"
-                                f"{group_index}/controls/{control_index}/{key}"
+                                (
+                                    "/layout/pages/"
+                                    f"{page_index}/sections/{section_index}/groups/"
+                                    f"{group_index}/controls/{control_index}",
+                                    control,
+                                    key,
+                                )
                             )
                             break
     if len(matches) > 1:
         raise EvaluationError(f"layout control {target!r} is not unique in {wit!r}")
-    actual = bool(matches)
-    selector = matches[0] if matches else "/pages"
-    evidence = EvidencePointer(base_pointer.path, selector)
-    return _presence_comparison(actual, parameters["expected"], evidence)
+    if not matches:
+        return None, EvidencePointer(base_pointer.path, "/layout/pages"), None
+    selector, control, identity_key = matches[0]
+    return control, EvidencePointer(base_pointer.path, selector), identity_key
 
 
 def _behavior_rank(
@@ -383,6 +796,23 @@ def _behavior_rank(
     return _comparison(rank, parameters["expected"], evidence)
 
 
+def _technical_context(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    artifact = _string_parameter(parameters, "artifact")
+    pointer = _string_parameter(parameters, "pointer", allow_empty=True)
+    payload, base_pointer = context.load_process_artifact(artifact)
+    try:
+        actual = resolve_json_pointer(payload, pointer)
+    except EvidenceError as error:
+        raise EvaluationError(f"Azure evidence pointer failed: {error}") from None
+    return _Observed(
+        FindingStatus.AMBIGUO,
+        _format_value(actual),
+        EvidencePointer(base_pointer.path, pointer or "/"),
+    )
+
+
 def _limitation(
     context: _EvidenceContext, parameters: Mapping[str, object]
 ) -> _Observed:
@@ -409,13 +839,25 @@ _EVALUATORS: dict[str, Evaluator] = {
     "equals": _equals,
     "count_equals": _count_equals,
     "active_wit_set": _active_wit_set,
+    "active_required_field_count": _active_required_field_count,
     "wit_presence": _wit_presence,
     "field_presence": _field_presence,
     "field_required": _field_required,
+    "field_name_pattern_minimum": _field_name_pattern_minimum,
+    "field_property": _field_property,
     "state_presence": _state_presence,
+    "state_sequence": _state_sequence,
+    "state_property": _state_property,
+    "wit_state_set_equal": _wit_state_set_equal,
+    "transition_field_coverage": _transition_field_coverage,
     "rule_count": _rule_count,
+    "rule_presence": _rule_presence,
+    "rule_action": _rule_action,
     "layout_control": _layout_control,
+    "layout_control_order": _layout_control_order,
+    "unique_custom_field_minimum": _unique_custom_field_minimum,
     "behavior_rank": _behavior_rank,
+    "technical_context": _technical_context,
     "limitation": _limitation,
     "ambiguous": _ambiguous,
 }
@@ -521,7 +963,7 @@ def _validate_artifact_map(payload: Mapping[str, object]) -> None:
     }:
         raise EvaluationError("artifact map schema is malformed")
     if (
-        payload["schema_version"] != 1
+        payload["schema_version"] != MAPPING_SCHEMA_VERSION
         or payload["process_name"] != "Processo-Agil"
     ):
         raise EvaluationError("artifact map schema is malformed")
@@ -609,3 +1051,16 @@ def _string_parameter(
     if not isinstance(value, str) or (not allow_empty and not value.strip()):
         raise EvaluationError(f"check parameter {name!r} is malformed")
     return value
+
+
+def _customization_filter(
+    parameters: Mapping[str, object],
+) -> tuple[str, ...]:
+    value = parameters.get("exclude_customizations", ())
+    if (
+        not isinstance(value, Sequence)
+        or isinstance(value, (str, bytes))
+        or any(not isinstance(item, str) or not item.strip() for item in value)
+    ):
+        raise EvaluationError("active WIT customization filter is malformed")
+    return tuple(value)

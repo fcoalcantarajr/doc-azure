@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from delta.models import AuditResult, EvidencePointer, Finding, FindingStatus
+from delta.models import (
+    AuditResult,
+    EvidencePointer,
+    Finding,
+    FindingStatus,
+    ReportProvenance,
+)
 
 
 _PAGE_TITLES = {
@@ -37,11 +43,13 @@ _STATUS_EXPLANATIONS = (
 )
 
 
-def render_report(result: AuditResult) -> str:
+def render_report(result: AuditResult, provenance: ReportProvenance) -> str:
     """Render one non-empty, single-wiki audit result as stable PT-BR Markdown."""
 
     if not isinstance(result, AuditResult):
         raise ValueError("result must be an AuditResult")
+    if not isinstance(provenance, ReportProvenance):
+        raise ValueError("provenance must be ReportProvenance")
     if not result.findings:
         raise ValueError("report requires at least one finding")
 
@@ -64,6 +72,8 @@ def render_report(result: AuditResult) -> str:
         f"- `{status.value}`: {explanation}."
         for status, explanation in _STATUS_EXPLANATIONS
     )
+    lines.extend(("", "## Proveniência dos snapshots", ""))
+    lines.extend(_render_provenance(provenance))
     lines.extend(("", "## Resumo por status", ""))
     lines.extend(_render_summary(result.findings))
     lines.extend(("", "## Achados detalhados", ""))
@@ -71,18 +81,45 @@ def render_report(result: AuditResult) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _render_provenance(provenance: ReportProvenance) -> tuple[str, ...]:
+    return (
+        (
+            "- Wiki: coletada em "
+            f"`{provenance.wiki_collected_at}`; geração "
+            f"`{provenance.wiki_generation_id}`; SHA-256 do manifesto "
+            f"`{provenance.wiki_manifest_sha256}`."
+        ),
+        (
+            "- Processo: coletado em "
+            f"`{provenance.process_collected_at}`; geração "
+            f"`{provenance.process_generation_id}`; SHA-256 do manifesto "
+            f"`{provenance.process_manifest_sha256}`."
+        ),
+        (
+            f"- Processo avaliado: `{provenance.process_name}` "
+            f"(ID `{provenance.process_id}`)."
+        ),
+        (
+            "- Os caminhos lógicos `out/wiki/...` e `out/process/...` "
+            "resolvem pelas gerações imutáveis identificadas acima."
+        ),
+    )
+
+
 def _single_page_slug(findings: tuple[Finding, ...]) -> str:
     slugs: set[str] = set()
     for finding in findings:
-        evidence = finding.doc_evidence
-        if evidence is None:
+        evidence_pointers = finding.doc_evidence
+        if not isinstance(evidence_pointers, tuple):
             raise ValueError("every finding requires documentary evidence")
-        try:
-            slugs.add(_DOC_PATH_TO_SLUG[evidence.path])
-        except KeyError:
-            raise ValueError(
-                f"documentary evidence is not an approved wiki page: {evidence.path!r}"
-            ) from None
+        for evidence in evidence_pointers:
+            try:
+                slugs.add(_DOC_PATH_TO_SLUG[evidence.path])
+            except KeyError:
+                raise ValueError(
+                    "documentary evidence is not an approved wiki page: "
+                    f"{evidence.path!r}"
+                ) from None
     if len(slugs) != 1:
         raise ValueError("report findings must belong to exactly one wiki page")
     return next(iter(slugs))
@@ -118,8 +155,8 @@ def _render_finding(finding: Finding) -> str:
         finding.status.value,
         finding.documented,
         finding.implemented,
-        _render_pointer(finding.doc_evidence),
-        _render_pointer(finding.azure_evidence),
+        _render_pointers(finding.doc_evidence),
+        _render_pointers(finding.azure_evidence),
         finding.impact_or_limit,
     )
     return "| " + " | ".join(_escape_table_cell(cell) for cell in cells) + " |"
@@ -129,6 +166,16 @@ def _render_pointer(pointer: EvidencePointer | None) -> str:
     if pointer is None:
         return "n/a"
     return f"{pointer.path}#{pointer.selector}"
+
+
+def _render_pointers(
+    pointers: tuple[EvidencePointer, ...] | None,
+) -> str:
+    if pointers is None:
+        return "n/a"
+    return "\n".join(_render_pointer(pointer) for pointer in pointers)
+
+
 
 
 def _escape_table_cell(value: str) -> str:

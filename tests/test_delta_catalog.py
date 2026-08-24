@@ -82,6 +82,44 @@ def test_catalog_rejects_inconsistent_or_incomplete_claims(
         load_catalog(write_catalog(tmp_path, payload))
 
 
+def test_catalog_allows_an_empty_limit_for_an_unqualified_confirmed_claim(
+    tmp_path: Path,
+) -> None:
+    payload = load_payload()
+    payload["claims"][0]["limit"] = ""  # type: ignore[index]
+
+    claims = load_catalog(write_catalog(tmp_path, payload))
+
+    assert claims[0].limit == ""
+
+
+def test_catalog_supports_multiple_exact_fragments_from_one_page_hash(
+    tmp_path: Path,
+) -> None:
+    payload = load_payload()
+    claim = payload["claims"][0]  # type: ignore[index]
+    second = copy.deepcopy(claim["doc"])
+    second.update(line=3, excerpt="Histórico do campo")
+    claim["doc"] = [claim["doc"], second]
+
+    claims = load_catalog(write_catalog(tmp_path, payload))
+
+    assert [document.line for document in claims[0].documents] == [2, 3]
+
+
+def test_catalog_rejects_multiple_fragments_with_different_page_hashes(
+    tmp_path: Path,
+) -> None:
+    payload = load_payload()
+    claim = payload["claims"][0]  # type: ignore[index]
+    second = copy.deepcopy(claim["doc"])
+    second.update(line=3, excerpt="Histórico do campo", sha256="0" * 64)
+    claim["doc"] = [claim["doc"], second]
+
+    with pytest.raises(CatalogError, match="same page hash"):
+        load_catalog(write_catalog(tmp_path, payload))
+
+
 def test_catalog_rejects_missing_kind_specific_parameters(tmp_path: Path) -> None:
     payload = load_payload()
     del payload["claims"][0]["check"]["field"]  # type: ignore[index]
@@ -103,6 +141,21 @@ def test_catalog_rejects_count_family_without_an_envelope(tmp_path: Path) -> Non
         load_catalog(write_catalog(tmp_path, payload))
 
 
+def test_catalog_rejects_malformed_active_wit_customization_filter(
+    tmp_path: Path,
+) -> None:
+    payload = load_payload()
+    payload["claims"][0]["check"] = {  # type: ignore[index]
+        "kind": "active_wit_set",
+        "identity": "reference_name",
+        "expected": ["Custom.UserStory"],
+        "exclude_customizations": ["system", "system"],
+    }
+
+    with pytest.raises(CatalogError, match="exclude_customizations"):
+        load_catalog(write_catalog(tmp_path, payload))
+
+
 def test_production_catalog_covers_all_fixed_pages_and_material_checks() -> None:
     claims = load_catalog(PRODUCTION_CATALOG)
 
@@ -114,22 +167,33 @@ def test_production_catalog_covers_all_fixed_pages_and_material_checks() -> None
         (37, "apendice"),
     }
     assert {claim.check.kind for claim in claims} == {
+        "active_required_field_count",
         "active_wit_set",
         "ambiguous",
         "count_equals",
         "equals",
         "field_presence",
+        "field_property",
         "field_required",
         "layout_control",
+        "layout_control_order",
         "limitation",
         "rule_count",
+        "rule_action",
+        "rule_presence",
         "state_presence",
+        "state_property",
+        "state_sequence",
+        "technical_context",
+        "transition_field_coverage",
+        "unique_custom_field_minimum",
+        "wit_state_set_equal",
         "wit_presence",
     }
     identifiers = {claim.id for claim in claims}
     assert sum(identifier.startswith("10-POLICY-") for identifier in identifiers) == 18
-    assert sum(identifier.startswith("37-STATE-") for identifier in identifiers) == 12
-    assert sum(identifier.startswith("37-RULE-") for identifier in identifiers) == 12
+    assert {f"37-STATE-{index:03d}" for index in range(1, 13)} <= identifiers
+    assert {f"37-RULE-{index:03d}" for index in range(1, 13)} <= identifiers
     assert {
         "9-RTC-001",
         "9-RTC-002",
@@ -143,3 +207,49 @@ def test_production_catalog_covers_all_fixed_pages_and_material_checks() -> None
         "9-DEPLOY-HML-001",
         "9-DEPLOY-HML-002",
     } <= identifiers
+    assert {
+        "35-WITS-001",
+        "35-BLOCK-001",
+        "35-FIELDS-001",
+        "35-FIELDS-002",
+        "10-STATE-PO-001",
+        "10-STATE-HS-001",
+        "10-STATE-HU-001",
+        "10-STATE-IT-001",
+        "10-STATE-AE-001",
+        "10-STATE-INCIDENTE-001",
+        "10-STATE-KAIZEN-001",
+        "10-STATE-AE-INCIDENTE-001",
+        "9-ENTRY-COVERAGE-HU-001",
+        "9-EXIT-COVERAGE-HU-001",
+        "9-ENTRY-AE-COPY-001",
+        "9-STATECATEGORY-AE-001",
+        "37-WITS-001",
+        "37-FIELD-INITIATIVE-PERIOD-001",
+        "37-FIELD-IT-ACCEPTANCE-001",
+        "37-STATE-KAIZEN-AE-001",
+        "37-RULE-AE-COPY-001",
+        "37-BEHAVIOR-STRATEGIC-001",
+    } <= identifiers
+    assert not {
+        "35-RULES-001",
+        "35-STATE-001",
+        "10-STATE-001",
+        "9-RTC3-002",
+        "9-RTC3-003",
+        "9-ENTRY-COVERAGE-001",
+        "9-EXIT-COVERAGE-001",
+        "9-COEXEC-001",
+        "9-COEXEC-002",
+        "9-ORDER-001",
+        "37-FIELDCOUNT-001",
+        "37-FIELDCOUNT-002",
+        "37-FIELDCOUNT-003",
+        "37-LAYOUT-001",
+        "37-LAYOUT-002",
+        "37-LAYOUT-003",
+        "37-LAYOUT-004",
+        "37-LAYOUT-005",
+        "37-LAYOUT-006",
+        "37-LAYOUT-007",
+    } & identifiers
