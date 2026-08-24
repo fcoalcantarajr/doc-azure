@@ -369,15 +369,21 @@ Commit: `fix(process): collect complete atomic evidence`
 - Create: `tests/test_delta_evaluator.py`
 - Create: `tests/fixtures/audit/wiki_claims.json`
 - Modify: `src/delta/__init__.py`
+- Modify: `src/delta/evidence.py`
+- Modify: `src/doc_azure/snapshot.py`
+- Modify: `tests/test_snapshot.py`
 - Modify: `docs/decisions.md`
 
 **Interfaces:**
 - Produces: `ClaimSpec` with `id`, `page_id`, `slug`, `finding`, `doc`, `check`, and `limit`.
 - Produces: `load_catalog(path: Path) -> tuple[ClaimSpec, ...]`.
 - Produces: `evaluate_claim(claim: ClaimSpec, evidence_root: Path) -> Finding`.
-- Produces evaluator kinds: `equals`, `count_equals`, `active_wit_set`, `field_presence`, `field_required`, `rule_count`, `layout_control`, `behavior_rank`, `limitation`, and `ambiguous`.
+- Produces evaluator kinds: `equals`, `count_equals`, `active_wit_set`,
+  `wit_presence`, `field_presence`, `field_required`, `state_presence`,
+  `rule_count`, `layout_control`, `behavior_rank`, `limitation`, and
+  `ambiguous`.
 
-- [ ] **Step 1: Write failing schema and evaluator tests**
+- [x] **Step 1: Write failing schema and evaluator tests**
 
 ```python
 def test_field_presence_returns_exact_field_pointer(audit_fixture):
@@ -395,17 +401,17 @@ def test_historical_claim_is_not_proven_by_current_field_presence(audit_fixture)
 
 Add tests that disabled WITs are not treated as active, exact wiki excerpt/hash is required, wrong WIT fails, rule/layout/behavior pointers target their proving elements, duplicate IDs fail, and unsupported check kinds fail closed.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
 Run: `uv run pytest tests/test_delta_catalog.py tests/test_delta_evaluator.py -q`
 
 Expected: missing catalog/evaluator modules. Record RED.
 
-- [ ] **Step 3: Implement schema validation and typed evaluators**
+- [x] **Step 3: Implement schema validation and typed evaluators**
 
 No evaluator searches arbitrary prose. Each receives explicit parameters and either returns the exact actual value/pointer or an explicit limitation. `active_wit_set` compares only `isDisabled=false`; system test WITs are reported only when the documentary claim asserts a complete inventory.
 
-- [ ] **Step 4: Curate the material catalog**
+- [x] **Step 4: Curate the material catalog**
 
 Catalog at least these page-specific families, using exact current source excerpts and evidence paths:
 
@@ -416,7 +422,7 @@ Catalog at least these page-specific families, using exact current source excerp
 
 Do not include a row only to satisfy a non-empty gate. Every row must be material and source-backed.
 
-- [ ] **Step 5: Verify GREEN**
+- [x] **Step 5: Verify GREEN**
 
 Run: `uv run pytest tests/test_delta_catalog.py tests/test_delta_evaluator.py -q`
 
@@ -593,18 +599,19 @@ Commit: `docs(delta): publish evidence-backed audit reports`
 
 Fetch `notion://docs/enhanced-markdown-spec` through the Notion connector before any update.
 
-- [ ] **Step 2: Run two adversarial reviews in the Notion desktop app**
+- [ ] **Step 2: Run two adversarial reviews in Notion AI through the integrated browser**
 
-Use the explicitly requested Computer Use plugin to operate the Notion app.
-Create two separate Notion AI chats from the same sanitized review packet: the
-four prepared delta bodies, methodology/status definitions, and material
-limitations. Select exactly Kimi K3 in one chat and Opus 5 in the other, with
-maximum effort for each. Ask both to find unsupported conclusions, missing
-material comparisons, wrong evidence/status, historical claims inferred from
-current state, and publication risks. Verify the selected model and effort in
-the visible UI before sending. Do not silently substitute a model, effort, app,
-or connector; stop at login, MFA, CAPTCHA, missing model, or unavailable effort.
-Do not transmit raw employee records, credentials, or ignored evidence files.
+Use only the browser integrated into this ChatGPT task; do not use the external
+Notion desktop app. Create two separate Notion AI chats from the same sanitized
+review packet: the four prepared delta bodies, methodology/status definitions,
+and material limitations. Select exactly Kimi K3 in one chat and Opus 5 in the
+other, with maximum effort for each. Ask both to find unsupported conclusions,
+missing material comparisons, wrong evidence/status, historical claims inferred
+from current state, and publication risks. Verify the selected model and effort
+in the visible UI before sending. Do not silently substitute a model, effort,
+browser surface, or connector; stop at login, MFA, CAPTCHA, missing model, or
+unavailable effort. Do not transmit raw employee records, credentials, or
+ignored evidence files.
 
 - [ ] **Step 3: Reconcile both model reviews against raw evidence**
 

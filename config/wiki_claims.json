@@ -1,0 +1,3035 @@
+{
+  "schema_version": 1,
+  "claims": [
+    {
+      "id": "35-PROCESS-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Identidade do processo customizado",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 144,
+        "excerpt": "O processo customizado **\"Processo-Agil\"** divide o trabalho em **três camadas** com responsabilidades claras (ver tabela de camadas na Seção 1).",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "Processo-Agil"
+      },
+      "check": {
+        "kind": "equals",
+        "artifact": "process.json",
+        "pointer": "/name",
+        "expected": "Processo-Agil"
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "35-WITS-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Inventário ativo de Work Item Types",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 127,
+        "excerpt": "### 12 Work Item Types em 3 camadas",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "12 WITs de negócio"
+      },
+      "check": {
+        "kind": "active_wit_set",
+        "identity": "reference_name",
+        "expected": [
+          "Custom.6e7885f2-afb5-4d19-8763-084dd2f934be",
+          "Processo-Kanban.ResultadoChave",
+          "Processo-Kanban.Iniciativa",
+          "Processo-Kanban.ProblemaouOportunidade",
+          "Custom.a21aba08-34d1-4bde-80dc-90bb8371be5d",
+          "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+          "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+          "Processo-Kanban.AtendimentoExpresso",
+          "Processo-Agil.Incidente",
+          "Processo-Kanban.Kaizen",
+          "Processo-Kanban.Bug",
+          "Processo-Kanban.Tarefa"
+        ]
+      },
+      "limit": "WITs ativos adicionais ou ausentes alteram o inventário apresentado como completo."
+    },
+    {
+      "id": "35-HIER-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Cadeia hierárquica completa em sete níveis",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 54,
+        "excerpt": "A **Organização Única** conecta **estratégia (OKRs)** até **execução (tarefas)** em **7 níveis hierárquicos**, organizados em **3 camadas de responsabilidade**:",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "7 níveis parent-child"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "Os endpoints coletados expõem WITs e associações de behavior, não a cadeia parent-child completa."
+      },
+      "limit": "A API de processo não contém evidência suficiente para confirmar esta prática organizacional."
+    },
+    {
+      "id": "35-HIER-002",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Equivalência entre Flight Levels e behaviors do Azure",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 91,
+        "excerpt": "### Solução técnica: 7 níveis hierárquicos",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "7 níveis em 3 Flight Levels"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "Ranks e associações de behavior existem, mas não codificam diretamente os sete níveis descritos."
+      },
+      "limit": "A equivalência precisa de uma regra documental de mapeamento entre níveis e behaviors."
+    },
+    {
+      "id": "35-STATE-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Quantidade de estados da História de Usuário",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 466,
+        "excerpt": "1. Revise o cardápio completo de estados (27 estados para História de Usuário, por exemplo)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "27"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "family": "states",
+        "expected": 27
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "35-BOARD-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Política de mapeamento entre estados e colunas",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 205,
+        "excerpt": "> Cada estado pode mapear para **uma ou mais colunas** no board. Colunas distintas dentro do mesmo estado permitem subdivisões visuais (ex.: dev front/back) sem consumir estados adicionais.",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "1 estado para N colunas"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não expõe a configuração de colunas de cada board de squad."
+      },
+      "limit": "A regra depende de configurações de boards, fora do snapshot do processo herdado."
+    },
+    {
+      "id": "35-BLOCK-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Obrigatoriedade do campo Bloqueado em História de Usuário",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 318,
+        "excerpt": "**Bloqueado** (10 work item types operacionais)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Ausência ou obrigatoriedade não declarada reduz a força da garantia documental."
+    },
+    {
+      "id": "35-BLOCK-002",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Obrigatoriedade do campo Bloqueado em Item Técnico",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 318,
+        "excerpt": "**Bloqueado** (10 work item types operacionais)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Ausência ou obrigatoriedade não declarada reduz a força da garantia documental."
+    },
+    {
+      "id": "35-BLOCK-003",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Obrigatoriedade do campo Bloqueado em Atendimento Expresso",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 318,
+        "excerpt": "**Bloqueado** (10 work item types operacionais)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Ausência ou obrigatoriedade não declarada reduz a força da garantia documental."
+    },
+    {
+      "id": "35-BLOCK-004",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Obrigatoriedade do campo Bloqueado em Incidente",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 318,
+        "excerpt": "**Bloqueado** (10 work item types operacionais)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Agil.Incidente",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Ausência ou obrigatoriedade não declarada reduz a força da garantia documental."
+    },
+    {
+      "id": "35-BLOCK-005",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Obrigatoriedade do campo Bloqueado em Kaizen",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 318,
+        "excerpt": "**Bloqueado** (10 work item types operacionais)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.Kaizen",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Ausência ou obrigatoriedade não declarada reduz a força da garantia documental."
+    },
+    {
+      "id": "35-BLOCK-006",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Obrigatoriedade do campo Bloqueado em Bug",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 318,
+        "excerpt": "**Bloqueado** (10 work item types operacionais)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.Bug",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Ausência ou obrigatoriedade não declarada reduz a força da garantia documental."
+    },
+    {
+      "id": "35-BLOCK-007",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Obrigatoriedade do campo Bloqueado em Tarefa",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 318,
+        "excerpt": "**Bloqueado** (10 work item types operacionais)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.Tarefa",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Ausência ou obrigatoriedade não declarada reduz a força da garantia documental."
+    },
+    {
+      "id": "35-BLOCK-008",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Obrigatoriedade do campo Bloqueado em Problema ou Oportunidade",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 318,
+        "excerpt": "**Bloqueado** (10 work item types operacionais)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.ProblemaouOportunidade",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Ausência ou obrigatoriedade não declarada reduz a força da garantia documental."
+    },
+    {
+      "id": "35-BLOCK-009",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Obrigatoriedade do campo Bloqueado em User Story herdada",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 318,
+        "excerpt": "**Bloqueado** (10 work item types operacionais)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.UserStory",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Ausência ou obrigatoriedade não declarada reduz a força da garantia documental."
+    },
+    {
+      "id": "35-BLOCK-010",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Obrigatoriedade do campo Bloqueado em Task herdada",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 318,
+        "excerpt": "**Bloqueado** (10 work item types operacionais)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.Task",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Ausência ou obrigatoriedade não declarada reduz a força da garantia documental."
+    },
+    {
+      "id": "35-FIELDS-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Volume global de campos customizados",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 293,
+        "excerpt": "O processo possui 50+ campos customizados organizados em **6 categorias funcionais**. Use este guia para identificar rapidamente qual campo você precisa.",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "50+ em 6 categorias"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "Os endpoints retornam campos por WIT; o catálogo ainda não define a deduplicação global por categoria."
+      },
+      "limit": "Sem uma regra de deduplicação e classificação, a contagem global não é comparável de forma inequívoca."
+    },
+    {
+      "id": "35-DATES-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Campo de entrada em estado na História de Usuário",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 311,
+        "excerpt": "| **Rastrear transições de estado** | Entrou em Estado {nome} Date, Saiu do Estado {nome} Date | Cálculo de Lead / Cycle Time por etapa |",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.EntrouemEstadoEmDesenvolvimentoDate",
+        "expected": true
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "35-DATES-002",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Campo de saída de estado na História de Usuário",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 311,
+        "excerpt": "| **Rastrear transições de estado** | Entrou em Estado {nome} Date, Saiu do Estado {nome} Date | Cálculo de Lead / Cycle Time por etapa |",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.SaiudoEstadoEmDesenvolvimentoDate",
+        "expected": true
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "35-RULES-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Automação de transições na História de Usuário",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 311,
+        "excerpt": "| **Rastrear transições de estado** | Entrou em Estado {nome} Date, Saiu do Estado {nome} Date | Cálculo de Lead / Cycle Time por etapa |",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "regras configuradas"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "expected": 30
+      },
+      "limit": "A contagem divergente sinaliza que a automação descrita precisa ser revista em detalhe."
+    },
+    {
+      "id": "35-JOB-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Execução do script diário de horas",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 81,
+        "excerpt": "- Automação padronizada de workflows (inclui script diário de cálculo de horas trabalhadas)",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "script diário ativo"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "O snapshot do processo não informa execução, agenda ou sucesso de pipeline externo."
+      },
+      "limit": "Presença de campos ou regras não prova que o job externo esteja ativo."
+    },
+    {
+      "id": "35-ROLLOUT-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Adoção por onze squads",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 10,
+        "excerpt": "**Status:** Rollout em andamento, com 11 squads já migradas.  ",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "11 squads migradas"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não mede adoção ou migração por squad."
+      },
+      "limit": "A API de processo não contém evidência suficiente para confirmar esta prática organizacional."
+    },
+    {
+      "id": "35-BENEFITS-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Benefícios organizacionais declarados",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 73,
+        "excerpt": "### ✅ Benefícios da Organização Única",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "benefícios de governança e eficiência"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "Metadados de processo não medem custos, retrabalho, compliance ou benefícios realizados."
+      },
+      "limit": "A API de processo não contém evidência suficiente para confirmar esta prática organizacional."
+    },
+    {
+      "id": "35-ROLES-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "Atribuições e próximos passos por papel",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 394,
+        "excerpt": "### Próximos passos por papel",
+        "sha256": "cbe546ce71e8e8c4a12ce18063d6b1116228ba30a1403dd2e64003092c09335a",
+        "value": "orientações por papel"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra responsabilidades organizacionais ou adesão às orientações."
+      },
+      "limit": "A API de processo não contém evidência suficiente para confirmar esta prática organizacional."
+    },
+    {
+      "id": "10-POLICY-001",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Objetivo da política explícita",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 7,
+        "excerpt": "## 1. Objetivo:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-002",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Escopo organizacional da política",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 13,
+        "excerpt": "## 2. Escopo:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-003",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Ciclo de revisão da política",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 17,
+        "excerpt": "## 3. Ciclo de revisão:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-004",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Papéis e responsabilidades",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 21,
+        "excerpt": "## 4. Papéis e Responsabilidades:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-005",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Cadências da squad",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 40,
+        "excerpt": "## 5. Cadências:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-006",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Definições de itens de trabalho",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 52,
+        "excerpt": "## 6. Itens de trabalho:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-007",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Mapeamento operacional do fluxo",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 82,
+        "excerpt": "## 7. Mapeamento de Fluxo:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-008",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Definition of Ready",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 251,
+        "excerpt": "## 8. Critério de Preparado (*DoR - Definition of Ready*):",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-009",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Definition of Done",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 286,
+        "excerpt": "## 9. Critério de Pronto (*DoD - Definition of Done*):",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-010",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Classificação da natureza da demanda",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 296,
+        "excerpt": "## 10. Natureza da Demanda:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-011",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Critérios de bloqueios e dependências",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 315,
+        "excerpt": "## 11. Critérios de Bloqueios ou Dependências:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-012",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Métricas de monitoramento",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 323,
+        "excerpt": "## 12. Métricas de Monitoramento:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-013",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Regras de priorização",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 334,
+        "excerpt": "## Regras de Priorização:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-014",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Abordagem de fatiamento",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 338,
+        "excerpt": "## Abordagem de Fatiamento dos Itens:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-015",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Limites de WIP",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 342,
+        "excerpt": "## Limite de Trabalho em Progresso (WIP Limits):",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-016",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Política de incidentes e atendimento expresso",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 346,
+        "excerpt": "## Política de Incidente / Atendimento Expresso:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-017",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Política de comunicação assíncrona",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 352,
+        "excerpt": "## Política de Comunicação Assíncrona:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-POLICY-018",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Critérios de cancelamento ou devolução",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 357,
+        "excerpt": "## Critérios de Cancelamento ou Devolução de Itens:",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "seção do template"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não registra a política preenchida, sua aprovação ou sua prática pela squad."
+      },
+      "limit": "A existência de estados e campos não comprova que a política da squad foi definida ou seguida."
+    },
+    {
+      "id": "10-STATE-001",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Cardápio de estados disponível para o fluxo operacional",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 123,
+        "excerpt": "> **TL;DR:** Cada squad adapta o fluxo ao seu contexto, mas respeitando 3 regras: **(1)** relação 1 estado : N colunas no Azure Boards (uma coluna NÃO pode mapear para múltiplos estados), **(2)** apenas atividades de desenvolvimento de software no board (nada administrativo), e **(3)** usar entre 10-20 colunas do cardápio de 27 estados disponíveis. Autonomia com transparência.",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "27 estados"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "family": "states",
+        "expected": 27
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "10-BOARD-001",
+      "page_id": 10,
+      "slug": "politicas",
+      "finding": "Conformidade dos boards com a relação 1 estado para N colunas",
+      "doc": {
+        "path": "out/wiki/politicas.md",
+        "line": 129,
+        "excerpt": "As squads terão um conjunto de estados disponíveis no Azure Boards, a partir dos quais podem criar colunas no board seguindo **rigorosamente a relação 1 estado : N colunas**. Cada estado pode ser mapeado para **uma ou mais colunas** no board da squad. Colunas distintas dentro do mesmo estado permitem subdivisões visuais (ex.: dev front/back) sem consumir estados adicionais. O que **NÃO é permitido** é uma coluna mapear para múltiplos estados — todos os work item types de uma coluna devem estar mapeados para o mesmo estado.",
+        "sha256": "08c98e781edf13613dd2562f19012bd2b3ebb9bed7878aac511e2a31edc83bf6",
+        "value": "regra obrigatória"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "O snapshot do processo não inclui as configurações dos boards das squads."
+      },
+      "limit": "A conformidade precisa de leitura específica de boards, fora do escopo do processo herdado."
+    },
+    {
+      "id": "9-FIELD-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual do campo Natureza em Bug",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 12,
+        "excerpt": "<summary><strong>Campo customizado: Natureza — adicionado a Bug</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.Bug",
+        "field": "Custom.Natureza",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-FORECAST-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Previsão de Conclusão da Etapa em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 25,
+        "excerpt": "<summary><strong>Campo customizado: Previsão de Conclusão da Etapa — adicionado a HU, IT e AE</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.0eec90bf-8ab6-46e1-8900-20284c1de974",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-FORECAST-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Previsão de Conclusão da Etapa em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 25,
+        "excerpt": "<summary><strong>Campo customizado: Previsão de Conclusão da Etapa — adicionado a HU, IT e AE</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Custom.0eec90bf-8ab6-46e1-8900-20284c1de974",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-FORECAST-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Previsão de Conclusão da Etapa em AE",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 25,
+        "excerpt": "<summary><strong>Campo customizado: Previsão de Conclusão da Etapa — adicionado a HU, IT e AE</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "field": "Custom.0eec90bf-8ab6-46e1-8900-20284c1de974",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-RTCSTATUS-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de RTC Status em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 40,
+        "excerpt": "<summary><strong>Campo customizado: RTC Status — adicionado a HU, IT e AE</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.RTCStatus",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-RTCSTATUS-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de RTC Status em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 40,
+        "excerpt": "<summary><strong>Campo customizado: RTC Status — adicionado a HU, IT e AE</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Custom.RTCStatus",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-RTCSTATUS-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de RTC Status em AE",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 40,
+        "excerpt": "<summary><strong>Campo customizado: RTC Status — adicionado a HU, IT e AE</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "field": "Custom.RTCStatus",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-PRIORITY-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Priority em Tarefa",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 55,
+        "excerpt": "<summary><strong>Campo nativo habilitado: Priority — adicionado a Tarefa e Problema ou Oportunidade</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.Tarefa",
+        "field": "Microsoft.VSTS.Common.Priority",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-PRIORITY-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Priority em Problema ou Oportunidade",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 55,
+        "excerpt": "<summary><strong>Campo nativo habilitado: Priority — adicionado a Tarefa e Problema ou Oportunidade</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.ProblemaouOportunidade",
+        "field": "Microsoft.VSTS.Common.Priority",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-STATE-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Aguardando Desenvolvimento em Atendimento Expresso",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 69,
+        "excerpt": "<summary><strong>Novo estado: Aguardando Desenvolvimento — adicionado a Atendimento Expresso</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "state": "Aguardando Desenvolvimento",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-STORYPOINTS-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Story Points em AE",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 84,
+        "excerpt": "**Esclarecimento:** O escopo real da habilitação do campo Story Points abrange também o work item type **Tarefa**, além dos já documentados (Atendimento Expresso, História de Usuário e Item Técnico).",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "field": "Microsoft.VSTS.Scheduling.StoryPoints",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-STORYPOINTS-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Story Points em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 84,
+        "excerpt": "**Esclarecimento:** O escopo real da habilitação do campo Story Points abrange também o work item type **Tarefa**, além dos já documentados (Atendimento Expresso, História de Usuário e Item Técnico).",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Microsoft.VSTS.Scheduling.StoryPoints",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-STORYPOINTS-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Story Points em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 84,
+        "excerpt": "**Esclarecimento:** O escopo real da habilitação do campo Story Points abrange também o work item type **Tarefa**, além dos já documentados (Atendimento Expresso, História de Usuário e Item Técnico).",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Microsoft.VSTS.Scheduling.StoryPoints",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-STORYPOINTS-004",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Story Points em Tarefa",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 84,
+        "excerpt": "**Esclarecimento:** O escopo real da habilitação do campo Story Points abrange também o work item type **Tarefa**, além dos já documentados (Atendimento Expresso, História de Usuário e Item Técnico).",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.Tarefa",
+        "field": "Microsoft.VSTS.Scheduling.StoryPoints",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-RTC2-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Identificador RTC Solicitação 2 em Problema ou Oportunidade",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 91,
+        "excerpt": "<summary><strong>Identificador RTC Solicitação 2 (versão 0.6.0) — escopo inclui Problema ou Oportunidade</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.ProblemaouOportunidade",
+        "field": "Custom.55fa36b0-17e8-43ac-a43e-ec7ca057b99e",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-RTC3-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Identificador RTC Solicitação 3 em Problema ou Oportunidade",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 98,
+        "excerpt": "<summary><strong>Identificador RTC Solicitação 3 (versão 0.9.0) — escopo inclui Problema ou Oportunidade</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.ProblemaouOportunidade",
+        "field": "Custom.c29caeac-3f06-4b8d-a86f-cb0b64385577",
+        "expected": true
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-REMOVED-STATE-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Aguardando Análise de Viabilidade Técnica em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "state": "Aguardando Análise de Viabilidade Técnica",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Em Análise de Viabilidade Técnica em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "state": "Em Análise de Viabilidade Técnica",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Aguardando Análise de Viabilidade Técnica em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "state": "Aguardando Análise de Viabilidade Técnica",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-004",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Em Análise de Viabilidade Técnica em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "state": "Em Análise de Viabilidade Técnica",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-005",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Aguardando Elaboração do Plano de Testes em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "state": "Aguardando Elaboração do Plano de Testes",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-006",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Em Elaboração do Plano de Testes em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "state": "Em Elaboração do Plano de Testes",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-007",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Aguardando Elaboração do Plano de Testes em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "state": "Aguardando Elaboração do Plano de Testes",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-008",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Em Elaboração do Plano de Testes em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "state": "Em Elaboração do Plano de Testes",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-009",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Aguardando Elaboração do Plano de Testes em AE",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "state": "Aguardando Elaboração do Plano de Testes",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-010",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Em Elaboração do Plano de Testes em AE",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "state": "Em Elaboração do Plano de Testes",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-011",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Aguardando Elaboração do Plano de Testes em Kaizen",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Processo-Kanban.Kaizen",
+        "state": "Aguardando Elaboração do Plano de Testes",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-REMOVED-STATE-012",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ausência atual de Em Elaboração do Plano de Testes em Kaizen",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "ausente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Processo-Kanban.Kaizen",
+        "state": "Em Elaboração do Plano de Testes",
+        "expected": false
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-RTC-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Identificador RTC Solicitação em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 177,
+        "excerpt": "<summary><strong>Campo customizado: Identificador RTC Solicitação — adicionado a História de Usuário e Item Técnico</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.e39c8a02-d6b8-4d57-8c5a-a63fdcfb5cd5",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-RTC-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Identificador RTC Solicitação em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 177,
+        "excerpt": "<summary><strong>Campo customizado: Identificador RTC Solicitação — adicionado a História de Usuário e Item Técnico</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Custom.e39c8a02-d6b8-4d57-8c5a-a63fdcfb5cd5",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-ORIGINAL-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Original Estimate em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 196,
+        "excerpt": "<summary><strong>Campos nativos habilitados: Horas estimadas (Original Estimate) e Horas trabalhadas (Completed Work)</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Microsoft.VSTS.Scheduling.OriginalEstimate",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-ORIGINAL-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Original Estimate em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 196,
+        "excerpt": "<summary><strong>Campos nativos habilitados: Horas estimadas (Original Estimate) e Horas trabalhadas (Completed Work)</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Microsoft.VSTS.Scheduling.OriginalEstimate",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-ORIGINAL-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Original Estimate em Tarefa",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 196,
+        "excerpt": "<summary><strong>Campos nativos habilitados: Horas estimadas (Original Estimate) e Horas trabalhadas (Completed Work)</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.Tarefa",
+        "field": "Microsoft.VSTS.Scheduling.OriginalEstimate",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-COMPLETED-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Completed Work em Tarefa",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 196,
+        "excerpt": "<summary><strong>Campos nativos habilitados: Horas estimadas (Original Estimate) e Horas trabalhadas (Completed Work)</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.Tarefa",
+        "field": "Microsoft.VSTS.Scheduling.CompletedWork",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-WIT-INCIDENTE-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual do Work Item Type Incidente",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 234,
+        "excerpt": "<summary><strong>Novo Tipo de Work Item: Incidente </strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "WIT ativo"
+      },
+      "check": {
+        "kind": "wit_presence",
+        "wit": "Processo-Agil.Incidente",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-RTC2-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Identificador RTC Solicitação 2 em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 258,
+        "excerpt": "<summary><strong>Campos customizados: Identificador RTC Solicitação 2 e Identificador RTC Solicitação 3 </strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.55fa36b0-17e8-43ac-a43e-ec7ca057b99e",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-RTC3-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Identificador RTC Solicitação 3 em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 258,
+        "excerpt": "<summary><strong>Campos customizados: Identificador RTC Solicitação 2 e Identificador RTC Solicitação 3 </strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.c29caeac-3f06-4b8d-a86f-cb0b64385577",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-RTC2-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Identificador RTC Solicitação 2 em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 258,
+        "excerpt": "<summary><strong>Campos customizados: Identificador RTC Solicitação 2 e Identificador RTC Solicitação 3 </strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Custom.55fa36b0-17e8-43ac-a43e-ec7ca057b99e",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-RTC3-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Identificador RTC Solicitação 3 em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 258,
+        "excerpt": "<summary><strong>Campos customizados: Identificador RTC Solicitação 2 e Identificador RTC Solicitação 3 </strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Custom.c29caeac-3f06-4b8d-a86f-cb0b64385577",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-EXIT-EXAMPLE-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Campo exemplificativo Saiu do Estado Em Desenvolvimento Date em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 294,
+        "excerpt": "**Diferencial:** Cada estado do processo terá um campo específico do tipo Date/Time, por exemplo: *Saiu do Estado Em Desenvolvimento Date*, *Saiu do Estado Em Testes Date*, etc.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.SaiudoEstadoEmDesenvolvimentoDate",
+        "expected": true
+      },
+      "limit": "A divergência mostra que nem o exemplo explícito está presente; a confirmação é apenas ilustrativa e não prova cobertura integral."
+    },
+    {
+      "id": "9-EXIT-EXAMPLE-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Campo exemplificativo Saiu do Estado Em Desenvolvimento Date em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 294,
+        "excerpt": "**Diferencial:** Cada estado do processo terá um campo específico do tipo Date/Time, por exemplo: *Saiu do Estado Em Desenvolvimento Date*, *Saiu do Estado Em Testes Date*, etc.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Custom.SaiudoEstadoEmDesenvolvimentoDate",
+        "expected": true
+      },
+      "limit": "A divergência mostra que nem o exemplo explícito está presente; a confirmação é apenas ilustrativa e não prova cobertura integral."
+    },
+    {
+      "id": "9-EXIT-EXAMPLE-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Campo exemplificativo Saiu do Estado Em Desenvolvimento Date em AE",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 294,
+        "excerpt": "**Diferencial:** Cada estado do processo terá um campo específico do tipo Date/Time, por exemplo: *Saiu do Estado Em Desenvolvimento Date*, *Saiu do Estado Em Testes Date*, etc.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "field": "Custom.SaiudoEstadoEmDesenvolvimentoDate",
+        "expected": true
+      },
+      "limit": "A divergência mostra que nem o exemplo explícito está presente; a confirmação é apenas ilustrativa e não prova cobertura integral."
+    },
+    {
+      "id": "9-EXIT-COVERAGE-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Cobertura de um campo de saída para cada estado aplicável",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 294,
+        "excerpt": "**Diferencial:** Cada estado do processo terá um campo específico do tipo Date/Time, por exemplo: *Saiu do Estado Em Desenvolvimento Date*, *Saiu do Estado Em Testes Date*, etc.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "um campo por estado"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "O exemplo explícito é comparado; a cobertura integral exige relacionar cada estado atual aos campos de saída correspondentes."
+      },
+      "limit": "Um único ponteiro não prova simultaneamente todos os pares estado-campo; a cobertura completa permanece explicitamente ambígua."
+    },
+    {
+      "id": "9-WORKED-HOURS-JOB-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Execução do script diário de horas trabalhadas",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 332,
+        "excerpt": "<summary><strong>Script diário para cálculo automático de horas trabalhadas</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "script diário ativo"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "O snapshot do processo não informa agenda, execução, código ou sucesso do script externo."
+      },
+      "limit": "A existência dos campos de destino não prova que o job execute ou calcule corretamente."
+    },
+    {
+      "id": "9-COMPLETED-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Completed Work em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 349,
+        "excerpt": "- **Campo atualizado:** `Horas trabalhadas` (CompletedWork) — representa as horas trabalhadas acumuladas.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Microsoft.VSTS.Scheduling.CompletedWork",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-COMPLETED-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Completed Work em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 349,
+        "excerpt": "- **Campo atualizado:** `Horas trabalhadas` (CompletedWork) — representa as horas trabalhadas acumuladas.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Microsoft.VSTS.Scheduling.CompletedWork",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-DEPLOY-HML-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Aguardando Deploy em Homologação em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 371,
+        "excerpt": "<summary><strong>Novos estados: Aguardando Deploy em Homologação e Em Deploy em Homologação</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "state": "Aguardando Deploy em Homologação",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-DEPLOY-HML-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Em Deploy em Homologação em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 371,
+        "excerpt": "<summary><strong>Novos estados: Aguardando Deploy em Homologação e Em Deploy em Homologação</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "state": "Em Deploy em Homologação",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-DEPLOY-HML-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Aguardando Deploy em Homologação em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 371,
+        "excerpt": "<summary><strong>Novos estados: Aguardando Deploy em Homologação e Em Deploy em Homologação</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "state": "Aguardando Deploy em Homologação",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-DEPLOY-HML-004",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Em Deploy em Homologação em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 371,
+        "excerpt": "<summary><strong>Novos estados: Aguardando Deploy em Homologação e Em Deploy em Homologação</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "state": "Em Deploy em Homologação",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-DEPLOY-HML-005",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Aguardando Deploy em Homologação em Kaizen",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 371,
+        "excerpt": "<summary><strong>Novos estados: Aguardando Deploy em Homologação e Em Deploy em Homologação</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Processo-Kanban.Kaizen",
+        "state": "Aguardando Deploy em Homologação",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-DEPLOY-HML-006",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Em Deploy em Homologação em Kaizen",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 371,
+        "excerpt": "<summary><strong>Novos estados: Aguardando Deploy em Homologação e Em Deploy em Homologação</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Processo-Kanban.Kaizen",
+        "state": "Em Deploy em Homologação",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-DEPLOY-HML-007",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Aguardando Deploy em Homologação em AE",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 371,
+        "excerpt": "<summary><strong>Novos estados: Aguardando Deploy em Homologação e Em Deploy em Homologação</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "state": "Aguardando Deploy em Homologação",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-DEPLOY-HML-008",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença atual de Em Deploy em Homologação em AE",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 371,
+        "excerpt": "<summary><strong>Novos estados: Aguardando Deploy em Homologação e Em Deploy em Homologação</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "state_presence",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "state": "Em Deploy em Homologação",
+        "expected": true
+      },
+      "limit": "O estado atual corrobora ou diverge da configuração descrita, mas não prova data, autoria ou causalidade histórica."
+    },
+    {
+      "id": "9-HOMOLOGATION-SEMANTICS-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Redefinição semântica dos estados de homologação",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 403,
+        "excerpt": "<summary><strong>Redefinição de estados: Aguardando Homologação e Em Homologação</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "foco exclusivo em validação de negócio"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo expõe nomes, categorias e cores dos estados, não sua finalidade operacional praticada."
+      },
+      "limit": "A semântica e a divisão de responsabilidades exigem política operacional ou evidência de uso."
+    },
+    {
+      "id": "9-ENTRY-EXAMPLE-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Campo exemplificativo Entrou em Estado Em Desenvolvimento Date em HU",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 450,
+        "excerpt": "*Entrou em Estado Em Desenvolvimento Date*, *Entrou em Estado Em Testes Date*, etc.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.EntrouemEstadoEmDesenvolvimentoDate",
+        "expected": true
+      },
+      "limit": "A divergência mostra que nem o exemplo explícito está presente; a confirmação é apenas ilustrativa e não prova cobertura integral."
+    },
+    {
+      "id": "9-ENTRY-EXAMPLE-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Campo exemplificativo Entrou em Estado Em Desenvolvimento Date em IT",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 450,
+        "excerpt": "*Entrou em Estado Em Desenvolvimento Date*, *Entrou em Estado Em Testes Date*, etc.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Custom.EntrouemEstadoEmDesenvolvimentoDate",
+        "expected": true
+      },
+      "limit": "A divergência mostra que nem o exemplo explícito está presente; a confirmação é apenas ilustrativa e não prova cobertura integral."
+    },
+    {
+      "id": "9-ENTRY-EXAMPLE-003",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Campo exemplificativo Entrou em Estado Em Desenvolvimento Date em Kaizen",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 450,
+        "excerpt": "*Entrou em Estado Em Desenvolvimento Date*, *Entrou em Estado Em Testes Date*, etc.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.Kaizen",
+        "field": "Custom.EntrouemEstadoEmDesenvolvimentoDate",
+        "expected": true
+      },
+      "limit": "A divergência mostra que nem o exemplo explícito está presente; a confirmação é apenas ilustrativa e não prova cobertura integral."
+    },
+    {
+      "id": "9-ENTRY-EXAMPLE-004",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Campo exemplificativo Entrou em Estado Em Desenvolvimento Date em AE",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 450,
+        "excerpt": "*Entrou em Estado Em Desenvolvimento Date*, *Entrou em Estado Em Testes Date*, etc.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "field": "Custom.EntrouemEstadoEmDesenvolvimentoDate",
+        "expected": true
+      },
+      "limit": "A divergência mostra que nem o exemplo explícito está presente; a confirmação é apenas ilustrativa e não prova cobertura integral."
+    },
+    {
+      "id": "9-ENTRY-COVERAGE-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Cobertura de um campo de entrada para cada estado aplicável",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 449,
+        "excerpt": "**Diferencial:** Cada estado do processo terá um campo específico do tipo Date/Time, por exemplo:  ",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "um campo por estado"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "O exemplo explícito é comparado; a cobertura integral exige relacionar cada estado atual aos campos de entrada correspondentes."
+      },
+      "limit": "A cobertura completa permanece ambígua sem uma matriz estado-campo materializada como evidência."
+    },
+    {
+      "id": "9-PROCESS-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Baseline atual do processo Processo-Agil",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 569,
+        "excerpt": "Processo customizado **Processo-Agil** implantado na organização bancodonordeste.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "Processo-Agil"
+      },
+      "check": {
+        "kind": "equals",
+        "artifact": "process.json",
+        "pointer": "/name",
+        "expected": "Processo-Agil"
+      },
+      "limit": "A ausência ou presença atual diverge do escopo material documentado."
+    },
+    {
+      "id": "9-HISTORY-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Cronologia e completude do changelog",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 3,
+        "excerpt": "Todas as mudanças notáveis no processo customizado **Processo-Agil** são documentadas nesta página.",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "todas as mudanças notáveis"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "Os endpoints de estado atual não provam quando cada alteração ocorreu nem se o histórico está completo."
+      },
+      "limit": "A cronologia exige histórico de revisões ou auditoria, não apenas o snapshot atual."
+    },
+    {
+      "id": "9-REMOVED-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Remoção histórica dos quatro estados",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 128,
+        "excerpt": "<summary><strong>Estados removidos: Aguardando/Em Análise de Viabilidade Técnica e Aguardando/Em Elaboração do Plano de Testes</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "removidos na versão 0.11.0"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A ausência atual pode ser observada, mas não prova a remoção nem a versão em que ocorreu."
+      },
+      "limit": "A presença atual corrobora a configuração, mas não prova a data, autoria ou causalidade histórica registrada no changelog."
+    },
+    {
+      "id": "9-COEXEC-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença e escopo atuais de Co-executor 1 e 2",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 491,
+        "excerpt": "<summary><strong>Campos customizados: Co-executor 1 e Co-executor 2</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "campos em WITs declarados"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "A coleta ao vivo deve reconciliar os referenceNames antes de comparar presença por WIT."
+      },
+      "limit": "Nomes visuais não identificam de forma inequívoca os campos sem os referenceNames atuais."
+    },
+    {
+      "id": "9-COEXEC-002",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Presença e escopo atuais de Co-executor 3",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 541,
+        "excerpt": "<summary><strong>Complemento (27/04/2026): Campo customizado Co-executor 3</strong></summary>",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "campo em HU, IT e AE"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "A coleta ao vivo deve reconciliar o referenceName do terceiro campo antes da comparação."
+      },
+      "limit": "O nome visual isolado não é uma chave estável da API."
+    },
+    {
+      "id": "9-ORDER-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Ordem relativa dos controles de coexecução no layout",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 558,
+        "excerpt": "- **Ordem:** Assigned To → Co-executor 1 → Co-executor 2 → Co-executor 3",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "Assigned To, 1, 2, 3"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "A ordem pode ser inspecionada nos layouts, mas os referenceNames ainda precisam ser reconciliados."
+      },
+      "limit": "Sem identificar os quatro controles, a ordem não pode ser comparada com segurança."
+    },
+    {
+      "id": "9-JOB-001",
+      "page_id": 9,
+      "slug": "changelog",
+      "finding": "Execução diária do pipeline de datas de saída",
+      "doc": {
+        "path": "out/wiki/changelog.md",
+        "line": 299,
+        "excerpt": "- Os campos são atualizados diariamente por um script via Pipeline Azure - [Aqui.](https://dev.azure.com/bancodonordeste/Torre%20CCR%20-%20Concess%C3%A3o%20de%20Cr%C3%A9dito/_build?definitionId=4)",
+        "sha256": "b696f2c4f9bbc30318c8dd7dc40af8381fa829a67aa495b1658f36d80e79e537",
+        "value": "pipeline diário ativo"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "A API de processo não informa agenda, execução ou sucesso do pipeline externo."
+      },
+      "limit": "Campos e regras no processo não comprovam a operação do pipeline."
+    },
+    {
+      "id": "37-STATE-001",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de OE",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 43,
+        "excerpt": "<summary>Estados (10)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "10"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Custom.6e7885f2-afb5-4d19-8763-084dd2f934be",
+        "family": "states",
+        "expected": 10
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-001",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de OE",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 75,
+        "excerpt": "Nenhuma regra configurada.",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "0"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Custom.6e7885f2-afb5-4d19-8763-084dd2f934be",
+        "expected": 0
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-002",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de RC",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 86,
+        "excerpt": "<summary>Estados (10)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "10"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Processo-Kanban.ResultadoChave",
+        "family": "states",
+        "expected": 10
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-002",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de RC",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 108,
+        "excerpt": "Nenhuma regra configurada.",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "0"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Processo-Kanban.ResultadoChave",
+        "expected": 0
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-003",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de INIT",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 119,
+        "excerpt": "<summary>Estados (10)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "10"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Processo-Kanban.Iniciativa",
+        "family": "states",
+        "expected": 10
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-003",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de INIT",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 139,
+        "excerpt": "Nenhuma regra configurada.",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "0"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Processo-Kanban.Iniciativa",
+        "expected": 0
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-004",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de PO",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 156,
+        "excerpt": "<summary>Estados (9)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "9"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Processo-Kanban.ProblemaouOportunidade",
+        "family": "states",
+        "expected": 9
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-004",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de PO",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 190,
+        "excerpt": "Nenhuma regra configurada.",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "0"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Processo-Kanban.ProblemaouOportunidade",
+        "expected": 0
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-005",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de HS",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 201,
+        "excerpt": "<summary>Estados (14)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "14"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Custom.a21aba08-34d1-4bde-80dc-90bb8371be5d",
+        "family": "states",
+        "expected": 14
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-005",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de HS",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 239,
+        "excerpt": "Nenhuma regra configurada.",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "0"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Custom.a21aba08-34d1-4bde-80dc-90bb8371be5d",
+        "expected": 0
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-006",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de HU",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 256,
+        "excerpt": "<summary>Estados (27)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "27"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "family": "states",
+        "expected": 27
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-006",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de HU",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 289,
+        "excerpt": "<summary>Regras de Automação (30 regras)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "30"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "expected": 30
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-007",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de IT",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 303,
+        "excerpt": "<summary>Estados (27)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "27"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "family": "states",
+        "expected": 27
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-007",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de IT",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 317,
+        "excerpt": "<summary>Regras de Automação (30 regras)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "30"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "expected": 30
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-008",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de AE",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 330,
+        "excerpt": "<summary>Estados (14)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "14"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "family": "states",
+        "expected": 14
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-008",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de AE",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 358,
+        "excerpt": "<summary>Regras de Automação (17 regras)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "17"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "expected": 17
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-009",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de INC",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 372,
+        "excerpt": "<summary>Estados (14)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "14"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Processo-Agil.Incidente",
+        "family": "states",
+        "expected": 14
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-009",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de INC",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 391,
+        "excerpt": "<summary>Regras de Automação (17 regras)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "17"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Processo-Agil.Incidente",
+        "expected": 17
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-010",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de KAI",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 405,
+        "excerpt": "<summary>Estados (14)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "14"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Processo-Kanban.Kaizen",
+        "family": "states",
+        "expected": 14
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-010",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de KAI",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 425,
+        "excerpt": "<summary>Regras de Automação (17 regras)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "17"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Processo-Kanban.Kaizen",
+        "expected": 17
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-011",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de BUG",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 438,
+        "excerpt": "<summary>Estados (8)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "8"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Processo-Kanban.Bug",
+        "family": "states",
+        "expected": 8
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-011",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de BUG",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 462,
+        "excerpt": "<summary>Regras de Automação (139 regras)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "139"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Processo-Kanban.Bug",
+        "expected": 139
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-STATE-012",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de estados de TASK",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 477,
+        "excerpt": "<summary>Estados (4)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "4"
+      },
+      "check": {
+        "kind": "count_equals",
+        "wit": "Processo-Kanban.Tarefa",
+        "family": "states",
+        "expected": 4
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-RULE-012",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Quantidade de regras de TASK",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 501,
+        "excerpt": "<summary>Regras de Automação (3 regras)</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "3"
+      },
+      "check": {
+        "kind": "rule_count",
+        "wit": "Processo-Kanban.Tarefa",
+        "expected": 3
+      },
+      "limit": "Se a configuração atual diferir, o uso real do processo não corresponde ao contrato documental."
+    },
+    {
+      "id": "37-BLOCK-001",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Obrigatoriedade de Bloqueado em HU",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 276,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio | Marcar impedimentos (obrigatório\\*) |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "A API pode omitir o atributo required; nesse caso a alegação permanece ambígua."
+    },
+    {
+      "id": "37-LAYOUT-001",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Controle Bloqueado visível no layout de HU",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 276,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio | Marcar impedimentos (obrigatório\\*) |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "presente no formulário"
+      },
+      "check": {
+        "kind": "layout_control",
+        "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+        "control": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Campo disponível e controle presente no layout são propriedades distintas."
+    },
+    {
+      "id": "37-BLOCK-002",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Obrigatoriedade de Bloqueado em IT",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 312,
+        "excerpt": "Mesmos da História de Usuário, exceto Acceptance Criteria.",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "A API pode omitir o atributo required; nesse caso a alegação permanece ambígua."
+    },
+    {
+      "id": "37-LAYOUT-002",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Controle Bloqueado visível no layout de IT",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 312,
+        "excerpt": "Mesmos da História de Usuário, exceto Acceptance Criteria.",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "presente no formulário"
+      },
+      "check": {
+        "kind": "layout_control",
+        "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+        "control": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Campo disponível e controle presente no layout são propriedades distintas."
+    },
+    {
+      "id": "37-BLOCK-003",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Obrigatoriedade de Bloqueado em AE",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 348,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "A API pode omitir o atributo required; nesse caso a alegação permanece ambígua."
+    },
+    {
+      "id": "37-LAYOUT-003",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Controle Bloqueado visível no layout de AE",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 348,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "presente no formulário"
+      },
+      "check": {
+        "kind": "layout_control",
+        "wit": "Processo-Kanban.AtendimentoExpresso",
+        "control": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Campo disponível e controle presente no layout são propriedades distintas."
+    },
+    {
+      "id": "37-BLOCK-004",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Obrigatoriedade de Bloqueado em INC",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 383,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Agil.Incidente",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "A API pode omitir o atributo required; nesse caso a alegação permanece ambígua."
+    },
+    {
+      "id": "37-LAYOUT-004",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Controle Bloqueado visível no layout de INC",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 383,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "presente no formulário"
+      },
+      "check": {
+        "kind": "layout_control",
+        "wit": "Processo-Agil.Incidente",
+        "control": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Campo disponível e controle presente no layout são propriedades distintas."
+    },
+    {
+      "id": "37-BLOCK-005",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Obrigatoriedade de Bloqueado em KAI",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 416,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.Kaizen",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "A API pode omitir o atributo required; nesse caso a alegação permanece ambígua."
+    },
+    {
+      "id": "37-LAYOUT-005",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Controle Bloqueado visível no layout de KAI",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 416,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "presente no formulário"
+      },
+      "check": {
+        "kind": "layout_control",
+        "wit": "Processo-Kanban.Kaizen",
+        "control": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Campo disponível e controle presente no layout são propriedades distintas."
+    },
+    {
+      "id": "37-BLOCK-006",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Obrigatoriedade de Bloqueado em BUG",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 455,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.Bug",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "A API pode omitir o atributo required; nesse caso a alegação permanece ambígua."
+    },
+    {
+      "id": "37-LAYOUT-006",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Controle Bloqueado visível no layout de BUG",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 455,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "presente no formulário"
+      },
+      "check": {
+        "kind": "layout_control",
+        "wit": "Processo-Kanban.Bug",
+        "control": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Campo disponível e controle presente no layout são propriedades distintas."
+    },
+    {
+      "id": "37-BLOCK-007",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Obrigatoriedade de Bloqueado em TASK",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 493,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Motivo do bloqueio Outros |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "obrigatório"
+      },
+      "check": {
+        "kind": "field_required",
+        "wit": "Processo-Kanban.Tarefa",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "A API pode omitir o atributo required; nesse caso a alegação permanece ambígua."
+    },
+    {
+      "id": "37-LAYOUT-007",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Controle Bloqueado visível no layout de TASK",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 493,
+        "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Motivo do bloqueio Outros |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "presente no formulário"
+      },
+      "check": {
+        "kind": "layout_control",
+        "wit": "Processo-Kanban.Tarefa",
+        "control": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "Campo disponível e controle presente no layout são propriedades distintas."
+    },
+    {
+      "id": "37-BEHAVIOR-001",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Mapeamento da camada estratégica para behaviors/ranks",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 32,
+        "excerpt": "## 📊 Camada Estratégica (FL3 — Níveis 5-7)",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "FL3 níveis 5-7"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "A API expõe behaviors e ranks, mas o documento não declara os referenceNames correspondentes."
+      },
+      "limit": "Sem mapeamento explícito, ranks técnicos não provam a semântica de Flight Level."
+    },
+    {
+      "id": "37-BEHAVIOR-002",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Mapeamento da camada tática para behaviors/ranks",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 145,
+        "excerpt": "## 🔍 Camada Tática/Discovery (FL2 — Níveis 3-4)",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "FL2 níveis 3-4"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "A API expõe behaviors e ranks, mas o documento não declara os referenceNames correspondentes."
+      },
+      "limit": "Sem mapeamento explícito, ranks técnicos não provam a semântica de Flight Level."
+    },
+    {
+      "id": "37-BEHAVIOR-003",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Mapeamento da camada operacional para behaviors/ranks",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 245,
+        "excerpt": "## ⚙️ Camada Operacional (FL1 — Níveis 1-2)",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "FL1 níveis 1-2"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "A API expõe behaviors e ranks, mas o documento não declara os referenceNames correspondentes."
+      },
+      "limit": "Sem mapeamento explícito, ranks técnicos não provam a semântica de Flight Level."
+    },
+    {
+      "id": "37-FIELDCOUNT-001",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Contagem de campos customizados na camada estratégica",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 61,
+        "excerpt": "<summary>Campos Customizados</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "lista sem total explícito"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "O documento lista campos, mas não fornece uma contagem por WIT comparável ao count total da API."
+      },
+      "limit": "Campos herdados e customizados precisam ser separados antes de comparar totais."
+    },
+    {
+      "id": "37-FIELDCOUNT-002",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Contagem de campos customizados na camada tática",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 173,
+        "excerpt": "<summary>Campos Customizados</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "lista sem total explícito"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "O documento agrupa campos por categoria, mas não fornece uma contagem total inequívoca."
+      },
+      "limit": "Campos herdados e customizados precisam ser separados antes de comparar totais."
+    },
+    {
+      "id": "37-FIELDCOUNT-003",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Contagem de campos customizados na camada operacional",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 272,
+        "excerpt": "<summary>Campos Customizados</summary>",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "lista sem total explícito"
+      },
+      "check": {
+        "kind": "ambiguous",
+        "implemented": "O documento lista subconjuntos funcionais, não o count total devolvido pela API."
+      },
+      "limit": "O count da API inclui campos herdados e não é diretamente equivalente à lista documental."
+    },
+    {
+      "id": "37-JOB-001",
+      "page_id": 37,
+      "slug": "apendice",
+      "finding": "Automação diária de horas trabalhadas",
+      "doc": {
+        "path": "out/wiki/apendice.md",
+        "line": 279,
+        "excerpt": "| **Esforço** | Horas trabalhadas (Completed Work) | Calculado automaticamente via script diário |",
+        "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
+        "value": "script diário ativo"
+      },
+      "check": {
+        "kind": "limitation",
+        "implemented": "O snapshot do processo não informa execução, agenda ou sucesso do script externo."
+      },
+      "limit": "A presença do campo Completed Work não comprova a automação externa."
+    }
+  ]
+}

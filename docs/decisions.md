@@ -317,11 +317,13 @@ overwriting newer evidence.
 ## User-added adversarial Notion AI gate
 
 Decision: before the four pages are updated, the final sanitized delta packet
-will receive two separate reviews in the Notion desktop app through the
-explicitly requested Computer Use plugin: Kimi K3 and Opus 5, both visibly set
-to maximum effort. Their findings must be reconciled against raw evidence and
-cannot substitute for the deterministic verifier. Missing model/effort, login,
-MFA, or CAPTCHA fails closed; no alternative surface or model is substituted.
+will receive two separate reviews in Notion AI through the browser integrated
+into this ChatGPT task: Kimi K3 and Opus 5, both visibly set to maximum effort.
+The user explicitly superseded the earlier Notion desktop-app instruction on
+2026-08-24. Their findings must be reconciled against raw evidence and cannot
+substitute for the deterministic verifier. Missing model/effort, login, MFA,
+or CAPTCHA fails closed; no external Notion app, alternative surface, or model
+is substituted.
 
 ## Task 4 — RED evidence
 
@@ -464,3 +466,80 @@ original exception reaches the outer snapshot-abort boundary.
 Independent scoped review verdict: `APPROVED`. The reviewer confirmed that the
 cleanup settles sibling tasks before snapshot abort and that UUID validation
 blocks arbitrary route identifiers while preserving the literal API identity.
+
+## Task 5 — RED evidence
+
+Command: `env UV_CACHE_DIR=/private/tmp/doc-azure-uv-cache uv run --no-sync
+pytest tests/test_delta_catalog.py tests/test_delta_evaluator.py -q`
+
+Result: collection failed as expected with `2 errors in 0.09s`; both failures
+were `ModuleNotFoundError: No module named 'delta.catalog'`. This proves that no
+typed catalog schema or explicit evaluator registry existed. The RED suite
+already specifies exact documentary hashes/excerpts, active-versus-disabled
+WIT handling, exact field/rule/layout/behavior pointers, and current-state
+limits for historical claims.
+
+## Task 5 — iterative adversarial RED evidence
+
+The first self-review added a malformed `count_equals` family test. It failed
+once in `0.07s`, proving that a non-envelope family could pass schema loading;
+the family allowlist then made the focused suite green. A second focused test
+for exact state-name evidence failed once in `0.06s` because no
+`state_presence` evaluator existed; the evaluator now returns the exact state
+name pointer rather than inferring history from a count.
+
+The first independent catalog review returned `NEEDS_FIXES`: all 111 original
+references were exact, but page 9 omitted material versions 0.0 through 0.9,
+including RTC fields, native effort fields, Incidente, transition-date fields,
+and homologation states. A new production-catalog coverage test and
+`wit_presence` test failed as expected with `2 failed, 23 passed in 0.14s`.
+The catalog now contains 156 unique claims: 24 for page 35, 20 for page 10, 67
+for page 9, and 45 for page 37. All 156 SHA-256/line/excerpt triples were
+rechecked against the four exact source files.
+
+The first independent code review also found bool/int equality aliasing,
+post-resolution artifact reads that did not recheck the manifest hash, and an
+underspecified artifact-map schema. Equality now compares normalized values
+only when their normalized types match. Snapshot artifact reads use no-follow
+directory/file descriptors and recheck the manifested digest in the same read
+operation. The artifact map requires its exact schema, UUID process ID, global
+paths, WIT identity, and all five per-WIT families.
+
+The second review found two final issues. Seven illustrative transition-field
+claims cited generic section headings rather than the named examples; they now
+point exactly to changelog lines 294 and 450 and explicitly remain spot checks,
+while separate rows classify complete per-state coverage as ambiguous. The map
+also was not cross-checked with `process.json`; the targeted regression failed
+once in `0.10s`, then passed after `process_name`/`process_id` were required to
+equal the collected `name`/`typeId`.
+
+## Task 5 — GREEN evidence and rulings
+
+Focused command: `env UV_CACHE_DIR=/private/tmp/doc-azure-uv-cache uv run
+--no-sync pytest tests/test_delta_evaluator.py::test_artifact_map_identity_must_match_process_artifact
+tests/test_delta_evaluator.py tests/test_delta_catalog.py -q`
+
+Result: `26 passed in 0.18s`.
+
+Full command: `env UV_CACHE_DIR=/private/tmp/doc-azure-uv-cache uv run
+--no-sync pytest -q`
+
+Result: `226 passed in 0.47s`.
+
+Compile command: `env UV_CACHE_DIR=/private/tmp/doc-azure-uv-cache uv run
+--no-sync python -m compileall -q src scripts tests`
+
+Result: exit code 0 with no output. `git diff --check` also exited zero.
+
+Ruling: `CONFIRMADO` and `DIVERGENTE` compare only the current, exact process
+configuration. Historical chronology, board practice, organizational adoption,
+external jobs, policy compliance, and semantic responsibility remain
+`NAO_VERIFICAVEL_API_PROCESSO` or `AMBIGUO`; current presence never proves when
+or why a change occurred. Example fields do not stand in for full field-family
+coverage.
+
+Final independent verdicts: `APPROVED` for the 156-claim catalog and
+`APPROVED` for the evaluator/snapshot hardening. Reviewers confirmed exact
+documentary pointers, material changelog coverage, illustrative limits, strict
+process identity cross-checking, no-follow/hash reads, and the 26-test focused
+gate.

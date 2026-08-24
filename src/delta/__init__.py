@@ -9,6 +9,14 @@ from pathlib import Path
 from typing import Any
 
 from .evidence import EvidenceError, resolve_json_pointer, verify_doc_line
+from .catalog import (
+    CatalogError,
+    CheckSpec,
+    ClaimSpec,
+    DocumentaryClaim,
+    load_catalog,
+)
+from .evaluator import EvaluationError, evaluate_claim
 from .models import AuditResult, EvidencePointer, Finding, FindingStatus
 
 VALID_CLASSES = frozenset({"DOC_ONLY", "AZURE_ONLY", "DIVERGENT", "MATCH"})

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "claims": [
+    {
+      "id": "35-FIELD-001",
+      "page_id": 35,
+      "slug": "leiame",
+      "finding": "O campo Bloqueado existe na História de Usuário",
+      "doc": {
+        "path": "out/wiki/leiame.md",
+        "line": 2,
+        "excerpt": "Campo Bloqueado",
+        "sha256": "279840b860a67f809188b82777026a646cb6302fdce209575c820f485c95d12c",
+        "value": "presente"
+      },
+      "check": {
+        "kind": "field_presence",
+        "wit": "Custom.UserStory",
+        "field": "Custom.Bloqueado",
+        "expected": true
+      },
+      "limit": "A ausência do campo impediria a sinalização estruturada de bloqueios."
+    }
+  ]
+}

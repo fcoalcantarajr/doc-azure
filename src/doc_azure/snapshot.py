@@ -206,6 +206,44 @@ def resolve_snapshot_root(root: Path) -> Path:
     raise SnapshotError("snapshot root has no complete CURRENT or legacy snapshot")
 
 
+def read_snapshot_artifact(root: Path, relative_path: str | Path) -> bytes:
+    """Read one manifested artifact without following path symlinks.
+
+    The artifact digest is checked again in the same operation. This prevents a
+    caller from interpreting bytes that changed after the snapshot was resolved.
+    """
+
+    normalized_path = _validate_relative_path(relative_path)
+    resolved_root = resolve_snapshot_root(root)
+    try:
+        root_descriptor = os.open(
+            resolved_root,
+            os.O_RDONLY | _DIRECTORY | _NOFOLLOW,
+        )
+    except OSError:
+        raise SnapshotError("snapshot root changed while being read") from None
+    try:
+        manifest_bytes = _read_regular_at(
+            root_descriptor,
+            PurePosixPath(_MANIFEST),
+            "manifest",
+        )
+        expected_hash = _artifact_hash_from_manifest(
+            manifest_bytes,
+            normalized_path.as_posix(),
+        )
+        payload = _read_regular_at(
+            root_descriptor,
+            normalized_path,
+            "snapshot artifact",
+        )
+    finally:
+        os.close(root_descriptor)
+    if hashlib.sha256(payload).hexdigest() != expected_hash:
+        raise SnapshotError("snapshot artifact hash does not match manifest")
+    return payload
+
+
 def _publication_token(root: Path) -> str:
     current_path = root / _CURRENT
     if _lexists(current_path):
@@ -514,6 +552,62 @@ def _read_regular_file(path: Path, label: str) -> bytes:
             return source.read()
     finally:
         os.close(descriptor)
+
+
+def _read_regular_at(
+    root_descriptor: int,
+    relative_path: PurePosixPath,
+    label: str,
+) -> bytes:
+    directory_descriptors: list[int] = []
+    current_descriptor = root_descriptor
+    try:
+        for part in relative_path.parts[:-1]:
+            next_descriptor = os.open(
+                part,
+                os.O_RDONLY | _DIRECTORY | _NOFOLLOW,
+                dir_fd=current_descriptor,
+            )
+            directory_descriptors.append(next_descriptor)
+            current_descriptor = next_descriptor
+        descriptor = os.open(
+            relative_path.name,
+            os.O_RDONLY | _NOFOLLOW,
+            dir_fd=current_descriptor,
+        )
+    except OSError:
+        for directory_descriptor in reversed(directory_descriptors):
+            os.close(directory_descriptor)
+        raise SnapshotError(f"{label} is missing, unreadable, or a symlink") from None
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise SnapshotError(f"{label} is not a regular file")
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            return source.read()
+    finally:
+        os.close(descriptor)
+        for directory_descriptor in reversed(directory_descriptors):
+            os.close(directory_descriptor)
+
+
+def _artifact_hash_from_manifest(manifest_bytes: bytes, path: str) -> str:
+    try:
+        manifest = json.loads(manifest_bytes)
+    except (UnicodeError, ValueError):
+        raise SnapshotError("snapshot manifest is malformed") from None
+    artifacts = manifest.get("artifacts") if isinstance(manifest, dict) else None
+    if not isinstance(artifacts, list):
+        raise SnapshotError("snapshot manifest is malformed")
+    matches = [
+        artifact.get("sha256")
+        for artifact in artifacts
+        if isinstance(artifact, dict) and artifact.get("path") == path
+    ]
+    if len(matches) != 1 or not isinstance(matches[0], str):
+        raise SnapshotError("snapshot artifact is absent from manifest")
+    if _HASH_PATTERN.fullmatch(matches[0]) is None:
+        raise SnapshotError("snapshot manifest artifact is malformed")
+    return matches[0]
 
 
 def _validate_relative_path(relative_path: object) -> PurePosixPath:

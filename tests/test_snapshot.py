@@ -10,7 +10,11 @@ import pytest
 
 import doc_azure.snapshot as snapshot_module
 from doc_azure.azure_client import RequestRecord
-from doc_azure.snapshot import SnapshotError, SnapshotWriter
+from doc_azure.snapshot import (
+    SnapshotError,
+    SnapshotWriter,
+    read_snapshot_artifact,
+)
 
 
 COLLECTED_AT = datetime(2026, 8, 24, 15, 30, tzinfo=timezone.utc)
@@ -113,6 +117,21 @@ def test_commit_publishes_versioned_snapshot_through_atomic_current_pointer(
         "leiame.md",
         "metadata/leiame.json",
     )
+
+
+def test_read_snapshot_artifact_rechecks_the_manifest_hash(tmp_path: Path) -> None:
+    root = tmp_path / "process"
+    generation = publish_process_snapshot(root, "old")
+
+    assert read_snapshot_artifact(root, "process.json") == (
+        b'{\n  "name": "old"\n}\n'
+    )
+
+    (generation / "process.json").write_text(
+        '{"name":"changed"}\n', encoding="utf-8"
+    )
+    with pytest.raises(SnapshotError, match="hash"):
+        read_snapshot_artifact(root, "process.json")
 
 
 def test_stale_writer_cannot_replace_a_newer_generation(tmp_path: Path) -> None:

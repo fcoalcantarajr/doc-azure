@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import stat
 from pathlib import Path
 
 
@@ -37,16 +39,49 @@ def resolve_json_pointer(document: object, pointer: str) -> object:
 
 def verify_doc_line(path: Path, line: int, excerpt: str, source_sha256: str) -> None:
     """Prove that a numbered source line and the file hash match their catalog entry."""
-    contents = path.read_bytes()
+    contents = _read_regular_file_no_follow(path)
+    verify_doc_content(contents, line, excerpt, source_sha256, label=str(path))
+
+
+def verify_doc_content(
+    contents: bytes,
+    line: int,
+    excerpt: str,
+    source_sha256: str,
+    *,
+    label: str,
+) -> None:
+    """Prove an exact source line against already verified artifact bytes."""
+
+    if not isinstance(contents, bytes):
+        raise EvidenceError("document contents must be bytes")
     actual_sha256 = hashlib.sha256(contents).hexdigest()
     if actual_sha256 != source_sha256:
-        raise EvidenceError(f"SHA-256 mismatch for {path}")
+        raise EvidenceError(f"SHA-256 mismatch for {label}")
 
-    lines = contents.decode("utf-8").splitlines()
+    try:
+        lines = contents.decode("utf-8").splitlines()
+    except UnicodeError:
+        raise EvidenceError(f"document is not UTF-8: {label}") from None
     if line < 1 or line > len(lines):
-        raise EvidenceError(f"line {line} is outside {path}")
+        raise EvidenceError(f"line {line} is outside {label}")
     if lines[line - 1] != excerpt:
-        raise EvidenceError(f"exact excerpt does not match line {line} in {path}")
+        raise EvidenceError(f"exact excerpt does not match line {line} in {label}")
+
+
+def _read_regular_file_no_follow(path: Path) -> bytes:
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, os.O_RDONLY | no_follow)
+    except OSError:
+        raise EvidenceError(f"document is missing, unreadable, or a symlink: {path}") from None
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise EvidenceError(f"document is not a regular file: {path}")
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            return source.read()
+    finally:
+        os.close(descriptor)
 
 
 def _decode_pointer_segment(raw_segment: str) -> str:
