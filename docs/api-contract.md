@@ -94,8 +94,25 @@ post-publication cleanup failures from changing a successful result.
 - Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes?api-version=7.1`
 - Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/processes/list
 - Query params: `api-version`, `$expand`
-- Response shape: Returns `ProcessInfo[]` array with fields: `processId` (GUID), `name`, `referenceName`, `type` (system/inherited/custom), `color`, `description`, `url`, etc.
-- Notes: To find "Processo-Agil" processTypeId, filter the response array by `name` or `referenceName`.
+- Response shape: Returns a `count`/`value` envelope. Each process entry uses
+  `typeId` as its API identifier and also includes fields such as `name`,
+  `referenceName`, `customizationType`, `parentProcessTypeId`, `isEnabled`, and
+  `isDefault` when applicable.
+- Notes: Discovery requires exactly one entry whose `name` is exactly
+  `Processo-Agil`. Zero or multiple matches fail closed. The selected `typeId`
+  is the `{processId}` route segment; it is not inferred from array position or
+  from an undocumented `processId` alias. The unfiltered response is retained
+  as `processes.json`.
+
+### Get the Selected Process
+
+- Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}?api-version=7.1`
+- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/processes/get
+- Query params: `api-version`, `$expand`
+- Response shape: A process object whose `typeId` and `name` must match the
+  exact entry selected from the process list.
+- Notes: The complete object is retained as `process.json` before per-WIT
+  interpretation.
 
 ---
 
@@ -103,8 +120,13 @@ post-publication cleanup failures from changing a successful result.
 - Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}/workitemtypes?api-version=7.1`
 - Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/work-item-types/list
 - Query params: `api-version`, `$expand`
-- Response shape: Returns `WorkItemType[]` array with fields: `referenceName` (e.g., "Microsoft.VSTS.Common.UserStory"), `name` (display name), `description`, `customization`, `color`, `icon`, `url`, `isDisabled`
-- Notes: `referenceName` URL-decoded is the identifier used in subsequent endpoints.
+- Response shape: Returns a `count`/`value` envelope whose work-item entries
+  include `referenceName`, `name`, `description`, `customization`, `color`,
+  `icon`, `url`, and `isDisabled`.
+- Notes: The complete index is retained as `workitemtypes.json`, including
+  disabled entries. Every `referenceName` is validated as a collision-free
+  route/file segment and used unchanged in subsequent routes. A versioned
+  `artifact-map.json` maps it to its five local evidence files.
 
 ---
 
@@ -112,7 +134,10 @@ post-publication cleanup failures from changing a successful result.
 - Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}/workitemtypes/{witRefName}/states?api-version=7.1`
 - Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/states/list
 - Query params: `api-version`
-- Response shape: Returns array of `WorkItemStateResultModel[]` with fields: `id` (GUID), `name` (e.g., "New"), `color`, `category` (Proposed/InProgress/Resolved/Completed), `order`, `url`
+- Response shape: Returns a `count`/`value` envelope of
+  `WorkItemStateResultModel` objects with fields including `id`, `name`,
+  `color`, `stateCategory` (Proposed/InProgress/Resolved/Completed), `order`,
+  and `url`.
 - Notes: These are the customized states for the process-level WIT, accessible at process definition level.
 
 ---
@@ -126,7 +151,9 @@ post-publication cleanup failures from changing a successful result.
   `name`, `type`, `required`, `readOnly`, `defaultValue`, `allowGroups`,
   `customization`, and `url`.
 - Notes: Contains both system and custom fields. Requiredness comparisons use
-  the modern `required` property, not the legacy `alwaysRequired` fixture key.
+  the modern `required` property when Azure returns it, not the legacy
+  `alwaysRequired` fixture key. Absence is preserved as undeclared rather than
+  normalized to `false`.
 
 ---
 
@@ -153,8 +180,11 @@ post-publication cleanup failures from changing a successful result.
 - Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}/workitemtypesbehaviors/{witRefName}/behaviors?api-version=7.1`
 - Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/work-item-types-behaviors/list?view=azure-devops-rest-7.1
 - Query params: `api-version`
-- Response shape: Returns object with `count` (integer) and `value` (array of `WorkItemTypeBehavior[]`) with fields: `behavior` (containing `id` and `url`), `isDefault`
+- Response shape: Returns an object with `count` and `value`; each
+  `WorkItemTypeBehavior` contains `behavior.id` and `isDefault`.
 - Notes: Behavior `id` format is `Custom.{GUID}` for custom behaviors.
+  `isLegacyDefault` is retained when Azure returns it but is not required by
+  the collector because the official response may omit it.
 
 The older preview `work/processdefinitions` layout and behavior routes were
 discarded. Keeping them would contradict the forced 7.1 client boundary and
@@ -167,8 +197,28 @@ requires the legacy surface.
 - Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}/behaviors?api-version=7.1`
 - Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/behaviors/list
 - Query params: `api-version`, `$expand` (Fields, CombinedFields)
-- Response shape: Returns `Behavior[]` array with fields: `behaviorType`, `referenceName`, `name`, `description`, `url`, `backlogLevel`, `customizationType`
-- Notes: Backlog levels include: RequirementsCategories (Epics), PortfolioBacklog (Features), IterationBacklog (Stories), TaskBacklog (Tasks).
+- Response shape: Returns a `count`/`value` envelope of process behaviors. The
+  complete objects, including `referenceName` and integer `rank`, are retained
+  without field filtering.
+- Notes: Rank is the evidence used to compare backlog hierarchy. No rank is
+  inferred from response order.
+
+## Complete process snapshot
+
+A current process snapshot contains four raw global responses
+(`processes.json`, `process.json`, `workitemtypes.json`, and `behaviors.json`),
+one versioned `artifact-map.json`, and fields, states, rules, layout, and WIT
+behavior-association payloads for every indexed work-item type, including
+disabled types. Lists must be `count`/`value` envelopes; layout is the direct
+`pages` object. A 404 or malformed family aborts staging instead of becoming an
+empty list.
+
+Without `--refresh`, a complete snapshot is returned before settings, PAT,
+client, clock, or coroutine creation. A valid partial generation is copied into
+a new staging generation byte-for-byte, and only missing raw artifacts are
+requested. A second complete-cache check closes the concurrent-publication
+race. With `--refresh`, every artifact is requested again. Any failure leaves
+the previously selected CURRENT generation unchanged.
 
 ---
 

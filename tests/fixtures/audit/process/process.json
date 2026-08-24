@@ -1,0 +1,8 @@
+{
+  "typeId": "process-123",
+  "name": "Processo-Agil",
+  "customizationType": "inherited",
+  "parentProcessTypeId": "system-agile",
+  "isEnabled": true,
+  "isDefault": true
+}

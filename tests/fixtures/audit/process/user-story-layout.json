@@ -1,0 +1,24 @@
+{
+  "pages": [
+    {
+      "id": "page-details",
+      "label": "Details",
+      "sections": [
+        {
+          "id": "section-main",
+          "groups": [
+            {
+              "id": "group-main",
+              "controls": [
+                {
+                  "id": "System.Title",
+                  "controlType": "FieldControl"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

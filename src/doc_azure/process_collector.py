@@ -1,0 +1,612 @@
+"""Collect a complete inherited-process definition into an atomic snapshot."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import unicodedata
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+
+from doc_azure.azure_client import AzureReadClient, AzureReadError, RequestRecord
+from doc_azure.snapshot import (
+    SnapshotArtifact,
+    SnapshotManifest,
+    SnapshotWriter,
+    resolve_snapshot_root,
+)
+
+
+PROCESS_NAME = "Processo-Agil"
+GLOBAL_ARTIFACT_PATHS = (
+    "processes.json",
+    "process.json",
+    "workitemtypes.json",
+    "behaviors.json",
+)
+MAPPING_ARTIFACT_PATH = "artifact-map.json"
+ARTIFACT_KINDS = ("fields", "states", "rules", "layout", "behaviors")
+MAPPING_SCHEMA_VERSION = 1
+
+
+class ProcessCollectionError(RuntimeError):
+    """Raised when process evidence is missing, ambiguous, or malformed."""
+
+
+class ProcessArtifactError(ProcessCollectionError):
+    """Raised when one named evidence family cannot be collected safely."""
+
+
+class _IncompleteSnapshot(ProcessCollectionError):
+    """Internal signal for a valid but non-current process snapshot schema."""
+
+
+@dataclass(frozen=True)
+class WorkItemType:
+    """The complete identity and enabled state needed for evidence planning."""
+
+    name: str
+    reference_name: str
+    customization: str
+    is_disabled: bool
+
+
+@dataclass(frozen=True)
+class ArtifactRequest:
+    """One deterministic per-WIT evidence artifact and its modern REST route."""
+
+    kind: str
+    work_item_type_name: str
+    reference_name: str
+    artifact_path: str
+
+    def api_path(self, process_id: str) -> str:
+        """Return the exact Azure DevOps 7.1 route for this artifact."""
+
+        _validate_route_segment(process_id, label="process typeId")
+        if self.kind == "behaviors":
+            return (
+                f"/_apis/work/processes/{process_id}/workitemtypesbehaviors/"
+                f"{self.reference_name}/behaviors"
+            )
+        return (
+            f"/_apis/work/processes/{process_id}/workitemtypes/"
+            f"{self.reference_name}/{self.kind}"
+        )
+
+
+@dataclass(frozen=True)
+class ProcessCollectionPlan:
+    """A stable, collision-free plan derived from the full raw WIT index."""
+
+    work_item_types: tuple[WorkItemType, ...]
+    requests: tuple[ArtifactRequest, ...]
+
+    @classmethod
+    def from_index(
+        cls, index_payload: Mapping[str, object]
+    ) -> ProcessCollectionPlan:
+        """Validate the index and request all five families for every WIT."""
+
+        entries = _validate_envelope(index_payload, "work item type index")
+        work_item_types = tuple(
+            sorted(
+                (_parse_work_item_type(entry) for entry in entries),
+                key=lambda wit: (wit.reference_name.casefold(), wit.reference_name),
+            )
+        )
+        _validate_unique_work_item_types(work_item_types)
+        requests = tuple(
+            ArtifactRequest(
+                kind=kind,
+                work_item_type_name=work_item_type.name,
+                reference_name=work_item_type.reference_name,
+                artifact_path=(
+                    f"workitemtypes/{work_item_type.reference_name}/{kind}.json"
+                ),
+            )
+            for work_item_type in work_item_types
+            for kind in ARTIFACT_KINDS
+        )
+        if len({request.artifact_path.casefold() for request in requests}) != len(
+            requests
+        ):
+            raise ProcessCollectionError(
+                "work item referenceName values collide as artifact filenames"
+            )
+        return cls(work_item_types=work_item_types, requests=requests)
+
+    def requests_for(self, work_item_type_name: str) -> tuple[ArtifactRequest, ...]:
+        """Return all evidence requests for one exact display name."""
+
+        return tuple(
+            request
+            for request in self.requests
+            if request.work_item_type_name == work_item_type_name
+        )
+
+    def mapping_payload(self, process_id: str) -> dict[str, object]:
+        """Return the versioned reference-name-to-artifact mapping."""
+
+        _validate_route_segment(process_id, label="process typeId")
+        return {
+            "schema_version": MAPPING_SCHEMA_VERSION,
+            "process_name": PROCESS_NAME,
+            "process_id": process_id,
+            "globals": {
+                "processes": "processes.json",
+                "process": "process.json",
+                "work_item_types": "workitemtypes.json",
+                "process_behaviors": "behaviors.json",
+            },
+            "work_item_types": [
+                {
+                    "name": work_item_type.name,
+                    "reference_name": work_item_type.reference_name,
+                    "customization": work_item_type.customization,
+                    "is_disabled": work_item_type.is_disabled,
+                    "artifacts": {
+                        request.kind: request.artifact_path
+                        for request in self.requests
+                        if request.reference_name == work_item_type.reference_name
+                    },
+                }
+                for work_item_type in self.work_item_types
+            ],
+        }
+
+
+@dataclass(frozen=True)
+class _SnapshotState:
+    resolved_root: Path
+    manifest: SnapshotManifest
+    artifact_paths: frozenset[str]
+
+    def has(self, relative_path: str) -> bool:
+        return relative_path in self.artifact_paths
+
+    def read_text(self, relative_path: str) -> str:
+        try:
+            return (self.resolved_root / relative_path).read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            raise ProcessCollectionError(
+                f"cached process artifact {relative_path} is unreadable"
+            ) from None
+
+    def read_json(self, relative_path: str) -> dict[str, object]:
+        try:
+            payload = json.loads(self.read_text(relative_path))
+        except ValueError:
+            raise ProcessCollectionError(
+                f"cached process artifact {relative_path} is malformed"
+            ) from None
+        if not isinstance(payload, dict):
+            raise ProcessCollectionError(
+                f"cached process artifact {relative_path} is malformed"
+            )
+        return payload
+
+    def seed(self, writer: SnapshotWriter, relative_path: str) -> None:
+        writer.write_text(relative_path, self.read_text(relative_path))
+
+
+def select_process_id(processes_payload: Mapping[str, object]) -> str:
+    """Select exactly one exact-name process and return its documented typeId."""
+
+    entries = _validate_envelope(processes_payload, "process list")
+    matches = [entry for entry in entries if entry.get("name") == PROCESS_NAME]
+    if len(matches) != 1:
+        raise ProcessCollectionError(
+            f"process list must contain exactly one {PROCESS_NAME!r} entry"
+        )
+    process_id = matches[0].get("typeId")
+    if not isinstance(process_id, str) or not process_id.strip():
+        raise ProcessCollectionError("selected process has an invalid typeId")
+    _validate_route_segment(process_id, label="process typeId")
+    return process_id
+
+
+async def collect_process(
+    root: Path,
+    client: AzureReadClient | None,
+    *,
+    refresh: bool,
+    now: Callable[[], datetime],
+) -> SnapshotManifest:
+    """Return complete cached evidence or atomically collect missing artifacts."""
+
+    project_root = Path(root)
+    if not refresh:
+        cached_manifest = read_cached_process_manifest(project_root)
+        if cached_manifest is not None:
+            return cached_manifest
+
+    logical_root = project_root / "out" / "process"
+    writer = SnapshotWriter(logical_root)
+    try:
+        if not refresh:
+            cached_manifest = read_cached_process_manifest(project_root)
+            if cached_manifest is not None:
+                writer.abort()
+                return cached_manifest
+        if client is None:
+            raise ProcessCollectionError(
+                "an Azure read client is required for process collection"
+            )
+
+        prior_state = None if refresh else _load_snapshot_state(logical_root)
+        first_request = len(client.request_records)
+
+        processes = await _obtain_global_payload(
+            writer,
+            prior_state,
+            client,
+            artifact_path="processes.json",
+            api_path="/_apis/work/processes",
+            validator=lambda payload: select_process_id(payload),
+        )
+        process_id = select_process_id(processes)
+
+        process = await _obtain_global_payload(
+            writer,
+            prior_state,
+            client,
+            artifact_path="process.json",
+            api_path=f"/_apis/work/processes/{process_id}",
+            validator=lambda payload: _validate_process(payload, process_id),
+        )
+        _validate_process(process, process_id)
+
+        index = await _obtain_global_payload(
+            writer,
+            prior_state,
+            client,
+            artifact_path="workitemtypes.json",
+            api_path=f"/_apis/work/processes/{process_id}/workitemtypes",
+            validator=ProcessCollectionPlan.from_index,
+        )
+        plan = ProcessCollectionPlan.from_index(index)
+
+        process_behaviors = await _obtain_global_payload(
+            writer,
+            prior_state,
+            client,
+            artifact_path="behaviors.json",
+            api_path=f"/_apis/work/processes/{process_id}/behaviors",
+            validator=_validate_process_behaviors,
+        )
+        _validate_process_behaviors(process_behaviors)
+
+        mapping = plan.mapping_payload(process_id)
+        if prior_state is not None and prior_state.has(MAPPING_ARTIFACT_PATH):
+            cached_mapping = prior_state.read_json(MAPPING_ARTIFACT_PATH)
+            if cached_mapping == mapping:
+                prior_state.seed(writer, MAPPING_ARTIFACT_PATH)
+            else:
+                writer.write_json(MAPPING_ARTIFACT_PATH, mapping)
+        else:
+            writer.write_json(MAPPING_ARTIFACT_PATH, mapping)
+
+        missing_requests: list[ArtifactRequest] = []
+        for request in plan.requests:
+            if prior_state is not None and prior_state.has(request.artifact_path):
+                cached_payload = prior_state.read_json(request.artifact_path)
+                _validate_artifact_payload(request.kind, cached_payload)
+                prior_state.seed(writer, request.artifact_path)
+            else:
+                missing_requests.append(request)
+
+        fetched = await asyncio.gather(
+            *(
+                _fetch_artifact(writer, client, request, process_id)
+                for request in missing_requests
+            )
+        )
+        if len(fetched) != len(missing_requests):
+            raise AssertionError("artifact request and response counts diverged")
+
+        new_requests = client.request_records[first_request:]
+        prior_requests = () if prior_state is None else prior_state.manifest.requests
+        requests = tuple(
+            sorted(
+                (*prior_requests, *new_requests),
+                key=lambda record: (record.path, record.method),
+            )
+        )
+        return writer.commit_manifest(collected_at=now(), requests=requests)
+    except BaseException:
+        writer.abort()
+        raise
+
+
+def read_cached_process_manifest(root: Path) -> SnapshotManifest | None:
+    """Return a fully validated current-schema process snapshot when present."""
+
+    logical_root = Path(root) / "out" / "process"
+    state = _load_snapshot_state(logical_root)
+    if state is None:
+        return None
+    try:
+        processes = _required_json(state, "processes.json")
+        process_id = select_process_id(processes)
+        _validate_process(_required_json(state, "process.json"), process_id)
+        plan = ProcessCollectionPlan.from_index(
+            _required_json(state, "workitemtypes.json")
+        )
+        _validate_process_behaviors(_required_json(state, "behaviors.json"))
+        mapping = _required_json(state, MAPPING_ARTIFACT_PATH)
+        if mapping != plan.mapping_payload(process_id):
+            raise _IncompleteSnapshot("process artifact mapping schema is stale")
+        expected_paths = {
+            *GLOBAL_ARTIFACT_PATHS,
+            MAPPING_ARTIFACT_PATH,
+            *(request.artifact_path for request in plan.requests),
+        }
+        if state.artifact_paths != expected_paths:
+            raise _IncompleteSnapshot("process snapshot artifact set is incomplete")
+        for request in plan.requests:
+            _validate_artifact_payload(
+                request.kind, _required_json(state, request.artifact_path)
+            )
+        return state.manifest
+    except _IncompleteSnapshot:
+        return None
+
+
+async def _obtain_global_payload(
+    writer: SnapshotWriter,
+    prior_state: _SnapshotState | None,
+    client: AzureReadClient,
+    *,
+    artifact_path: str,
+    api_path: str,
+    validator: Callable[[Mapping[str, object]], object],
+) -> dict[str, object]:
+    if prior_state is not None and prior_state.has(artifact_path):
+        payload = prior_state.read_json(artifact_path)
+        prior_state.seed(writer, artifact_path)
+        validator(payload)
+        return payload
+    try:
+        payload = await client.request_json("GET", api_path)
+        writer.write_json(artifact_path, payload)
+        validator(payload)
+    except AzureReadError as error:
+        raise ProcessArtifactError(
+            f"global {artifact_path} artifact failed: {error}"
+        ) from None
+    except ProcessCollectionError as error:
+        raise ProcessArtifactError(
+            f"global {artifact_path} artifact is malformed: {error}"
+        ) from None
+    return payload
+
+
+async def _fetch_artifact(
+    writer: SnapshotWriter,
+    client: AzureReadClient,
+    request: ArtifactRequest,
+    process_id: str,
+) -> dict[str, object]:
+    try:
+        payload = await client.request_json("GET", request.api_path(process_id))
+        writer.write_json(request.artifact_path, payload)
+        _validate_artifact_payload(request.kind, payload)
+        return payload
+    except AzureReadError as error:
+        raise ProcessArtifactError(
+            f"{request.kind} artifact failed: {error}"
+        ) from None
+    except ProcessCollectionError as error:
+        raise ProcessArtifactError(
+            f"{request.kind} artifact is malformed: {error}"
+        ) from None
+
+
+def _load_snapshot_state(logical_root: Path) -> _SnapshotState | None:
+    if not os.path.lexists(logical_root):
+        return None
+    if not (
+        os.path.lexists(logical_root / "CURRENT")
+        or os.path.lexists(logical_root / "manifest.json")
+    ):
+        return None
+    resolved_root = resolve_snapshot_root(logical_root)
+    manifest = _read_manifest(resolved_root)
+    return _SnapshotState(
+        resolved_root=resolved_root,
+        manifest=manifest,
+        artifact_paths=frozenset(artifact.path for artifact in manifest.artifacts),
+    )
+
+
+def _read_manifest(resolved_root: Path) -> SnapshotManifest:
+    try:
+        payload = json.loads(
+            (resolved_root / "manifest.json").read_text(encoding="utf-8")
+        )
+        return SnapshotManifest(
+            schema_version=payload["schema_version"],
+            complete=payload["complete"],
+            collected_at=payload["collected_at"],
+            requests=tuple(
+                RequestRecord(request["method"], request["path"])
+                for request in payload["requests"]
+            ),
+            artifacts=tuple(
+                SnapshotArtifact(artifact["path"], artifact["sha256"])
+                for artifact in payload["artifacts"]
+            ),
+        )
+    except (KeyError, OSError, TypeError, UnicodeError, ValueError):
+        raise ProcessCollectionError(
+            "process snapshot manifest is malformed"
+        ) from None
+
+
+def _required_json(state: _SnapshotState, relative_path: str) -> dict[str, object]:
+    if not state.has(relative_path):
+        raise _IncompleteSnapshot(
+            f"process snapshot is missing {relative_path}"
+        )
+    return state.read_json(relative_path)
+
+
+def _validate_envelope(
+    payload: Mapping[str, object], label: str
+) -> tuple[dict[str, object], ...]:
+    if not isinstance(payload, Mapping):
+        raise ProcessCollectionError(f"{label} is malformed")
+    count = payload.get("count")
+    values = payload.get("value")
+    if (
+        not isinstance(count, int)
+        or isinstance(count, bool)
+        or not isinstance(values, list)
+        or count != len(values)
+        or any(not isinstance(entry, dict) for entry in values)
+    ):
+        raise ProcessCollectionError(f"{label} count/value envelope is malformed")
+    return tuple(values)
+
+
+def _parse_work_item_type(entry: Mapping[str, object]) -> WorkItemType:
+    name = entry.get("name")
+    reference_name = entry.get("referenceName")
+    customization = entry.get("customization")
+    is_disabled = entry.get("isDisabled")
+    if not isinstance(name, str) or not name.strip():
+        raise ProcessCollectionError("work item type name is malformed")
+    if not isinstance(reference_name, str) or not reference_name.strip():
+        raise ProcessCollectionError("work item type referenceName is malformed")
+    _validate_route_segment(reference_name, label="work item type referenceName")
+    if not isinstance(customization, str) or not customization.strip():
+        raise ProcessCollectionError("work item type customization is malformed")
+    if type(is_disabled) is not bool:
+        raise ProcessCollectionError("work item type isDisabled is malformed")
+    return WorkItemType(name, reference_name, customization, is_disabled)
+
+
+def _validate_unique_work_item_types(
+    work_item_types: tuple[WorkItemType, ...],
+) -> None:
+    reference_keys = [
+        unicodedata.normalize("NFC", wit.reference_name).casefold()
+        for wit in work_item_types
+    ]
+    if len(set(reference_keys)) != len(reference_keys):
+        raise ProcessCollectionError(
+            "work item type referenceName values are not unique"
+        )
+    name_keys = [wit.name.casefold() for wit in work_item_types]
+    if len(set(name_keys)) != len(name_keys):
+        raise ProcessCollectionError("work item type names are not unique")
+
+
+def _validate_route_segment(value: str, *, label: str) -> None:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or value != unicodedata.normalize("NFC", value)
+        or value in {".", ".."}
+        or any(character in value for character in "/\\%?#")
+        or any(unicodedata.category(character) == "Cc" for character in value)
+    ):
+        raise ProcessCollectionError(f"{label} is not a safe path segment")
+
+
+def _validate_process(payload: Mapping[str, object], process_id: str) -> None:
+    if payload.get("name") != PROCESS_NAME or payload.get("typeId") != process_id:
+        raise ProcessCollectionError("selected process response identity is malformed")
+
+
+def _validate_process_behaviors(payload: Mapping[str, object]) -> None:
+    entries = _validate_envelope(payload, "process behaviors")
+    for entry in entries:
+        reference_name = entry.get("referenceName")
+        rank = entry.get("rank")
+        if (
+            not isinstance(reference_name, str)
+            or not reference_name.strip()
+            or not isinstance(rank, int)
+            or isinstance(rank, bool)
+            or rank < 0
+        ):
+            raise ProcessCollectionError(
+                "process behavior referenceName/rank is malformed"
+            )
+
+
+def _validate_artifact_payload(
+    kind: str, payload: Mapping[str, object]
+) -> None:
+    if kind not in ARTIFACT_KINDS:
+        raise ProcessCollectionError("process artifact family is unsupported")
+    if kind == "layout":
+        _validate_layout(payload)
+        return
+
+    entries = _validate_envelope(payload, f"{kind} artifact")
+    if kind == "fields":
+        if any(
+            not isinstance(entry.get("referenceName"), str)
+            or not entry["referenceName"].strip()
+            or ("required" in entry and type(entry["required"]) is not bool)
+            for entry in entries
+        ):
+            raise ProcessCollectionError(
+                "fields referenceName/required is malformed"
+            )
+    elif kind == "states":
+        if any(
+            not isinstance(entry.get("name"), str)
+            or not entry["name"].strip()
+            or not isinstance(entry.get("stateCategory"), str)
+            or not entry["stateCategory"].strip()
+            for entry in entries
+        ):
+            raise ProcessCollectionError("states stateCategory is malformed")
+    elif kind == "behaviors":
+        if any(
+            not isinstance(entry.get("behavior"), dict)
+            or not isinstance(entry["behavior"].get("id"), str)
+            or not entry["behavior"]["id"].strip()
+            or type(entry.get("isDefault")) is not bool
+            or (
+                "isLegacyDefault" in entry
+                and type(entry["isLegacyDefault"]) is not bool
+            )
+            for entry in entries
+        ):
+            raise ProcessCollectionError(
+                "behavior association booleans or id are malformed"
+            )
+
+
+def _validate_layout(payload: Mapping[str, object]) -> None:
+    pages = payload.get("pages")
+    if not isinstance(pages, list) or any(
+        not isinstance(page, dict) for page in pages
+    ):
+        raise ProcessCollectionError("layout pages are malformed")
+    for page in pages:
+        sections = page.get("sections")
+        if not isinstance(sections, list) or any(
+            not isinstance(section, dict) for section in sections
+        ):
+            raise ProcessCollectionError("layout sections are malformed")
+        for section in sections:
+            groups = section.get("groups")
+            if not isinstance(groups, list) or any(
+                not isinstance(group, dict) for group in groups
+            ):
+                raise ProcessCollectionError("layout groups are malformed")
+            for group in groups:
+                controls = group.get("controls")
+                if not isinstance(controls, list) or any(
+                    not isinstance(control, dict) for control in controls
+                ):
+                    raise ProcessCollectionError("layout controls are malformed")

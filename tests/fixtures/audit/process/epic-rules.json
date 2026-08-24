@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "value": [
+    {
+      "id": "rule-epic-1",
+      "name": "Require title",
+      "conditions": [],
+      "actions": [],
+      "isDisabled": false
+    }
+  ]
+}

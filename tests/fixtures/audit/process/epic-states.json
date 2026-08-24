@@ -1,0 +1,17 @@
+{
+  "count": 2,
+  "value": [
+    {
+      "id": "state-epic-new",
+      "name": "New",
+      "stateCategory": "Proposed",
+      "order": 1
+    },
+    {
+      "id": "state-epic-done",
+      "name": "Done",
+      "stateCategory": "Completed",
+      "order": 2
+    }
+  ]
+}

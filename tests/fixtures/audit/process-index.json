@@ -1,0 +1,19 @@
+{
+  "count": 2,
+  "value": [
+    {
+      "name": "Epic",
+      "referenceName": "Microsoft.VSTS.WorkItemTypes.Epic",
+      "customization": "system",
+      "isDisabled": true,
+      "description": "Legacy portfolio item"
+    },
+    {
+      "name": "História de Usuário",
+      "referenceName": "Custom.UserStory",
+      "customization": "custom",
+      "isDisabled": false,
+      "description": "Current delivery item"
+    }
+  ]
+}

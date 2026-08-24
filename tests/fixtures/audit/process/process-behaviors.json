@@ -1,0 +1,25 @@
+{
+  "count": 4,
+  "value": [
+    {
+      "referenceName": "Microsoft.VSTS.Common.TaskBacklogBehavior",
+      "name": "Task",
+      "rank": 10
+    },
+    {
+      "referenceName": "Microsoft.RequirementCategory",
+      "name": "Requirement",
+      "rank": 20
+    },
+    {
+      "referenceName": "Microsoft.FeatureCategory",
+      "name": "Feature",
+      "rank": 30
+    },
+    {
+      "referenceName": "Microsoft.EpicCategory",
+      "name": "Epic",
+      "rank": 40
+    }
+  ]
+}

@@ -322,3 +322,101 @@ explicitly requested Computer Use plugin: Kimi K3 and Opus 5, both visibly set
 to maximum effort. Their findings must be reconciled against raw evidence and
 cannot substitute for the deterministic verifier. Missing model/effort, login,
 MFA, or CAPTCHA fails closed; no alternative surface or model is substituted.
+
+## Task 4 — RED evidence
+
+Command: `uv run pytest tests/test_process_collector.py -q`
+
+Result: collection failed as expected with `1 error in 0.10s` and
+`ModuleNotFoundError: No module named 'doc_azure.process_collector'`. This
+proves that the complete process collector, exact `typeId` discovery,
+disabled-WIT preservation, five per-WIT evidence families, cache reuse, and
+atomic refresh behavior did not exist before the Task 4 implementation.
+
+## Task 4 — GREEN evidence and rulings
+
+Focused command: `uv run pytest tests/test_process_collector.py -q`
+
+Result: `18 passed in 0.14s` with no warnings.
+
+Full command: `uv run pytest -q`
+
+Result: `192 passed in 0.34s` with no warnings.
+
+Compile command: `uv run python -m compileall -q src scripts tests`
+
+Result: exit code 0 with no output. The standalone help command `uv run python
+scripts/02_fetch_process.py --help` also exited 0 without loading credentials or
+making a request.
+
+Ruling: process discovery retains the complete `processes.json` response,
+requires exactly one `name == "Processo-Agil"`, and uses that entry's documented
+`typeId` for every subsequent route. Zero or duplicate exact-name matches and a
+missing or unsafe `typeId` fail closed. The exact process response must repeat
+both the selected name and `typeId`.
+
+Ruling: `workitemtypes.json` preserves every active and disabled index entry.
+The deterministic plan requests fields, states, rules, direct layout, and WIT
+behavior associations for every entry, using its validated `referenceName` in
+the modern 7.1 routes. Case-folded or Unicode-normalized route/file collisions
+are rejected. A versioned `artifact-map.json` records the raw identity and the
+five evidence paths for downstream evaluators.
+
+Ruling: all fetched JSON objects are written to unpublished staging before
+shape interpretation and are published only after every response validates.
+List families use exact `count`/`value` envelopes, states use
+`stateCategory`, layout is a direct `pages` object, process behavior ranks are
+preserved, and behavior associations require `behavior.id` without inventing
+an optional `isLegacyDefault`. A 404 or malformed family names the failing
+artifact and aborts the generation.
+
+Ruling: a complete non-refresh snapshot returns before settings, PAT, client,
+clock, coroutine, or network work. A valid partial generation is copied through
+`SnapshotWriter` byte-for-byte and requests only missing raw artifacts; a
+second cache check closes the publication race. Refresh ignores cached payloads
+and fetches all four globals plus all five families for every indexed WIT. One
+`asyncio.run`, one `httpx.AsyncClient`, one `AzureReadClient`, and one shared
+`Semaphore(8)` cover the live script, whose output contains only family counts
+and a sanitized request count.
+
+Rejected alternative: retain the old flat, display-name filenames and preview
+4.1 fields route. That design omitted four evidence families, silently skipped
+failed WITs, conflated active and disabled entries, performed two event-loop
+runs, and could mix stale files with current responses.
+
+## Task 4 self-review hardening — RED evidence
+
+Command: `uv run pytest
+tests/test_process_collector.py::test_collection_rejects_shapes_required_by_downstream_evaluators
+-q`
+
+Result: `4 failed in 0.51s`. The collector accepted fields without the
+`required` boolean, a layout page without `sections`, a WIT behavior association
+without `isDefault`, and a process behavior without `id`. Those responses had
+valid top-level envelopes but could not support the exact downstream field,
+layout, or behavior evaluators.
+
+Correction after official-schema recheck: two premises in that first
+self-review test were wrong and are not accepted as evidence. A field may omit
+`required`; when present it must be boolean, and absence remains undeclared for
+the evaluator. A global process behavior uses `referenceName`, not `id`; only a
+WIT behavior association uses `behavior.id`. The tests and fixtures were
+corrected before the production hardening was accepted. `isLegacyDefault` is
+also optional and is validated as boolean only when present.
+
+## Task 4 self-review hardening — GREEN evidence
+
+Focused command: `uv run pytest tests/test_process_collector.py -q`
+
+Result: `23 passed in 0.19s` with no warnings.
+
+Full command: `uv run pytest -q`
+
+Result: `197 passed in 0.37s` with no warnings.
+
+Compile command: `uv run python -m compileall -q src scripts tests`
+
+Result: exit code 0 with no output. Corrected validation now requires the
+official nested layout chain, `referenceName` plus integer `rank` for global
+behaviors, `behavior.id` plus boolean `isDefault` for associations, and boolean
+types for optional `required` and `isLegacyDefault` only when those keys exist.

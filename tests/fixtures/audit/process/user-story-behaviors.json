@@ -1,0 +1,11 @@
+{
+  "count": 1,
+  "value": [
+    {
+      "behavior": {
+        "id": "Microsoft.RequirementCategory"
+      },
+      "isDefault": true
+    }
+  ]
+}

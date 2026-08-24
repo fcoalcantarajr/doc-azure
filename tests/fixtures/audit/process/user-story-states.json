@@ -1,0 +1,17 @@
+{
+  "count": 2,
+  "value": [
+    {
+      "id": "state-user-story-new",
+      "name": "New",
+      "stateCategory": "Proposed",
+      "order": 1
+    },
+    {
+      "id": "state-user-story-done",
+      "name": "Done",
+      "stateCategory": "Completed",
+      "order": 2
+    }
+  ]
+}
