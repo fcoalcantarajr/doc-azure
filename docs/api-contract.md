@@ -28,9 +28,36 @@ occur.
 
 Every real attempt records only its method and normalized route. Query values,
 headers, and credentials never enter request receipts. Sensitive query keys or
-values are rejected before transport. The client retries at most five times and
-only for HTTP 408, 429, 500, 502, 503, and 504; it honors `Retry-After` and never
-retries 401 or 403.
+values, including PAT variants, are rejected before transport. Query values are
+copied immutable scalars, and POST bodies are validated from a detached JSON
+round-trip before the first await. Exceptions contain only method, a templated
+route, safe transport class, and/or HTTP status—never response bodies, query or
+body values, credentials, or path identifiers. The client retries at most five
+times and only for HTTP 408, 429, 500, 502, 503, and 504; it honors
+`Retry-After` and never retries 401 or 403.
+
+## Snapshot publication contract
+
+`out/wiki` and `out/process` remain logical roots. New publications are
+immutable directories under `<root>/snapshots/<generation>`; an atomically
+replaced `<root>/CURRENT` file selects the complete generation. Writers capture
+the selected generation at construction, then re-read it under an interprocess
+`flock` and use compare-and-swap before validating, moving, or pointing to a new
+generation. Older generations are retained.
+
+Tasks 3–6 must call `resolve_snapshot_root(root)` before reading cached evidence.
+If CURRENT exists, the resolver fails closed on a malformed pointer, missing or
+symlink target, symlink artifact, incomplete manifest, non-exact artifact set,
+or hash mismatch; it never falls back. A flat legacy root is accepted read-only
+only when CURRENT is absent and its complete manifest, exact artifact set, and
+hashes verify. Task 4 may seed a partial refresh only by reading the resolved
+generation and writing each retained artifact through `SnapshotWriter`.
+
+The pointer replacement protects readers from process crashes before CURRENT is
+swapped. The implementation does not claim power-loss durability because it
+does not fsync files and parent directories. No garbage collection is performed
+in this audit; avoiding destructive cleanup preserves prior evidence and keeps
+post-publication cleanup failures from changing a successful result.
 
 ---
 
@@ -91,20 +118,25 @@ retries 401 or 403.
 ---
 
 ### Fields of a Work Item Type
-- Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}/workitemtypes/{witRefName}/fields?api-version=4.1-preview.1`
-- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/fields/get-work-item-type-fields
+- Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}/workitemtypes/{witRefName}/fields?api-version=7.1`
+- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/fields/get-work-item-type-fields?view=azure-devops-rest-7.1
 - Query params: `api-version`
-- Response shape: Returns `FieldModel[]` array with fields: `referenceName`, `name`, `helpText`, `alwaysRequired`, `url`
-- Notes: Uses `api-version=4.1-preview.1` (no 7.1 version available). Contains both system and custom fields. For `System.Title`, check `alwaysRequired=true`.
+- Response shape: Returns an envelope whose `value` entries are
+  `ProcessWorkItemTypeField` objects with fields including `referenceName`,
+  `name`, `type`, `required`, `readOnly`, `defaultValue`, `allowGroups`,
+  `customization`, and `url`.
+- Notes: Contains both system and custom fields. Requiredness comparisons use
+  the modern `required` property, not the legacy `alwaysRequired` fixture key.
 
 ---
 
 ### Layout of a Work Item Type
-- Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processdefinitions/{processId}/workItemTypes/{witRefName}/layout?api-version=4.1-preview.1`
-- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processdefinitions/layout/get
+- Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}/workitemtypes/{witRefName}/layout?api-version=7.1`
+- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/layouts/get?view=azure-devops-rest-7.1
 - Query params: `api-version`
-- Response shape: Returns `FormLayout` object with `xmlForm` (XAML layout string), `pageLayouts` array
-- Notes: Uses `processdefinitions` API (not `processes`). Layout controls form tabs, groups, columns, and controls. System ID = `de0f680b-1280-4732-814c-96a006ac1d3a`. Uses `api-version=4.1-preview.1`.
+- Response shape: Returns the process `FormLayout` with pages, sections,
+  groups, and controls.
+- Notes: Layout controls form tabs, groups, columns, and controls.
 
 ---
 
@@ -118,11 +150,16 @@ retries 401 or 403.
 ---
 
 ### Behaviors of a Work Item Type
-- Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processdefinitions/{processId}/workitemtypes/{witRefName}/behaviors?api-version=4.1-preview.1`
-- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processdefinitions/work-item-types/get-behaviors-for-work-item-type
+- Method+URL: `GET https://dev.azure.com/{organization}/_apis/work/processes/{processId}/workitemtypesbehaviors/{witRefName}/behaviors?api-version=7.1`
+- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/work-item-types-behaviors/list?view=azure-devops-rest-7.1
 - Query params: `api-version`
 - Response shape: Returns object with `count` (integer) and `value` (array of `WorkItemTypeBehavior[]`) with fields: `behavior` (containing `id` and `url`), `isDefault`
-- Notes: Uses `processdefinitions` API. Behavior `id` format: `Custom.{GUID}`. For latest behaviors list:
+- Notes: Behavior `id` format is `Custom.{GUID}` for custom behaviors.
+
+The older preview `work/processdefinitions` layout and behavior routes were
+discarded. Keeping them would contradict the forced 7.1 client boundary and
+would split collection across two endpoint models without a material claim that
+requires the legacy surface.
 
 ---
 
@@ -141,9 +178,9 @@ retries 401 or 403.
 2. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/processes/list
 3. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/work-item-types/list
 4. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/states/list
-5. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/fields/get-work-item-type-fields
-6. https://learn.microsoft.com/en-us/rest/api/azure/devops/processdefinitions/layout/get
+5. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/fields/get-work-item-type-fields?view=azure-devops-rest-7.1
+6. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/layouts/get?view=azure-devops-rest-7.1
 7. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/rules/list
-8. https://learn.microsoft.com/en-us/rest/api/azure/devops/processdefinitions/work-item-types/get-behaviors-for-work-item-type
+8. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/work-item-types-behaviors/list?view=azure-devops-rest-7.1
 9. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/behaviors/list
 10. https://learn.microsoft.com/en-us/azure/devops/accounts/use-personal-access-tokens-to-authenticate

@@ -90,6 +90,19 @@ ALLOWED_OPERATIONS = (
     ),
 )
 
+_SAFE_ROUTE_LABELS = (
+    "/{project}/_apis/wiki/wikis/{wikiId}/pages/{pageId}",
+    "/_apis/work/processes",
+    "/_apis/work/processes/{processId}",
+    "/_apis/work/processes/{processId}/{collection}",
+    "/_apis/work/processes/{processId}/workitemtypes/{witRefName}/{artifact}",
+    "/_apis/work/processes/{processId}/workitemtypesbehaviors/{witRefName}/behaviors",
+    "/{project}/_apis/wit/wiql/{queryId}",
+    "/{project}/_apis/wit/workitems/{workItemId}",
+    "/{project}/_apis/wit/wiql",
+    "/{project}/_apis/wit/workitemsbatch",
+)
+
 RETRYABLE_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
 MAX_ATTEMPTS = 5
 DEFAULT_RETRY_DELAY = 1.0
@@ -125,6 +138,13 @@ def is_allowlisted_read(method: str, path: str) -> bool:
         and operation.path_pattern.fullmatch(normalized_path)
         for operation in ALLOWED_OPERATIONS
     )
+
+
+def _safe_route_label(method: str, path: str) -> str:
+    for operation, label in zip(ALLOWED_OPERATIONS, _SAFE_ROUTE_LABELS, strict=True):
+        if operation.method == method and operation.path_pattern.fullmatch(path):
+            return label
+    return "/{rejected-route}"
 
 
 class AzureReadClient:
@@ -164,11 +184,14 @@ class AzureReadClient:
         """Return one JSON object from an explicitly approved read operation."""
 
         normalized_method = method.upper()
+        if not isinstance(path, str) or _contains_credential_material(path, self._pat):
+            raise AzureReadError(f"{normalized_method} request is not allowlisted")
         normalized_path = _normalize_path(path)
         if normalized_path is None or not is_allowlisted_read(
             normalized_method, normalized_path
         ):
             raise AzureReadError(f"{normalized_method} request is not allowlisted")
+        safe_path = _safe_route_label(normalized_method, normalized_path)
 
         parameters = _validated_query(query, self._pat)
         validated_body = _validated_body(
@@ -194,14 +217,14 @@ class AzureReadClient:
                         follow_redirects=False,
                     )
             except httpx.RequestError as error:
-                detail = _redact(str(error), self._pat)[:500]
                 raise AzureReadError(
-                    f"{normalized_method} {normalized_path} failed: {detail}"
+                    f"{normalized_method} {safe_path} transport "
+                    f"{type(error).__name__}"
                 ) from None
 
             if 300 <= response.status_code < 400:
                 raise AzureReadError(
-                    f"{normalized_method} {normalized_path} redirect rejected "
+                    f"{normalized_method} {safe_path} redirect rejected "
                     f"(HTTP {response.status_code})"
                 )
 
@@ -210,22 +233,20 @@ class AzureReadClient:
                 continue
 
             if response.status_code >= 400:
-                detail = _redact(response.text, self._pat)[:500]
                 raise AzureReadError(
-                    f"{normalized_method} {normalized_path} HTTP "
-                    f"{response.status_code}: {detail}"
+                    f"{normalized_method} {safe_path} HTTP {response.status_code}"
                 )
 
             try:
                 payload = response.json()
             except (UnicodeError, ValueError):
                 raise AzureReadError(
-                    f"{normalized_method} {normalized_path} returned an invalid "
+                    f"{normalized_method} {safe_path} returned an invalid "
                     "JSON object"
                 ) from None
             if not isinstance(payload, dict):
                 raise AzureReadError(
-                    f"{normalized_method} {normalized_path} returned an invalid "
+                    f"{normalized_method} {safe_path} returned an invalid "
                     "JSON object"
                 )
             return payload
@@ -275,19 +296,49 @@ def _validated_query(
     query: Mapping[str, object] | None, pat: str
 ) -> tuple[tuple[str, object], ...]:
     parameters: list[tuple[str, object]] = []
-    for raw_key, value in (query or {}).items():
+    try:
+        supplied_parameters = tuple((query or {}).items())
+    except (AttributeError, RuntimeError, TypeError):
+        raise AzureReadError("query parameters must be a stable mapping") from None
+    for raw_key, value in supplied_parameters:
         if not isinstance(raw_key, str) or not raw_key:
             raise AzureReadError("query contains an invalid parameter name")
+        if _contains_credential_material(raw_key, pat):
+            raise AzureReadError("query contains credential material")
         normalized_key = re.sub(r"[^a-z0-9]", "", raw_key.casefold())
-        if normalized_key in _SENSITIVE_QUERY_KEYS:
+        if _is_sensitive_query_key(normalized_key):
             raise AzureReadError("query contains credential material")
         if raw_key.casefold() == "api-version":
             continue
+        if value is not None and type(value) not in {str, int, float, bool}:
+            raise AzureReadError("query values must be immutable scalar values")
         if _contains_credential_material(str(value), pat):
             raise AzureReadError("query contains credential material")
-        parameters.append((raw_key, value))
+        parameters.append((str(raw_key), _copy_scalar(value)))
     parameters.append(("api-version", "7.1"))
     return tuple(parameters)
+
+
+def _is_sensitive_query_key(normalized_key: str) -> bool:
+    if normalized_key in _SENSITIVE_QUERY_KEYS:
+        return True
+    if normalized_key == "continuationtoken":
+        return False
+    return normalized_key.endswith("token") or "authorization" in normalized_key
+
+
+def _copy_scalar(value: object) -> object:
+    if value is None:
+        return None
+    if type(value) is str:
+        return str(value)
+    if type(value) is bool:
+        return bool(value)
+    if type(value) is int:
+        return int(value)
+    if type(value) is float:
+        return float(value)
+    raise AssertionError("query scalar validation and copying diverged")
 
 
 def _validated_body(
@@ -303,7 +354,21 @@ def _validated_body(
     if not isinstance(body, Mapping):
         raise AzureReadError("POST read body must be a JSON object")
 
-    materialized = dict(body)
+    try:
+        serialized = json.dumps(
+            body,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+        materialized = json.loads(serialized)
+    except (TypeError, ValueError):
+        raise AzureReadError("POST read body must be JSON serializable") from None
+    if not isinstance(materialized, dict):
+        raise AzureReadError("POST read body must be a JSON object")
+    if _contains_credential_material(serialized, pat):
+        raise AzureReadError("POST read body contains credential material")
+
     if path.casefold().endswith("/_apis/wit/wiql"):
         query = materialized.get("query")
         if set(materialized) != {"query"} or not isinstance(query, str) or not query:
@@ -312,13 +377,6 @@ def _validated_body(
         _validate_batch_body(materialized)
     else:
         raise AzureReadError("POST body is forbidden outside approved query routes")
-
-    try:
-        serialized = json.dumps(materialized, separators=(",", ":"))
-    except (TypeError, ValueError):
-        raise AzureReadError("POST read body must be JSON serializable") from None
-    if _contains_credential_material(serialized, pat):
-        raise AzureReadError("POST read body contains credential material")
     return materialized
 
 
@@ -373,13 +431,6 @@ def _contains_credential_material(value: str, pat: str) -> bool:
     return _AUTHORIZATION_MATERIAL.search(value) is not None or any(
         variant in value for variant in _secret_variants(pat)
     )
-
-
-def _redact(value: str, pat: str) -> str:
-    redacted = value
-    for variant in _secret_variants(pat):
-        redacted = redacted.replace(variant, "<redacted>")
-    return _AUTHORIZATION_MATERIAL.sub("<redacted>", redacted)
 
 
 def _secret_variants(pat: str) -> tuple[str, ...]:

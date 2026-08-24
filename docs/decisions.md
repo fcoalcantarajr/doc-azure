@@ -91,3 +91,91 @@ Decision: stage every artifact and the complete manifest in a sibling directory
 before swapping the snapshot. A failed collection can call `abort()` without
 touching the current snapshot, and a failed directory swap restores the prior
 snapshot.
+
+## Task 2 review hardening — RED evidence
+
+Command: `uv run pytest tests/test_azure_client.py tests/test_snapshot.py -q`
+
+Result: `31 failed, 57 passed in 0.45s`. The failures reproduced every reviewed
+defect before production changes: literal/base64 PAT material reached HTTP from
+paths and query keys; mutable query values were accepted; nested POST data
+changed while blocked on `Semaphore(0)`; HTTP and transport exceptions exposed
+response/path/exception PII; the versioned `CURRENT` resolver and CAS did not
+exist; staging was not re-enumerated; symlinks/non-regular/missing/empty files
+were not rejected; hashes were not recomputed under lock; and path aliases/NUL
+did not consistently raise `SnapshotError`.
+
+Additional RED: `uv run pytest
+tests/test_snapshot.py::test_resolver_requires_canonical_current_pointer_bytes
+-q` produced `3 failed in 0.06s`; the resolver incorrectly accepted CURRENT
+without its single terminating newline and with leading or duplicate whitespace.
+
+Additional RED: `uv run pytest
+tests/test_snapshot.py::test_resolver_rejects_legacy_manifest_missing_required_field
+-q` produced `2 failed in 0.06s`; a legacy manifest marked complete was accepted
+without the required `collected_at` or `requests` field.
+
+Additional RED: `uv run pytest
+tests/test_snapshot.py::test_resolver_rejects_symlink_snapshot_container -q`
+produced `1 failed in 0.05s` with `Failed: DID NOT RAISE SnapshotError`; the
+resolver validated the generation target but still followed a symlink in its
+intermediate `snapshots` container.
+
+Additional RED: `uv run pytest
+tests/test_snapshot.py::test_writer_rejects_symlink_snapshot_container_at_baseline
+-q` produced `1 failed in 0.06s` with `Failed: DID NOT RAISE SnapshotError`;
+the writer's construction-time CAS baseline independently followed the same
+unsafe intermediate container.
+
+## Task 2 review hardening — GREEN evidence and rulings
+
+Focused command: `uv run pytest tests/test_azure_client.py
+tests/test_snapshot.py -q`
+
+Result: `95 passed in 0.13s` with no warnings. This includes independent
+resolver and construction-time CAS checks for a symlinked `snapshots`
+container.
+
+Compile command: `uv run python -m compileall -q src tests`
+
+Result: exit code 0 with no output.
+
+Full command: `uv run pytest -q`
+
+Result: `143 passed in 0.16s` with no warnings.
+
+Ruling: all request inputs become private immutable state before the first
+await. Paths and query keys reject literal, percent-encoded, plus-encoded, and
+Basic-auth PAT variants; query values are copied JSON-compatible scalars; POST
+bodies are serialized, credential-checked, deserialized, and schema-validated
+before semaphore acquisition. This closes mutation-after-validation windows.
+
+Ruling: an `AzureReadError` never embeds `str(RequestError)`, response text,
+query/body values, or path identifiers. It exposes only method, a templated
+route, a safe transport class, and/or HTTP status. Redaction is not an adequate
+substitute because unknown PII cannot be enumerated reliably.
+
+Ruling: the earlier whole-directory replacement is superseded. Publications
+now create immutable version directories and atomically replace only CURRENT.
+Writers capture a baseline at construction and compare it again under an
+interprocess lock before staging validation, generation movement, and pointer
+publication. A stale writer fails; a pointer-swap failure leaves the previous
+generation selected; prior generations are never deleted.
+
+Ruling: Tasks 3–6 must treat `out/wiki` and `out/process` as logical roots and
+read through `resolve_snapshot_root`. CURRENT is authoritative and fails closed;
+flat legacy fallback is read-only and available only when CURRENT is absent and
+manifest shape, exact artifact set, regular-file status, and every hash verify.
+A partial Task 4 refresh may retain cache entries only by reading the resolved
+generation and writing them back through `SnapshotWriter`.
+
+Rejected alternative: retain the preview `work/processdefinitions` 4.1 layout
+and behavior routes. The current contract uses the official 7.1
+`work/processes` fields, layout, and work-item-type behavior routes, keeping one
+versioned endpoint model and one forced API version.
+
+Limit: atomic rename and locking protect cooperating processes and readers from
+process crashes around CURRENT publication. This task does not claim power-loss
+durability because files and parent directories are not fsynced. It also does
+not implement multiprocess stress tests or garbage collection; neither is
+required for Tasks 3–6, and retaining generations is the safer audit default.

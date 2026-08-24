@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import inspect
+import json
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 from urllib.parse import quote, quote_plus
@@ -60,10 +61,6 @@ class RecordingSleeper:
 
     async def __call__(self, delay: float) -> None:
         self.delays.append(delay)
-
-
-def run(coroutine: Awaitable[dict[str, object]]) -> dict[str, object]:
-    return asyncio.run(coroutine)
 
 
 def make_client(
@@ -239,6 +236,126 @@ def test_rejects_literal_encoded_or_authorization_query_values_without_leaking()
         assert "Authorization" not in message
 
 
+@pytest.mark.parametrize("variant", ("literal", "percent", "base64"))
+def test_rejects_pat_variants_in_path_before_recording_or_http(variant: str) -> None:
+    pat = "private pat value"
+    variants = {
+        "literal": pat,
+        "percent": quote(pat, safe=""),
+        "base64": base64.b64encode(f":{pat}".encode()).decode(),
+    }
+    path = f"/{variants[variant]}/_apis/wit/wiql"
+    transport = SequencedTransport([])
+
+    async def scenario() -> tuple[str, tuple[RequestRecord, ...]]:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            client = make_client(http, pat=pat)
+            with pytest.raises(AzureReadError) as raised:
+                await client.request_json(
+                    "POST",
+                    path,
+                    body={"query": "SELECT [System.Id] FROM WorkItems"},
+                )
+            return str(raised.value), client.request_records
+
+    message, records = asyncio.run(scenario())
+
+    assert transport.requests == []
+    assert records == ()
+    assert pat not in message
+    assert variants[variant] not in message
+
+
+@pytest.mark.parametrize("variant", ("literal", "percent", "base64"))
+def test_rejects_pat_variants_in_query_keys_before_http(variant: str) -> None:
+    pat = "private pat value"
+    variants = {
+        "literal": pat,
+        "percent": quote(pat, safe=""),
+        "base64": base64.b64encode(f":{pat}".encode()).decode(),
+    }
+    transport = SequencedTransport([])
+
+    async def scenario() -> str:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError) as raised:
+                await make_client(http, pat=pat).request_json(
+                    "GET",
+                    "/_apis/work/processes",
+                    query={variants[variant]: "value"},
+                )
+            return str(raised.value)
+
+    message = asyncio.run(scenario())
+
+    assert transport.requests == []
+    assert pat not in message
+    assert variants[variant] not in message
+
+
+def test_rejects_mutable_query_values_before_waiting_or_http() -> None:
+    transport = SequencedTransport([])
+
+    async def scenario() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError, match="scalar"):
+                await make_client(http).request_json(
+                    "GET", "/_apis/work/processes", query={"ids": [1, 2]}
+                )
+
+    asyncio.run(scenario())
+    assert transport.requests == []
+
+
+def test_copies_query_scalars_before_waiting_on_the_semaphore() -> None:
+    transport = SequencedTransport([(200, {"count": 0}, {})])
+
+    async def scenario() -> None:
+        semaphore = asyncio.Semaphore(0)
+        query = {"$top": "1"}
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            task = asyncio.create_task(
+                make_client(http, semaphore=semaphore).request_json(
+                    "GET", "/_apis/work/processes", query=query
+                )
+            )
+            await asyncio.sleep(0)
+            query["$top"] = "employee-personal-value"
+            semaphore.release()
+            await task
+
+    asyncio.run(scenario())
+    assert transport.requests[0].url.params["$top"] == "1"
+
+
+def test_detaches_nested_body_before_waiting_on_the_semaphore() -> None:
+    transport = SequencedTransport([(200, {"count": 1, "value": []}, {})])
+
+    async def scenario() -> None:
+        semaphore = asyncio.Semaphore(0)
+        body = {"ids": [10], "fields": ["System.Id"]}
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            task = asyncio.create_task(
+                make_client(http, semaphore=semaphore).request_json(
+                    "POST",
+                    "/project/_apis/wit/workitemsbatch",
+                    body=body,
+                )
+            )
+            await asyncio.sleep(0)
+            body["ids"].append(20)
+            body["fields"][0] = "employee-personal-field"
+            semaphore.release()
+            await task
+
+    asyncio.run(scenario())
+
+    assert json.loads(transport.requests[0].read()) == {
+        "ids": [10],
+        "fields": ["System.Id"],
+    }
+
+
 def test_serializes_only_valid_wiql_query_bodies() -> None:
     transport = SequencedTransport([(200, {"workItems": []}, {})])
 
@@ -407,6 +524,50 @@ def test_non_retryable_http_error_is_sanitized_and_capped() -> None:
     assert "remote-private-value" not in message
     assert "Authorization" not in message
     assert len(message) < 700
+
+
+def test_http_error_never_includes_response_body_query_body_or_path_pii() -> None:
+    pii = "employee-personal-value"
+    transport = SequencedTransport([(404, {"message": pii}, {})])
+
+    async def scenario() -> str:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError) as raised:
+                await make_client(http).request_json(
+                    "GET",
+                    f"/_apis/work/processes/{pii}",
+                    query={"$expand": pii},
+                )
+            return str(raised.value)
+
+    message = asyncio.run(scenario())
+
+    assert "HTTP 404" in message
+    assert pii not in message
+    assert "{processId}" in message
+
+
+def test_transport_error_reports_only_safe_exception_class() -> None:
+    pii = "employee-personal-value"
+    request = httpx.Request(
+        "GET", f"https://dev.azure.com/example-org/_apis/work/processes?$top={pii}"
+    )
+    transport = SequencedTransport(
+        [httpx.ConnectError(f"socket failed for {pii}", request=request)]
+    )
+
+    async def scenario() -> str:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError) as raised:
+                await make_client(http).request_json(
+                    "GET", "/_apis/work/processes", query={"$top": pii}
+                )
+            return str(raised.value)
+
+    message = asyncio.run(scenario())
+
+    assert "ConnectError" in message
+    assert pii not in message
 
 
 def test_transport_error_is_not_retried_and_is_sanitized() -> None:
