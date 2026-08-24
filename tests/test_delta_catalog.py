@@ -128,6 +128,21 @@ def test_catalog_rejects_missing_kind_specific_parameters(tmp_path: Path) -> Non
         load_catalog(write_catalog(tmp_path, payload))
 
 
+def test_catalog_accepts_a_typed_field_alternative_check(tmp_path: Path) -> None:
+    payload = load_payload()
+    payload["claims"][0]["check"] = {  # type: ignore[index]
+        "kind": "field_alternative",
+        "wit": "Custom.UserStory",
+        "expected_field": "Custom.Documented",
+        "actual_field": "Custom.Implemented",
+        "actual_name": "Implemented label",
+    }
+
+    claims = load_catalog(write_catalog(tmp_path, payload))
+
+    assert claims[0].check.kind == "field_alternative"
+
+
 def test_catalog_rejects_count_family_without_an_envelope(tmp_path: Path) -> None:
     payload = load_payload()
     payload["claims"][0]["check"] = {  # type: ignore[index]
@@ -173,6 +188,7 @@ def test_production_catalog_covers_all_fixed_pages_and_material_checks() -> None
         "count_equals",
         "equals",
         "field_presence",
+        "field_alternative",
         "field_property",
         "field_required",
         "layout_control",
@@ -252,4 +268,19 @@ def test_production_catalog_covers_all_fixed_pages_and_material_checks() -> None
         "37-LAYOUT-005",
         "37-LAYOUT-006",
         "37-LAYOUT-007",
+        "37-INCIDENT-STORYPOINTS-001",
     } & identifiers
+    by_id = {claim.id: claim for claim in claims}
+    assert "História de Usuário" not in by_id["35-DATES-001"].finding
+    assert "História de Usuário" not in by_id["35-DATES-002"].finding
+    for identifier in (
+        "9-ENTRY-TESTES-HU-001",
+        "9-ENTRY-TESTES-IT-001",
+        "9-ENTRY-TESTES-KAIZEN-001",
+        "9-ENTRY-TESTES-AE-001",
+        "37-OTHER-BLOCK-AE-001",
+        "37-OTHER-BLOCK-INCIDENT-001",
+        "37-OTHER-BLOCK-KAIZEN-001",
+        "37-OTHER-BLOCK-BUG-001",
+    ):
+        assert by_id[identifier].check.kind == "field_alternative"

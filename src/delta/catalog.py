@@ -25,6 +25,7 @@ SUPPORTED_CHECK_KINDS = frozenset(
         "active_required_field_count",
         "wit_presence",
         "field_presence",
+        "field_alternative",
         "field_required",
         "field_name_pattern_minimum",
         "field_property",
@@ -73,6 +74,10 @@ _CHECK_KEYS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     ),
     "field_presence": (
         frozenset({"wit", "field", "expected"}),
+        frozenset(),
+    ),
+    "field_alternative": (
+        frozenset({"wit", "expected_field", "actual_field", "actual_name"}),
         frozenset(),
     ),
     "field_required": (
@@ -330,6 +335,9 @@ def _validate_check_parameters(kind: str, parameters: Mapping[str, object]) -> N
         "wit",
         "family",
         "field",
+        "expected_field",
+        "actual_field",
+        "actual_name",
         "rule",
         "state",
         "identity",

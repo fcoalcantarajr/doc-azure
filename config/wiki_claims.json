@@ -254,7 +254,7 @@
       "id": "35-DATES-001",
       "page_id": 35,
       "slug": "leiame",
-      "finding": "Campo de entrada em estado na História de Usuário",
+      "finding": "Família genérica de campo de entrada em estado",
       "doc": {
         "path": "out/wiki/leiame.md",
         "line": 311,
@@ -272,7 +272,7 @@
       "id": "35-DATES-002",
       "page_id": 35,
       "slug": "leiame",
-      "finding": "Campo de saída de estado na História de Usuário",
+      "finding": "Família genérica de campo de saída de estado",
       "doc": {
         "path": "out/wiki/leiame.md",
         "line": 311,
@@ -4365,7 +4365,7 @@
       "id": "9-ENTRY-TESTES-HU-001",
       "page_id": 9,
       "slug": "changelog",
-      "finding": "Exemplo Entrou em Estado Em Testes Date em Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
+      "finding": "Campo documentado Em Testes e alternativa atual Em Execução de Testes em História de Usuário",
       "doc": [
         {
           "path": "out/wiki/changelog.md",
@@ -4383,18 +4383,19 @@
         }
       ],
       "check": {
-        "kind": "field_presence",
+        "kind": "field_alternative",
         "wit": "Custom.bdf28a37-53f0-4d55-820b-2e86d5a2d3e4",
-        "field": "Custom.EntrouemEstadoEmTestesDate",
-        "expected": true
+        "expected_field": "Custom.EntrouemEstadoEmTestesDate",
+        "actual_field": "Custom.EntrouemEstadoEmExecucaodeTestesDate",
+        "actual_name": "Entrou em Estado Em Execucao de Testes Date"
       },
-      "limit": "O processo usa EmExecucaodeTestes no referenceName, portanto o exemplo literal documentado está ausente."
+      "limit": "A configuração atual prova ausência do exemplo literal e presença da alternativa; não prova data, autoria ou causalidade histórica."
     },
     {
       "id": "9-ENTRY-TESTES-IT-001",
       "page_id": 9,
       "slug": "changelog",
-      "finding": "Exemplo Entrou em Estado Em Testes Date em Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
+      "finding": "Campo documentado Em Testes e alternativa atual Em Execução de Testes em Item Técnico",
       "doc": [
         {
           "path": "out/wiki/changelog.md",
@@ -4412,18 +4413,19 @@
         }
       ],
       "check": {
-        "kind": "field_presence",
+        "kind": "field_alternative",
         "wit": "Custom.bd6ed390-9f2e-4d45-bea1-ce90f58eadcb",
-        "field": "Custom.EntrouemEstadoEmTestesDate",
-        "expected": true
+        "expected_field": "Custom.EntrouemEstadoEmTestesDate",
+        "actual_field": "Custom.EntrouemEstadoEmExecucaodeTestesDate",
+        "actual_name": "Entrou em Estado Em Execucao de Testes Date"
       },
-      "limit": "O processo usa EmExecucaodeTestes no referenceName, portanto o exemplo literal documentado está ausente."
+      "limit": "A configuração atual prova ausência do exemplo literal e presença da alternativa; não prova data, autoria ou causalidade histórica."
     },
     {
       "id": "9-ENTRY-TESTES-KAIZEN-001",
       "page_id": 9,
       "slug": "changelog",
-      "finding": "Exemplo Entrou em Estado Em Testes Date em Processo-Kanban.Kaizen",
+      "finding": "Campo documentado Em Testes e alternativa atual Em Execução de Testes em Kaizen",
       "doc": [
         {
           "path": "out/wiki/changelog.md",
@@ -4441,18 +4443,19 @@
         }
       ],
       "check": {
-        "kind": "field_presence",
+        "kind": "field_alternative",
         "wit": "Processo-Kanban.Kaizen",
-        "field": "Custom.EntrouemEstadoEmTestesDate",
-        "expected": true
+        "expected_field": "Custom.EntrouemEstadoEmTestesDate",
+        "actual_field": "Custom.EntrouemEstadoEmExecucaodeTestesDate",
+        "actual_name": "Entrou em Estado Em Execucao de Testes Date"
       },
-      "limit": "O processo usa EmExecucaodeTestes no referenceName, portanto o exemplo literal documentado está ausente."
+      "limit": "A configuração atual prova ausência do exemplo literal e presença da alternativa; não prova data, autoria ou causalidade histórica."
     },
     {
       "id": "9-ENTRY-TESTES-AE-001",
       "page_id": 9,
       "slug": "changelog",
-      "finding": "Exemplo Entrou em Estado Em Testes Date em Processo-Kanban.AtendimentoExpresso",
+      "finding": "Campo documentado Em Testes e alternativa atual Em Execução de Testes em Atendimento Expresso",
       "doc": [
         {
           "path": "out/wiki/changelog.md",
@@ -4470,12 +4473,13 @@
         }
       ],
       "check": {
-        "kind": "field_presence",
+        "kind": "field_alternative",
         "wit": "Processo-Kanban.AtendimentoExpresso",
-        "field": "Custom.EntrouemEstadoEmTestesDate",
-        "expected": true
+        "expected_field": "Custom.EntrouemEstadoEmTestesDate",
+        "actual_field": "Custom.EntrouemEstadoEmExecucaodeTestesDate",
+        "actual_name": "Entrou em Estado Em Execucao de Testes Date"
       },
-      "limit": "O processo usa EmExecucaodeTestes no referenceName, portanto o exemplo literal documentado está ausente."
+      "limit": "A configuração atual prova ausência do exemplo literal e presença da alternativa; não prova data, autoria ou causalidade histórica."
     },
     {
       "id": "9-ENTRY-AE-COPY-001",
@@ -6207,7 +6211,7 @@
       "id": "37-OTHER-BLOCK-AE-001",
       "page_id": 37,
       "slug": "apendice",
-      "finding": "Campo Outros Motivos de Bloqueio em Processo-Kanban.AtendimentoExpresso",
+      "finding": "Campo Outros Motivos de Bloqueio em Processo-Kanban.AtendimentoExpresso e alternativa atual",
       "doc": {
         "path": "out/wiki/apendice.md",
         "line": 348,
@@ -6216,18 +6220,19 @@
         "value": "presente"
       },
       "check": {
-        "kind": "field_presence",
+        "kind": "field_alternative",
         "wit": "Processo-Kanban.AtendimentoExpresso",
-        "field": "Custom.OutrosMotivosdeBloqueio",
-        "expected": true
+        "expected_field": "Custom.OutrosMotivosdeBloqueio",
+        "actual_field": "Custom.MotivodobloqueioOutros",
+        "actual_name": "Motivo do bloqueio Outros"
       },
-      "limit": "O processo usa Custom.MotivodobloqueioOutros, com label Motivo do bloqueio Outros."
+      "limit": "A tabela documenta o nome esperado; a comparação prova sua ausência e a identidade e o label da alternativa atual."
     },
     {
       "id": "37-OTHER-BLOCK-INCIDENT-001",
       "page_id": 37,
       "slug": "apendice",
-      "finding": "Campo Outros Motivos de Bloqueio em Processo-Agil.Incidente",
+      "finding": "Campo Outros Motivos de Bloqueio em Processo-Agil.Incidente e alternativa atual",
       "doc": {
         "path": "out/wiki/apendice.md",
         "line": 383,
@@ -6236,18 +6241,19 @@
         "value": "presente"
       },
       "check": {
-        "kind": "field_presence",
+        "kind": "field_alternative",
         "wit": "Processo-Agil.Incidente",
-        "field": "Custom.OutrosMotivosdeBloqueio",
-        "expected": true
+        "expected_field": "Custom.OutrosMotivosdeBloqueio",
+        "actual_field": "Custom.MotivodobloqueioOutros",
+        "actual_name": "Motivo do bloqueio Outros"
       },
-      "limit": "O processo usa Custom.MotivodobloqueioOutros, com label Motivo do bloqueio Outros."
+      "limit": "A tabela documenta o nome esperado; a comparação prova sua ausência e a identidade e o label da alternativa atual."
     },
     {
       "id": "37-OTHER-BLOCK-KAIZEN-001",
       "page_id": 37,
       "slug": "apendice",
-      "finding": "Campo Outros Motivos de Bloqueio em Processo-Kanban.Kaizen",
+      "finding": "Campo Outros Motivos de Bloqueio em Processo-Kanban.Kaizen e alternativa atual",
       "doc": {
         "path": "out/wiki/apendice.md",
         "line": 416,
@@ -6256,18 +6262,19 @@
         "value": "presente"
       },
       "check": {
-        "kind": "field_presence",
+        "kind": "field_alternative",
         "wit": "Processo-Kanban.Kaizen",
-        "field": "Custom.OutrosMotivosdeBloqueio",
-        "expected": true
+        "expected_field": "Custom.OutrosMotivosdeBloqueio",
+        "actual_field": "Custom.MotivodobloqueioOutros",
+        "actual_name": "Motivo do bloqueio Outros"
       },
-      "limit": "O processo usa Custom.MotivodobloqueioOutros, com label Motivo do bloqueio Outros."
+      "limit": "A tabela documenta o nome esperado; a comparação prova sua ausência e a identidade e o label da alternativa atual."
     },
     {
       "id": "37-OTHER-BLOCK-BUG-001",
       "page_id": 37,
       "slug": "apendice",
-      "finding": "Campo Outros Motivos de Bloqueio em Processo-Kanban.Bug",
+      "finding": "Campo Outros Motivos de Bloqueio em Processo-Kanban.Bug e alternativa atual",
       "doc": {
         "path": "out/wiki/apendice.md",
         "line": 455,
@@ -6276,12 +6283,13 @@
         "value": "presente"
       },
       "check": {
-        "kind": "field_presence",
+        "kind": "field_alternative",
         "wit": "Processo-Kanban.Bug",
-        "field": "Custom.OutrosMotivosdeBloqueio",
-        "expected": true
+        "expected_field": "Custom.OutrosMotivosdeBloqueio",
+        "actual_field": "Custom.MotivodobloqueioOutros",
+        "actual_name": "Motivo do bloqueio Outros"
       },
-      "limit": "O processo usa Custom.MotivodobloqueioOutros, com label Motivo do bloqueio Outros."
+      "limit": "A tabela documenta o nome esperado; a comparação prova sua ausência e a identidade e o label da alternativa atual."
     },
     {
       "id": "37-COEXEC-HU-1-001",
@@ -6435,63 +6443,6 @@
         "kind": "field_presence",
         "wit": "Processo-Agil.Incidente",
         "field": "Custom.Stream",
-        "expected": false
-      },
-      "limit": "A tabela apresenta os campos customizados de Incidente como lista; o processo contém este campo adicional."
-    },
-    {
-      "id": "37-INCIDENT-STORYPOINTS-001",
-      "page_id": 37,
-      "slug": "apendice",
-      "finding": "Story Points ausente da lista técnica de Incidente",
-      "doc": [
-        {
-          "path": "out/wiki/apendice.md",
-          "line": 379,
-          "excerpt": "<summary>Campos Customizados</summary>",
-          "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
-          "value": "ausente"
-        },
-        {
-          "path": "out/wiki/apendice.md",
-          "line": 381,
-          "excerpt": "| Categoria | Campos |",
-          "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
-          "value": "ausente"
-        },
-        {
-          "path": "out/wiki/apendice.md",
-          "line": 383,
-          "excerpt": "| **Bloqueio** ⚠️ | Bloqueado\\*, Motivo do bloqueio, Outros Motivos de Bloqueio |",
-          "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
-          "value": "ausente"
-        },
-        {
-          "path": "out/wiki/apendice.md",
-          "line": 384,
-          "excerpt": "| **Co-executores** | Co-executor 1, Co-executor 2 |",
-          "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
-          "value": "ausente"
-        },
-        {
-          "path": "out/wiki/apendice.md",
-          "line": 385,
-          "excerpt": "| **Acompanhamento** | Entrou em Estado {X} Date, Saiu do Estado {X} Date |",
-          "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
-          "value": "ausente"
-        },
-        {
-          "path": "out/wiki/apendice.md",
-          "line": 386,
-          "excerpt": "| **Migração** | ID antigo, Parent ID antigo |",
-          "sha256": "46bb5e490755b82900d52940c33e303f3f0533a930bba7df2f64daff5c5ee754",
-          "value": "ausente"
-        }
-      ],
-      "check": {
-        "kind": "field_presence",
-        "wit": "Processo-Agil.Incidente",
-        "field": "Microsoft.VSTS.Scheduling.StoryPoints",
         "expected": false
       },
       "limit": "A tabela apresenta os campos customizados de Incidente como lista; o processo contém este campo adicional."

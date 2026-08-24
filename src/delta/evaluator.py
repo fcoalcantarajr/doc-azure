@@ -12,8 +12,8 @@ from uuid import UUID
 from delta.catalog import ClaimSpec, DocumentaryClaim
 from delta.evidence import EvidenceError, resolve_json_pointer, verify_doc_content
 from delta.models import EvidencePointer, Finding, FindingStatus
-from doc_azure.snapshot import SnapshotError, read_snapshot_artifact
 from doc_azure.process_collector import MAPPING_SCHEMA_VERSION
+from doc_azure.snapshot import SnapshotError, read_snapshot_artifact
 
 
 class EvaluationError(ValueError):
@@ -180,19 +180,28 @@ def _active_wit_set(
     entries = mapping["work_item_types"]
     excluded_customizations = _customization_filter(parameters)
     active: list[str] = []
+    excluded_active: list[str] = []
+    disabled: list[str] = []
     for entry in entries:
-        if (
-            entry["is_disabled"]
-            or entry["customization"] in excluded_customizations
-        ):
-            continue
         value = entry[identity]
         if not isinstance(value, str) or not value.strip():
             raise EvaluationError(f"artifact map WIT {identity} is malformed")
-        active.append(value)
-    if len(active) != len(set(active)):
-        raise EvaluationError(f"active WIT {identity} values are not unique")
+        if entry["is_disabled"]:
+            disabled.append(value)
+        elif entry["customization"] in excluded_customizations:
+            excluded_active.append(value)
+        else:
+            active.append(value)
+    all_identities = (*active, *excluded_active, *disabled)
+    if len(all_identities) != len(set(all_identities)):
+        raise EvaluationError(f"WIT {identity} values are not unique")
     actual = tuple(sorted(active, key=lambda value: (value.casefold(), value)))
+    excluded = tuple(
+        sorted(excluded_active, key=lambda value: (value.casefold(), value))
+    )
+    disabled_values = tuple(
+        sorted(disabled, key=lambda value: (value.casefold(), value))
+    )
     expected_value = parameters["expected"]
     if not isinstance(expected_value, Sequence) or isinstance(
         expected_value, (str, bytes)
@@ -204,7 +213,21 @@ def _active_wit_set(
     evidence = EvidencePointer(
         "out/process/artifact-map.json", "/work_item_types"
     )
-    return _comparison(actual, expected, evidence)
+    status = (
+        FindingStatus.CONFIRMADO
+        if type(actual) is type(expected) and actual == expected
+        else FindingStatus.DIVERGENTE
+    )
+    implemented = (
+        f"ativos comparados: {_identity_list(actual)}; "
+        f"ativos excluídos: {_identity_list(excluded)}; "
+        f"desabilitados: {_identity_list(disabled_values)}"
+    )
+    return _Observed(status, implemented, evidence)
+
+
+def _identity_list(values: Sequence[str]) -> str:
+    return ", ".join(values) if values else "nenhum"
 
 
 def _active_required_field_count(
@@ -320,6 +343,70 @@ def _field_presence(
         selector = "/value"
     evidence = EvidencePointer(base_pointer.path, selector)
     return _presence_comparison(actual, expected, evidence)
+
+
+def _field_alternative(
+    context: _EvidenceContext, parameters: Mapping[str, object]
+) -> _Observed:
+    wit = _string_parameter(parameters, "wit")
+    expected_field = _string_parameter(parameters, "expected_field")
+    actual_field = _string_parameter(parameters, "actual_field")
+    actual_name = _string_parameter(parameters, "actual_name")
+    artifact = context.wit_artifact(wit, "fields")
+    payload, base_pointer = context.load_process_artifact(artifact)
+    entries = _envelope(payload, f"fields for {wit}")
+    expected_matches = [
+        (index, entry)
+        for index, entry in enumerate(entries)
+        if entry.get("referenceName") == expected_field
+    ]
+    actual_matches = [
+        (index, entry)
+        for index, entry in enumerate(entries)
+        if entry.get("referenceName") == actual_field
+    ]
+    if len(expected_matches) > 1:
+        raise EvaluationError(
+            f"field {expected_field!r} occurs more than once in {wit!r}"
+        )
+    if len(actual_matches) != 1:
+        raise EvaluationError(
+            f"alternative field {actual_field!r} must occur exactly once in {wit!r}"
+        )
+    actual_index, actual_entry = actual_matches[0]
+    observed_name = actual_entry.get("name")
+    if not isinstance(observed_name, str) or not observed_name.strip():
+        raise EvaluationError(f"alternative field {actual_field!r} name is malformed")
+    if observed_name != actual_name:
+        raise EvaluationError(
+            f"alternative field {actual_field!r} name does not match catalog"
+        )
+    expected_present = bool(expected_matches)
+    expected_selector = (
+        f"/value/{expected_matches[0][0]}/referenceName"
+        if expected_present
+        else "/value"
+    )
+    status = (
+        FindingStatus.CONFIRMADO
+        if expected_present
+        else FindingStatus.DIVERGENTE
+    )
+    return _Observed(
+        status,
+        (
+            f"campo documentado {'presente' if expected_present else 'ausente'}; "
+            f"alternativa presente: {actual_field} ({observed_name})"
+        ),
+        (
+            EvidencePointer(base_pointer.path, expected_selector),
+            EvidencePointer(
+                base_pointer.path,
+                f"/value/{actual_index}/referenceName",
+            ),
+            EvidencePointer(base_pointer.path, f"/value/{actual_index}/name"),
+        ),
+    )
 
 
 def _field_required(
@@ -458,6 +545,8 @@ def _state_sequence(
         ordered.append((order, name))
     if len({order for order, _ in ordered}) != len(ordered):
         raise EvaluationError(f"state order is not unique in {wit!r}")
+    if len({name for _, name in ordered}) != len(ordered):
+        raise EvaluationError(f"state name is not unique in {wit!r}")
     actual = tuple(name for _, name in sorted(ordered))
     return _comparison(
         actual,
@@ -568,7 +657,10 @@ def _transition_field_coverage(
     return _Observed(
         status,
         implemented,
-        (fields_pointer, state_pointer),
+        (
+            EvidencePointer(fields_pointer.path, "/value"),
+            state_pointer,
+        ),
     )
 
 
@@ -842,6 +934,7 @@ _EVALUATORS: dict[str, Evaluator] = {
     "active_required_field_count": _active_required_field_count,
     "wit_presence": _wit_presence,
     "field_presence": _field_presence,
+    "field_alternative": _field_alternative,
     "field_required": _field_required,
     "field_name_pattern_minimum": _field_name_pattern_minimum,
     "field_property": _field_property,

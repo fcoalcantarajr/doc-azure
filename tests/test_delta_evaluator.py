@@ -26,12 +26,20 @@ WIKI_TEXT = "# Wiki\nCampo Bloqueado\nHistórico do campo\nWITs ativos\n"
 COLLECTED_AT = datetime(2026, 8, 24, tzinfo=timezone.utc)
 
 
+def _default_user_story_states() -> list[dict[str, object]]:
+    return [
+        {"name": "Backlog", "stateCategory": "Proposed", "order": 1},
+        {"name": "Concluído", "stateCategory": "Completed", "order": 2},
+    ]
+
+
 def seed_evidence(
     root: Path,
     *,
     process_type_id: str = PROCESS_ID,
     map_process_id: str = PROCESS_ID,
     layout_payload: object | None = None,
+    user_story_states: list[dict[str, object]] | None = None,
 ) -> None:
     wiki = SnapshotWriter(root / "out" / "wiki")
     wiki.write_text("leiame.md", WIKI_TEXT)
@@ -120,11 +128,8 @@ def seed_evidence(
     process.write_json(
         f"workitemtypes/{USER_STORY}/states.json",
         {
-            "count": 2,
-            "value": [
-                {"name": "Backlog", "stateCategory": "Proposed", "order": 1},
-                {"name": "Concluído", "stateCategory": "Completed", "order": 2},
-            ],
+            "count": len(user_story_states or _default_user_story_states()),
+            "value": user_story_states or _default_user_story_states(),
         },
     )
     process.write_json(
@@ -357,8 +362,8 @@ def test_active_wit_set_excludes_disabled_work_item_types(tmp_path: Path) -> Non
     assert finding.status is FindingStatus.CONFIRMADO
     assert finding.azure_evidence is not None
     assert finding.azure_evidence.selector == "/work_item_types"
-    assert EPIC not in finding.implemented
-    assert TEST_CASE not in finding.implemented
+    assert f"ativos excluídos: {TEST_CASE}" in finding.implemented
+    assert f"desabilitados: {EPIC}" in finding.implemented
 
 
 def test_active_wit_set_includes_system_types_without_explicit_filter(
@@ -448,6 +453,24 @@ def test_state_sequence_compares_api_order_as_one_documentary_claim(
     assert confirmed_finding.azure_evidence.selector == "/value"
 
 
+def test_state_sequence_rejects_duplicate_state_names(tmp_path: Path) -> None:
+    seed_evidence(
+        tmp_path,
+        user_story_states=[
+            {"name": "Backlog", "stateCategory": "Proposed", "order": 1},
+            {"name": "Backlog", "stateCategory": "Completed", "order": 2},
+        ],
+    )
+    claim = make_claim(
+        "state_sequence",
+        wit=USER_STORY,
+        expected=["Backlog", "Concluído"],
+    )
+
+    with pytest.raises(EvaluationError, match="state name is not unique"):
+        evaluate_claim(claim, tmp_path)
+
+
 def test_wit_state_set_equality_does_not_collapse_sequence_or_membership(
     tmp_path: Path,
 ) -> None:
@@ -527,6 +550,34 @@ def test_transition_field_coverage_compares_every_current_named_state(
     assert finding.status is FindingStatus.CONFIRMADO
     assert "2 de 2" in finding.implemented
     assert len(finding.azure_evidence) == 2
+    assert [pointer.selector for pointer in finding.azure_evidence] == [
+        "/value",
+        "/value",
+    ]
+
+
+def test_field_alternative_proves_expected_absence_and_actual_identity_and_name(
+    tmp_path: Path,
+) -> None:
+    seed_evidence(tmp_path)
+    claim = make_claim(
+        "field_alternative",
+        wit=USER_STORY,
+        expected_field="Custom.Documented",
+        actual_field="Custom.Optional",
+        actual_name="Opcional",
+    )
+
+    finding = evaluate_claim(claim, tmp_path)
+
+    assert finding.status is FindingStatus.DIVERGENTE
+    assert "Custom.Optional" in finding.implemented
+    assert "Opcional" in finding.implemented
+    assert [pointer.selector for pointer in finding.azure_evidence] == [
+        "/value",
+        "/value/1/referenceName",
+        "/value/1/name",
+    ]
 
 
 def test_rule_action_matches_the_exact_condition_and_action(tmp_path: Path) -> None:
