@@ -76,13 +76,19 @@ async def collect_wiki_pages(
         if cached_manifest is not None:
             return cached_manifest
 
-    if client is None:
-        raise WikiCollectionError("an Azure read client is required for collection")
-
     logical_root = project_root / "out" / "wiki"
     writer = SnapshotWriter(logical_root)
-    first_request = len(client.request_records)
     try:
+        if not refresh:
+            cached_manifest = read_cached_wiki_manifest(project_root)
+            if cached_manifest is not None:
+                writer.abort()
+                return cached_manifest
+        if client is None:
+            raise WikiCollectionError(
+                "an Azure read client is required for collection"
+            )
+        first_request = len(client.request_records)
         collected = await _fetch_all_pages(client)
         for page, metadata in collected:
             writer.write_text(f"{page.slug}.md", page.content)
@@ -140,12 +146,15 @@ async def _fetch_page(
 
 def _parse_page(spec: WikiPageSpec, payload: Mapping[str, object]) -> WikiPage:
     response_id = payload.get("id")
-    title = payload.get("title")
+    page_path = payload.get("path")
     content = payload.get("content")
     if type(response_id) is not int or response_id != spec.page_id:
         raise WikiCollectionError(f"wiki page {spec.page_id} returned the wrong id")
-    if not isinstance(title, str) or not title.strip():
-        raise WikiCollectionError(f"wiki page {spec.page_id} title is missing")
+    if not isinstance(page_path, str) or not page_path.startswith("/"):
+        raise WikiCollectionError(f"wiki page {spec.page_id} path is invalid")
+    title = page_path.rsplit("/", 1)[-1]
+    if not title.strip():
+        raise WikiCollectionError(f"wiki page {spec.page_id} path is invalid")
     if not isinstance(content, str) or not content.strip():
         raise WikiCollectionError(f"wiki page {spec.page_id} content is blank")
     return WikiPage(spec.page_id, spec.slug, title, content)

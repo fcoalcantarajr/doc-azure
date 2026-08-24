@@ -8,7 +8,6 @@
     "path": "/Changelog",
     "remoteUrl": "https://dev.azure.com/example/project/_wiki/wikis/example/9/Changelog",
     "subPages": [],
-    "title": "Changelog",
     "url": "https://dev.azure.com/example/project/_apis/wiki/wikis/example/pages/9"
   },
   "10": {
@@ -20,7 +19,6 @@
     "path": "/Template de políticas explícitas",
     "remoteUrl": "https://dev.azure.com/example/project/_wiki/wikis/example/10/Template",
     "subPages": [],
-    "title": "Template de políticas explícitas",
     "url": "https://dev.azure.com/example/project/_apis/wiki/wikis/example/pages/10"
   },
   "35": {
@@ -37,7 +35,6 @@
         "path": "/Apêndice Técnico Processo Organização Única"
       }
     ],
-    "title": "Leia-me Processo da Organização Única",
     "url": "https://dev.azure.com/example/project/_apis/wiki/wikis/example/pages/35"
   },
   "37": {
@@ -49,7 +46,6 @@
     "path": "/Apêndice Técnico Processo Organização Única",
     "remoteUrl": "https://dev.azure.com/example/project/_wiki/wikis/example/37/Apendice",
     "subPages": [],
-    "title": "Apêndice Técnico Processo Organização Única",
     "url": "https://dev.azure.com/example/project/_apis/wiki/wikis/example/pages/37"
   }
 }

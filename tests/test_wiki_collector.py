@@ -11,6 +11,7 @@ from types import ModuleType
 import httpx
 import pytest
 
+import doc_azure.wiki_collector as wiki_collector_module
 from doc_azure.azure_client import AzureReadClient, AzureReadError, RequestRecord
 from doc_azure.settings import Settings
 from doc_azure.snapshot import SnapshotError, SnapshotWriter, resolve_snapshot_root
@@ -32,6 +33,12 @@ EXPECTED_PAGE_SLUGS = {
     10: "politicas",
     9: "changelog",
     37: "apendice",
+}
+EXPECTED_PAGE_TITLES = {
+    35: "Leia-me Processo da Organização Única",
+    10: "Template de políticas explícitas",
+    9: "Changelog",
+    37: "Apêndice Técnico Processo Organização Única",
 }
 
 
@@ -88,12 +95,15 @@ def snapshot_bytes(root: Path) -> dict[str, bytes]:
     }
 
 
-def seed_complete_wiki_snapshot(project_root: Path) -> None:
-    payloads = load_page_payloads()
+def seed_complete_wiki_snapshot(
+    project_root: Path,
+    payloads: dict[int, dict[str, object]] | None = None,
+) -> None:
+    page_payloads = load_page_payloads() if payloads is None else payloads
     writer = SnapshotWriter(project_root / "out" / "wiki")
     records: list[RequestRecord] = []
     for page_id, slug in EXPECTED_PAGE_SLUGS.items():
-        payload = payloads[page_id]
+        payload = page_payloads[page_id]
         writer.write_text(f"{slug}.md", str(payload["content"]))
         writer.write_json(
             f"{slug}.metadata.json",
@@ -186,6 +196,9 @@ def test_collection_requests_exact_page_ids_and_preserves_all_metadata(
         assert json.loads(
             (resolved / f"{slug}.metadata.json").read_text(encoding="utf-8")
         ) == {key: value for key, value in payload.items() if key != "content"}
+        assert "title" not in json.loads(
+            (resolved / f"{slug}.metadata.json").read_text(encoding="utf-8")
+        )
 
     expected_paths = tuple(
         sorted(
@@ -201,6 +214,41 @@ def test_collection_requests_exact_page_ids_and_preserves_all_metadata(
     )
     assert manifest.requests == tuple(sorted(records, key=lambda record: record.path))
     assert all("?" not in record.path for record in manifest.requests)
+
+
+@pytest.mark.parametrize(
+    ("page_id", "slug"), tuple(EXPECTED_PAGE_SLUGS.items())
+)
+def test_official_payload_without_title_derives_title_from_path(
+    page_id: int, slug: str
+) -> None:
+    payload = load_page_payloads()[page_id]
+    spec = next(spec for spec in PAGE_SPECS if spec.page_id == page_id)
+
+    page = wiki_collector_module._parse_page(spec, payload)
+
+    assert "title" not in payload
+    assert page == WikiPage(
+        page_id=page_id,
+        slug=slug,
+        title=EXPECTED_PAGE_TITLES[page_id],
+        content=payload["content"],
+    )
+
+
+@pytest.mark.parametrize(
+    "bad_path",
+    (None, "", "relative", "/", "/   ", "/trailing/"),
+)
+def test_page_path_must_be_absolute_and_have_a_nonblank_final_segment(
+    bad_path: object,
+) -> None:
+    payload = load_page_payloads()[35]
+    payload["path"] = bad_path
+    spec = next(spec for spec in PAGE_SPECS if spec.page_id == 35)
+
+    with pytest.raises(WikiCollectionError, match="path"):
+        wiki_collector_module._parse_page(spec, payload)
 
 
 @pytest.mark.parametrize(
@@ -267,6 +315,40 @@ def test_non_refresh_cache_is_deterministic_and_makes_zero_requests(
     assert first == second
     assert middle == before
     assert snapshot_bytes(logical_root) == before
+
+
+def test_non_refresh_rechecks_cache_after_writer_creation_before_requesting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    logical_root = tmp_path / "out" / "wiki"
+    legacy_payloads = load_page_payloads()
+    for page_id, title in EXPECTED_PAGE_TITLES.items():
+        # Keep the race regression independent of the official-shape regression.
+        legacy_payloads[page_id]["title"] = title
+    transport = WikiTransport(legacy_payloads)
+    published_bytes: dict[str, bytes] = {}
+    real_writer = SnapshotWriter
+
+    def writer_that_observes_competing_publication(root: Path) -> SnapshotWriter:
+        stale_writer = real_writer(root)
+        seed_complete_wiki_snapshot(tmp_path, legacy_payloads)
+        published_bytes.update(snapshot_bytes(logical_root))
+        return stale_writer
+
+    monkeypatch.setattr(
+        wiki_collector_module,
+        "SnapshotWriter",
+        writer_that_observes_competing_publication,
+    )
+
+    manifest, records = asyncio.run(
+        collect_with_transport(tmp_path, transport, refresh=False)
+    )
+
+    assert manifest.complete is True
+    assert transport.requests == []
+    assert records == ()
+    assert snapshot_bytes(logical_root) == published_bytes
 
 
 def test_refresh_without_client_fails_before_touching_current_snapshot(

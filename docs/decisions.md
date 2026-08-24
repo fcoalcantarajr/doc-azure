@@ -251,9 +251,11 @@ unchanged.
 
 Ruling: the only requested pages are IDs 35, 10, 9, and 37 at the approved
 page-by-ID route with `includeContent=true`. Each response must carry its exact
-integer ID, a non-blank title, and non-blank string content. A 404, malformed
-response, or failed refresh aborts staging and cannot publish an empty stub or
-replace the previous generation.
+integer ID, an absolute path with a non-blank final segment, and non-blank
+string content. `WikiPage.title` is derived from that final path segment because
+the official response shape does not guarantee a separate `title` member. A
+404, malformed response, or failed refresh aborts staging and cannot publish an
+empty stub or replace the previous generation.
 
 Ruling: Markdown content is stored verbatim in `<slug>.md`; every non-content
 response member is preserved semantically in `<slug>.metadata.json`. The
@@ -263,3 +265,51 @@ out of receipt paths.
 Rejected alternative: keep the old path-based, per-file cache. It could create
 empty 404 stubs, mix stale and refreshed files, load the PAT on complete cache
 hits, and offered no complete-snapshot identity for later evidence pointers.
+
+## Task 3 review correction — RED evidence
+
+Official-shape command: `uv run pytest
+tests/test_wiki_collector.py::test_official_payload_without_title_derives_title_from_path
+-q`
+
+Result: `4 failed in 0.06s`. Every official-shape fixture omitted `title`, and
+the collector rejected each one with `wiki page <id> title is missing` instead
+of deriving the title from the documented absolute `path` member.
+
+Race command: `uv run pytest
+tests/test_wiki_collector.py::test_non_refresh_rechecks_cache_after_writer_creation_before_requesting
+-q`
+
+Result: `1 failed in 0.06s`. A competing writer published a complete snapshot
+after the first cache check; the collector still made all four requests and
+then failed the writer CAS with `stale snapshot writer cannot replace current
+generation`. This isolates the missing post-construction cache recheck.
+
+## Task 3 review correction — GREEN evidence and rulings
+
+Focused command: `uv run pytest tests/test_wiki_collector.py -q`
+
+Result: `24 passed in 0.08s` with no warnings.
+
+Full command: `uv run pytest -q`
+
+Result: `174 passed in 0.21s` with no warnings.
+
+Compile command: `uv run python -m compileall -q src tests
+scripts/01_fetch_wiki.py`
+
+Result: exit code 0 with no output.
+
+Ruling: the four audit fixtures mirror the official page-by-ID response shape
+and intentionally omit `title`. `_parse_page` validates the raw absolute
+`path`, rejects a missing or blank final segment, and derives the immutable
+`WikiPage.title` from that segment. Snapshot metadata remains the raw response
+minus only `content`; no derived title is inserted into evidence.
+
+Ruling: a non-refresh collector performs a second complete-cache check after
+constructing its baseline writer and before validating a client or creating
+request coroutines. If another writer published in that interval, it aborts
+its empty staging directory and returns the competing complete snapshot with
+zero requests and no byte changes. Publication after the second check remains
+protected by `SnapshotWriter` compare-and-swap and fails stale rather than
+overwriting newer evidence.
