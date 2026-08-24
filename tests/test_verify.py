@@ -1,0 +1,203 @@
+"""Adversarial tests for the repository truth-checking gate."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from subprocess import CompletedProcess
+
+import pytest
+
+from delta.build import build_all_reports
+from doc_azure.snapshot import SnapshotWriter
+from verify import (
+    VerificationError,
+    run_checked,
+    verify_gitignore,
+    verify_reports,
+    verify_secret_literals,
+)
+
+
+PAGES = ((35, "leiame"), (10, "politicas"), (9, "changelog"), (37, "apendice"))
+COLLECTED_AT = datetime(2026, 8, 24, tzinfo=timezone.utc)
+
+
+def seed_verified_repository(root: Path) -> Path:
+    wiki_writer = SnapshotWriter(root / "out" / "wiki")
+    claims: list[dict[str, object]] = []
+    for index, (page_id, slug) in enumerate(PAGES):
+        body = f"# {slug}\nProcesso-Agil\nLinha alternativa {slug}\n"
+        wiki_writer.write_text(f"{slug}.md", body)
+        check: dict[str, object]
+        if index == 0:
+            check = {
+                "kind": "equals",
+                "artifact": "process.json",
+                "pointer": "/name",
+                "expected": "Processo-Agil",
+            }
+        else:
+            check = {
+                "kind": "limitation",
+                "implemented": "A API não representa esta afirmação.",
+            }
+        claims.append(
+            {
+                "id": f"{page_id}-VERIFY-001",
+                "page_id": page_id,
+                "slug": slug,
+                "finding": f"Verificação de {slug}",
+                "doc": {
+                    "path": f"out/wiki/{slug}.md",
+                    "line": 2,
+                    "excerpt": "Processo-Agil",
+                    "sha256": hashlib.sha256(body.encode()).hexdigest(),
+                    "value": "Processo-Agil",
+                },
+                "check": check,
+                "limit": "A diferença altera a interpretação documental.",
+            }
+        )
+    wiki_writer.commit_manifest(collected_at=COLLECTED_AT, requests=())
+
+    process_writer = SnapshotWriter(root / "out" / "process")
+    process_writer.write_json(
+        "process.json",
+        {"name": "Processo-Agil", "typeId": "not-the-name"},
+    )
+    process_writer.commit_manifest(collected_at=COLLECTED_AT, requests=())
+
+    catalog = root / "config" / "wiki_claims.json"
+    catalog.parent.mkdir()
+    catalog.write_text(
+        json.dumps({"schema_version": 1, "claims": claims}),
+        encoding="utf-8",
+    )
+    build_all_reports(root, catalog, root / "deltas")
+    return catalog
+
+
+def mutate_catalog(catalog: Path, mutation: object) -> None:
+    payload = json.loads(catalog.read_text(encoding="utf-8"))
+    mutation(payload)
+    catalog.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_verify_reports_accepts_exact_unmodified_outputs_without_mutation(
+    tmp_path: Path,
+) -> None:
+    seed_verified_repository(tmp_path)
+    before = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (tmp_path / "deltas").iterdir()
+    }
+
+    verify_reports(tmp_path)
+
+    after = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in (tmp_path / "deltas").iterdir()
+    }
+    assert after == before
+
+
+def test_verify_reports_rejects_resolvable_but_wrong_json_pointer(
+    tmp_path: Path,
+) -> None:
+    catalog = seed_verified_repository(tmp_path)
+    mutate_catalog(
+        catalog,
+        lambda payload: payload["claims"][0]["check"].update(pointer="/typeId"),
+    )
+
+    with pytest.raises(VerificationError, match="differs from verified rebuild"):
+        verify_reports(tmp_path)
+
+
+def test_verify_reports_rejects_nearby_instead_of_exact_wiki_line(
+    tmp_path: Path,
+) -> None:
+    catalog = seed_verified_repository(tmp_path)
+    mutate_catalog(
+        catalog,
+        lambda payload: payload["claims"][0]["doc"].update(
+            line=3, excerpt="Linha alternativa leiame"
+        ),
+    )
+
+    with pytest.raises(VerificationError, match="differs from verified rebuild"):
+        verify_reports(tmp_path)
+
+
+def test_verify_reports_rejects_report_status_mutation(tmp_path: Path) -> None:
+    seed_verified_repository(tmp_path)
+    report = tmp_path / "deltas" / "leiame.md"
+    report.write_text(
+        report.read_text(encoding="utf-8").replace(
+            "CONFIRMADO", "DIVERGENTE", 1
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(VerificationError, match="differs from verified rebuild"):
+        verify_reports(tmp_path)
+
+
+def test_verify_reports_rejects_a_symlink_even_with_identical_bytes(
+    tmp_path: Path,
+) -> None:
+    seed_verified_repository(tmp_path)
+    report = tmp_path / "deltas" / "leiame.md"
+    external = tmp_path / "external.md"
+    external.write_bytes(report.read_bytes())
+    report.unlink()
+    report.symlink_to(external)
+
+    with pytest.raises(VerificationError, match="regular file"):
+        verify_reports(tmp_path)
+
+
+def test_run_checked_rejects_failed_subprocess_without_echoing_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    secret_output = "do-not-echo-this-output"
+
+    def failed_run(*args: object, **kwargs: object) -> CompletedProcess[str]:
+        return CompletedProcess(args[0], 7, secret_output, secret_output)
+
+    monkeypatch.setattr("verify.subprocess.run", failed_run)
+    with pytest.raises(VerificationError) as raised:
+        run_checked(("tool", "check"), tmp_path)
+
+    assert secret_output not in str(raised.value)
+
+
+def test_verify_secret_literals_rejects_env_value_without_disclosing_it(
+    tmp_path: Path,
+) -> None:
+    secret = "unique-sensitive-value-987654"
+    (tmp_path / ".env").write_text(f"AZDO_PAT={secret}\n", encoding="utf-8")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "leak.md").write_text(f"accidental {secret}\n", encoding="utf-8")
+
+    with pytest.raises(VerificationError) as raised:
+        verify_secret_literals(tmp_path)
+
+    assert secret not in str(raised.value)
+    assert "docs/leak.md" in str(raised.value)
+
+
+def test_verify_gitignore_requires_every_requested_category(tmp_path: Path) -> None:
+    (tmp_path / ".gitignore").write_text(".env\n", encoding="utf-8")
+
+    with pytest.raises(VerificationError, match="gitignore category"):
+        verify_gitignore(tmp_path)
+
+
+def test_repository_gitignore_covers_every_requested_category() -> None:
+    verify_gitignore(Path(__file__).parents[1])

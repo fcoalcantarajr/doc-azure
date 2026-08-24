@@ -543,3 +543,118 @@ Final independent verdicts: `APPROVED` for the 156-claim catalog and
 documentary pointers, material changelog coverage, illustrative limits, strict
 process identity cross-checking, no-follow/hash reads, and the 26-test focused
 gate.
+
+## Task 6 — RED evidence
+
+Builder command: `uv run pytest tests/test_delta_builder.py -q`
+
+Result: collection failed as expected with `ModuleNotFoundError: No module
+named 'delta.build'` in `0.07s`. The tests already required all four fixed
+pages, catalog order, byte-for-byte determinism, and preservation of existing
+reports when claim evaluation fails.
+
+Verifier command: `uv run pytest tests/test_verify.py -q`
+
+Result: collection failed as expected with `ImportError: cannot import name
+'VerificationError' from 'verify'` in `0.08s`. The tests already required a
+temporary non-mutating rebuild and rejection of a resolvable but wrong JSON
+pointer, a nearby rather than cataloged documentary line, report-status
+mutation, subprocess failure, secret leakage, and incomplete ignore policy.
+
+Notion hardening command: `uv run pytest tests/test_prepare_notion.py -q`
+
+Result: collection failed as expected with `ImportError: cannot import name
+'load_publication_manifest' from 'delta.notion'` in `0.08s`. This adversarial
+cycle was added after the first implementation exposed a real weakness: it
+declared a marker in the manifest without proving the marker existed in the
+body, and it had no strict disk-manifest loader.
+
+Renderer and initial Notion tests were written by isolated implementation
+agents before their production modules, but their terminal receipts were lost
+when both agent turns were interrupted by a service usage-limit error. This is
+recorded as missing process evidence rather than reconstructed as a successful
+RED observation. The later Notion hardening RED above is retained and the
+renderer behavior is covered by the focused and full GREEN suites.
+
+## Task 6 — GREEN evidence and rulings
+
+Focused command: `uv run pytest tests/test_delta_render.py
+tests/test_delta_builder.py tests/test_prepare_notion.py tests/test_verify.py -q`
+
+Result: `28 passed in 0.16s`.
+
+Compile command: `uv run python -m compileall -q src scripts verify.py tests`
+
+Result: exit code 0 with no output.
+
+Ruling: report generation is offline and explicit. It evaluates all 156
+catalog entries, preserves catalog order, renders the exact Portuguese status
+model, stages every report before replacement, and produces stable bytes. The
+gate rebuilds into a temporary directory and compares exact bytes, so a pointer
+that merely resolves cannot validate the wrong value or status.
+
+Ruling: local Notion preparation is separate from external publication. The
+manifest binds exact body hashes and markers to four pre-existing page IDs,
+their common parent, and canonical URLs. Preparation never creates or updates a
+Notion page; connector read-back must prove those identities and hashes.
+
+Ruling: the mandatory Kimi K3 and Opus 5 reviews use separate chats and maximum
+effort in Notion AI. Per the user's explicit correction, this UI work must run
+only in the browser integrated into ChatGPT. The external Notion desktop app is
+not an authorized fallback. Missing exact model/effort controls or an
+authentication barrier fails the publication gate closed.
+
+## Task 6 — independent adversarial review
+
+The first independent verdict was `NEEDS_FIXES` with two medium findings. The
+four reports were staged but replaced sequentially without rollback, so a
+failure on the third replacement could leave a mixed set. Separately,
+`verify_reports` and `verify_layout` followed symlinks for versioned reports.
+
+Targeted RED command: `uv run pytest
+tests/test_delta_builder.py::test_build_all_reports_rolls_back_every_replaced_report_on_publish_failure
+tests/test_verify.py::test_verify_reports_rejects_a_symlink_even_with_identical_bytes
+-q`
+
+Result: `2 failed in 0.09s`. The simulated third replacement left the first two
+new files in place, and an identical external symlink passed the gate.
+
+Targeted GREEN command: the same command.
+
+Result: `2 passed in 0.16s`. The builder now saves regular-file backups and
+rolls back every earlier replacement after an ordinary publication failure.
+The gate uses `O_NOFOLLOW`, requires regular files, and rejects symlinks in both
+report comparison and required-layout checks. This is rollback-backed batch
+publication, not a claim of crash-atomicity across four filesystem paths.
+
+Full command: `uv run pytest -q`
+
+Result before the final ignore-policy fixture was added: `240 passed in 0.57s`.
+
+Final independent verdict: `APPROVED`. The reviewer confirmed both prior
+findings were closed and found no additional material regression in fixed
+Notion identities, hashes, secret handling, deterministic reports, or the
+legacy-contract removal.
+
+## Task 6 — setup entrypoint correction
+
+The one-command entrypoint check exposed an additional legacy defect after the
+main review: `python scripts/setup.py --help` loaded `AZDO_PAT` before argument
+parsing, and the setup created obsolete `out/raw`, `out/normalized`, and
+`out/reports` directories.
+
+RED command: `uv run pytest
+tests/test_settings.py::SettingsTests::test_setup_is_idempotent
+tests/test_script_entrypoints.py::test_script_help_never_requires_credentials
+-q`
+
+Result: `2 failed, 4 passed in 2.07s`. The exact directory contract differed,
+and `setup.py --help` exited 1 with a missing-credential exception.
+
+GREEN command: `uv run pytest
+tests/test_settings.py::SettingsTests::test_setup_is_idempotent
+tests/test_script_entrypoints.py -q`
+
+Result: `6 passed in 1.46s`. Setup now parses help before configuration,
+returns a sanitized failure on invalid local configuration, and idempotently
+creates only `out/wiki`, `out/process`, and `out/notion`.

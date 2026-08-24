@@ -73,3 +73,7 @@ class SettingsTests(TestCase):
 
             self.assertEqual(first, second)
             self.assertTrue(all(path.is_dir() for path in second))
+            self.assertEqual(
+                tuple(path.relative_to(root).as_posix() for path in second),
+                ("out/wiki", "out/process", "out/notion"),
+            )

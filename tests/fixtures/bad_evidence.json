@@ -1,7 +1,0 @@
-{
-  "id": "R005",
-  "claim_pt": "Test with dangling evidence",
-  "class": "DOC_ONLY",
-  "doc_evidence": "out/wiki/nonexistent.md#L1",
-  "azure_evidence": "n/a"
-}

@@ -1,30 +1,60 @@
-# Publicação Delta — Processo Organização Única
+# Notion publication contract
 
-Este documento registra a publicação dos 4 arquivos delta auditados no Notion (template wiki × processo implementado).
+## Location and existing-page identities
 
-## Meta Notion
-Parent Page ID: `2a1412e0-8c26-803b-a988-dc619a396e45` (Delta Audit)
+All four reports remain children of the same existing hub page. Publication
+must update these pages in place; creating replacements or duplicates is
+forbidden.
 
-## Delta Pages Published
+Parent page ID: `2a1412e0-8c26-803b-a988-dc619a396e45`
 
-| Slug | Título | URL Notion | Status | Evidence Marker | Publicado |
-|---|---|---|---|---|---|
-| leiame | Leiame × Processo-Agil implementado | https://app.notion.com/p/3c3412e08c26813cad9cd57026cfd566 | ✅ publicado | DELTA-AUDIT-MARKER-leiame | 2026-08-21 - 15:30 |
-| politicas | Políticas Explícitas × Processo-Agil implementado | https://app.notion.com/p/3c3412e08c26813a8312dc52450adf39 | ✅ publicado | DELTA-AUDIT-MARKER-politicas | 2026-08-21 - 15:31 |
-| changelog | Changelog - Processo Ágil no Azure DevOps × Processo-Agil implementado | https://app.notion.com/p/3c3412e08c2681b8b9fdcca04e04452b | ✅ publicado | DELTA-AUDIT-MARKER-changelog | 2026-08-21 - 15:31 |
-| apendice | Apêndice Técnico — Processo Organização Única × Processo-Agil implementado | https://app.notion.com/p/3c3412e08c2681dc81c1fbf0c7cac428 | ✅ publicado | DELTA-AUDIT-MARKER-apendice | 2026-08-21 - 15:32 |
+| Slug | Existing title | Existing page ID | URL | Marker |
+| --- | --- | --- | --- | --- |
+| `leiame` | Leiame × Processo-Agil implementado | `3c3412e0-8c26-813c-ad9c-d57026cfd566` | https://app.notion.com/p/3c3412e08c26813cad9cd57026cfd566 | `DELTA-AUDIT-MARKER-leiame` |
+| `politicas` | Políticas Explícitas × Processo-Agil implementado | `3c3412e0-8c26-813a-8312-dc52450adf39` | https://app.notion.com/p/3c3412e08c26813a8312dc52450adf39 | `DELTA-AUDIT-MARKER-politicas` |
+| `changelog` | Changelog - Processo Ágil no Azure DevOps × Processo-Agil implementado | `3c3412e0-8c26-81b8-b9fd-cca04e04452b` | https://app.notion.com/p/3c3412e08c2681b8b9fdcca04e04452b | `DELTA-AUDIT-MARKER-changelog` |
+| `apendice` | Apêndice Técnico — Processo Organização Única × Processo-Agil implementado | `3c3412e0-8c26-81dc-81c1-fbf0c7cac428` | https://app.notion.com/p/3c3412e08c2681dc81c1fbf0c7cac428 | `DELTA-AUDIT-MARKER-apendice` |
 
-## Evidências Arquivadas
+## Local preparation
 
-Cada página publicada tem seu conteúdo arquivado para referência local:
+Run `uv run python scripts/04_prepare_notion.py` only after the four versioned
+reports pass the offline build. The script writes ignored prepared bodies and a
+manifest below `out/notion`; it performs no external operation and does not
+claim publication.
 
-- `out/notion/leiame.fetched.md`
-- `out/notion/politicas.fetched.md`
-- `out/notion/changelog.fetched.md`
-- `out/notion/apendice.fetched.md`
+## Mandatory adversarial review gate
 
-## Próximos Passos
+Before any page update, review the prepared reports in two independent Notion
+AI chats:
 
-1. Revisar páginas no Notion para consistência visual
-2. Atualizar versão do processo caso haja mudanças
-3. Reexecutar auditoria: `uv run verify.py` (deve retornar GATE_OK)
+1. Kimi K3, maximum effort.
+2. Opus 5, maximum effort.
+
+The Notion AI interaction must use the browser integrated into ChatGPT. The
+external Notion desktop app is outside the authorized workflow. Each reviewer
+receives the same reports, claim catalog, methodology, and material evidence
+excerpts. Reviews remain independent until both verdicts are captured. Any
+material conflict is reconciled against raw snapshot evidence, not by majority
+vote. If the exact model, maximum-effort setting, signed-in session, or required
+UI is unavailable, publication fails closed.
+
+## Update and proof
+
+After the review gate passes, use the Notion connector to update the four fixed
+page IDs in place. Fetch every page back through the connector and save a
+sanitized local receipt plus Markdown body under `out/notion/fetched`:
+
+- `<slug>.json`: slug, fixed page ID, parent ID, canonical URL, and marker.
+- `<slug>.md`: complete fetched body.
+
+Run:
+
+```text
+uv run python scripts/04_prepare_notion.py \
+  --verify-fetched out/notion/fetched
+uv run python verify.py --require-publication
+```
+
+Only these successful read-back checks justify a current “published” status.
+Earlier timestamps or markers are historical context, not evidence that this
+session's reports were updated.

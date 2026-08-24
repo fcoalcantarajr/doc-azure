@@ -30,19 +30,25 @@ R10. Language: English in all code, tests, commits, docs/ and reasoning. The fou
 
 ## Delta Model
 
-Each delta is a table of ROWS. Each row is one comparable claim, carrying:
-| id | claim (pt-BR) | class | doc_evidence | azure_evidence |
+Each report row evaluates one explicit, versioned catalog claim. The status is
+exactly one of:
 
-class is exactly one of: DOC_ONLY | AZURE_ONLY | DIVERGENT | MATCH
-- DOC_ONLY   = the wiki states it, the process does not implement it
-- AZURE_ONLY = the process implements it, the wiki does not state it
-- DIVERGENT  = both state it, and they differ (say HOW, with both values)
-- MATCH      = both agree
+- CONFIRMADO: the exact documented value and current process evidence agree.
+- DIVERGENTE: both sides are comparable and their exact values differ.
+- NAO_VERIFICAVEL_API_PROCESSO: the process API cannot prove the documentary
+  dimension, such as chronology, runtime automation, governance, or practice.
+- AMBIGUO: the collected evidence supports more than one material interpretation.
 
-doc_evidence   = out/wiki/<slug>.md#L<line>            (or "n/a" only when class is AZURE_ONLY)
-azure_evidence = out/process/<file>.json#<json-path>   (or "n/a" only when class is DOC_ONLY)
+Every row requires an exact `out/wiki/<slug>.md#L<line>` documentary pointer.
+CONFIRMADO and DIVERGENTE also require an exact
+`out/process/<artifact>.json#<json-pointer>` pointer. A non-confirmed row states
+its impact or epistemic limit explicitly. Report order follows catalog order;
+heuristic keyword extraction and filler rows are forbidden.
 
-Every non-MATCH row states the consequence in one sentence.
+Every real Azure HTTP attempt is recorded in the snapshot manifest as a
+sanitized method and path. An absence conclusion is valid only when the
+collector completed the relevant endpoint family and the exact returned
+artifact proves the absence.
 
 ## The Four Slugs
 

@@ -70,9 +70,8 @@ def _load_dotenv_pat(project_root: Path) -> Optional[str]:
 
 def ensure_runtime_directories(project_root: Path) -> tuple[Path, ...]:
     paths = (
-        project_root / "out" / "raw",
-        project_root / "out" / "normalized",
-        project_root / "out" / "reports",
+        project_root / "out" / "wiki",
+        project_root / "out" / "process",
         project_root / "out" / "notion",
     )
     for path in paths:

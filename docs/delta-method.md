@@ -1,118 +1,133 @@
-# Delta Generation Method
+# Evidence-backed delta method
 
-This document describes the algorithm for comparing Azure DevOps wiki pages against the Processo-Agil implementation and generating delta markdown files.
+## Purpose
 
-## Overview
+The audit compares explicit claims in four fixed Azure DevOps wiki pages with
+the current inherited-process representation of `Processo-Agil`. It does not
+infer claims from keywords, manufacture rows to satisfy a gate, or treat the
+current process API as historical evidence.
 
-The delta method identifies discrepancies between documentation (wiki pages) and implementation (process model). Each row in a delta represents a claim about a specific artifact that appears in one artifact but not the other, or appears differently.
+## Fixed documentary scope
 
-## Input Sources
+| Page ID | Slug | Source |
+| ---: | --- | --- |
+| 35 | `leiame` | Leia-me Processo da Organização Única |
+| 10 | `politicas` | Template de políticas explícitas |
+| 9 | `changelog` | Changelog |
+| 37 | `apendice` | Apêndice Técnico Processo Organização Única |
 
-### Wiki Pages (out/wiki/)
-Four wiki pages are fetched from Azure DevOps:
-- **leiame** (page_id=35) - "Leia-me Processo da Organização Única"
-- **politicas** (page_id=10) - "Template de políticas explícitas"  
-- **changelog** (page_id=9) - "Changelog"
-- **apendice** (page_id=37) - "Apêndice Técnico Processo Organização Única"
+`config/wiki_claims.json` is the versioned comparison contract. Every entry
+contains a stable ID, page and slug, material finding, exact source path, exact
+line and excerpt, full source SHA-256, documented value, one typed evaluator,
+and an explicit limit. The strict loader rejects unknown fields, unsupported
+evaluator kinds, duplicate IDs, inconsistent page/slug/path identities, and
+malformed evaluator parameters.
 
-### Process Model (out/process/)
-The Azure DevOps Processo-Agil process is fetched:
-- **process.json** - Full process definition including work item types
-- **WIT files** - Fields for each work item type
+## Evidence snapshots
 
-## Delta Classification
+`scripts/01_fetch_wiki.py` and `scripts/02_fetch_process.py` publish immutable
+snapshot generations below `out/wiki` and `out/process`. `CURRENT` selects the
+complete generation. Its manifest records a UTC collection time, sanitized
+method/path receipts for every real HTTP attempt, the exact artifact set, and a
+SHA-256 for every artifact. Readers reject incomplete manifests, stale hashes,
+unsafe paths, symlinks, and partial generations.
 
-Every row is classified as one of four classes:
+Azure DevOps remains semantically read-only. The imported allowlist permits
+GET only on the required wiki, inherited-process, and work-item query routes.
+POST is permitted only for the exact query-only WIQL and work-items-batch
+routes. The process collector itself uses the inherited-process GET routes.
+Creation, update, deletion, redirects, absolute URLs, and method overrides are
+rejected before transport.
 
-| Class | Meaning | Evidence Constraints |
-|-------|---------|---------------------|
-| **MATCH** | Documented and implemented identically | Both doc_evidence and azure_evidence required |
-| **DOC_ONLY** | Only in wiki, not in process | azure_evidence must be "n/a" |
-| **AZURE_ONLY** | Only in process, not in wiki | doc_evidence must be "n/a" |
-| **DIVERGENT** | Present in both but differ | Both evidences required, describes difference |
+## Typed evaluation
 
-## Algorithm
+Each claim declares one evaluator instead of a prose comparison. Supported
+evaluators cover exact JSON values, counts, active work-item-type sets,
+work-item-type/state/field presence, field requiredness, rule counts, layout
+controls, behavior ranks, explicit API limitations, and genuine ambiguity.
 
-### Step 1: Extract Artifacts
+Before evaluation, the documentary source hash, line number, and complete line
+text must all match. Process values are read only from manifested artifacts.
+JSON pointers use RFC 6901 and resolve to the exact compared value. Presence
+and numeric checks are type-strict, so Boolean values cannot silently equal
+integers. The artifact map is schema-checked and its process name and ID must
+match the mapped `process.json` identity.
 
-From wiki pages:
-- Extract all work item type names, field names, and policy definitions
-- Identify section headers, rules, and configurations
+Every finding receives exactly one of these epistemic statuses:
 
-From process model:
-- Extract work item type names from `workItemTypes[].name`
-- Extract field names from `workItemTypes[].fields[]`
-- Extract rules from `workItemTypes[].fields[].helpText`, `readOnly`, `required`
+| Status | Meaning | Azure pointer |
+| --- | --- | --- |
+| `CONFIRMADO` | The documented and current implemented values agree exactly. | Required |
+| `DIVERGENTE` | Both values are comparable and differ. | Required |
+| `NAO_VERIFICAVEL_API_PROCESSO` | The process API does not represent the claimed dimension. | Not asserted |
+| `AMBIGUO` | The available evidence permits multiple material readings. | Included only when it supports the ambiguity |
 
-### Step 2: Normalize Identifiers
+The last two statuses are not synonyms for absence. Historical chronology,
+runtime scripts, team practice, governance, and operational compliance cannot
+be inferred from a current process-definition response. Conversely, an
+absence claim is accepted only when the relevant endpoint family was collected
+completely and the exact returned collection proves the absence.
 
-Both sources use different naming conventions:
-- Wiki may use Portuguese titles with spaces
-- Process uses camelCase or specific Azure DevOps identifiers
+## Deterministic report build
 
-Normalize both to a canonical form for comparison.
+Run:
 
-### Step 3: Compare Sets
-
-For each artifact category:
-1. Compute intersection → MATCH candidates
-2. Wiki-only → DOC_ONLY
-3. Process-only → AZURE_ONLY
-4. Compare properties of intersection → DIVERGENT if different
-
-### Step 4: Generate Markdown Table
-
-```markdown
-| id | claim (pt-BR) | class | doc_evidence | azure_evidence | consequence |
-|----|---------------|-------|--------------|----------------|-------------|
-| ... | ... | ... | ... | ... | ... |
+```text
+uv run python scripts/03_build_delta.py
 ```
 
-### Step 5: Render Summary Block
+The builder performs no network operation. It loads every catalog claim,
+revalidates both snapshot families, evaluates claims in catalog order, renders
+one Brazilian-Portuguese report per fixed slug, stages all four files, and
+atomically replaces each destination. The same inputs produce identical UTF-8
+bytes. Catalog, evidence, evaluator, and rendering failures stop before any
+replacement. If a later file replacement fails, verified backups restore every
+file already replaced. This rollback protects ordinary I/O failures; it does
+not claim a single filesystem transaction across four paths if the process or
+machine terminates between replacements.
 
-After all rows, append:
-```markdown
-SUMMARY
-DOC_ONLY=N
-AZURE_ONLY=N
-DIVERGENT=N
-MATCH=N
+Custom local paths are explicit:
+
+```text
+uv run python scripts/03_build_delta.py \
+  --evidence-root /path/to/repository \
+  --catalog /path/to/wiki_claims.json \
+  --output-dir /path/to/reports
 ```
 
-## Evidence Pointers
+## Notion handoff
 
-### Document Evidence
-Format: `out/wiki/<slug>.md#L<line>`
-- File exists under `out/wiki/`
-- Line number exists in file
+`scripts/04_prepare_notion.py` only prepares local artifacts. It reads the four
+versioned reports, requires each fixed publication marker, binds it to the
+pre-existing parent/page IDs and URLs recorded in `docs/notion-publication.md`,
+writes exact bodies below ignored `out/notion/prepared`, and records body hashes
+in `out/notion/publication-manifest.json`. It never creates or updates a Notion
+page.
 
-Example: `out/wiki/leiame.md#L42`
+After connector updates and connector read-back, pairs of `<slug>.json` and
+`<slug>.md` below `out/notion/fetched` are verified with:
 
-### Azure Evidence
-Format: `out/process/<file>.json#/json/path`
-- File exists under `out/process/`
-- JSON path resolves
+```text
+uv run python scripts/04_prepare_notion.py \
+  --verify-fetched out/notion/fetched
+```
 
-Example: `out/process/process.json#/workItemTypes/0/name`
+The verifier rejects a wrong or missing slug, page ID, parent ID, URL, marker,
+or body hash.
 
-## Idempotency
+## Repository gate
 
-Scripts are idempotent:
-- Running without `--refresh` skips network calls for existing files
-- Running with `--refresh` forces re-fetch from Azure DevOps
-- Output is deterministic: same input produces identical output
+`uv run python verify.py` rebuilds reports into a temporary directory and
+compares exact bytes without changing versioned outputs. It also imports and
+exercises the Azure method/route allowlist, runs the test suite and script entry
+points, checks the full ignore policy, scans sensitive `.env` values without
+printing them, validates the current status contract, rejects prose-only Python
+modules, and validates any local Notion manifest or fetched receipts.
 
-## Validation Rules
+The final post-publication gate is:
 
-1. Every row must have a valid class literal
-2. DOC_ONLY rows must have `azure_evidence = "n/a"`
-3. AZURE_ONLY rows must have `doc_evidence = "n/o"`
-4. Non-MATCH rows must have a non-empty consequence sentence
+```text
+uv run python verify.py --require-publication
+```
 
-## Running the Delta
-
-1. Fetch wiki: `uv run python scripts/01_fetch_wiki.py`
-2. Fetch process: `uv run python scripts/02_fetch_process.py`
-3. Build delta: `uv run python scripts/03_build_delta.py`
-
-The delta builder reads `out/wiki/` and `out/process/` and produces `deltas/<slug>.md`.
+Success is the single marker `GATE_OK`.

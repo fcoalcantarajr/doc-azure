@@ -1,7 +1,0 @@
-{
-  "id": "R002",
-  "claim_pt": "Bug tem estado New",
-  "class": "MATCH",
-  "doc_evidence": "out/wiki/leiame.md#L8",
-  "azure_evidence": "out/process/bug.json#/states/0/name"
-}

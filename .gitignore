@@ -6,11 +6,15 @@
 *.key
 *.p12
 *.pfx
+*.kdbx
+*.mobileprovision
 *credentials*.json
 *credentials*.yaml
 *credentials*.yml
 *token*.json
 *token*.txt
+.envrc
+.direnv/
 
 # Python caches and virtual environments
 __pycache__/
@@ -18,7 +22,15 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.cache/
+.uv-cache/
+__pypackages__/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
 .venv/
 venv/
@@ -27,15 +39,22 @@ env/
 # Builds and generated artifacts
 build/
 dist/
+.eggs/
+site/
+wheels/
 *.egg-info/
+*.whl
 out/
 
 # Logs and local databases
 *.log
+*.log.*
 logs/
+*.pid
 *.db
 *.sqlite
 *.sqlite3
+*.duckdb
 
 # Node and local tooling state
 node_modules/
@@ -43,11 +62,17 @@ sessions/
 .worktrees/
 .superpowers/
 .opencode/
+.codex/
+.agents/
 
 # Editors and operating systems
 .DS_Store
+._*
 Thumbs.db
 .idea/
 .vscode/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
+*.code-workspace

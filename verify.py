@@ -1,934 +1,462 @@
 #!/usr/bin/env -S uv run python
-"""Gate: C1-C14 verification for doc-azure delta audit project."""
+"""Non-mutating substantive gate for the doc-azure audit repository."""
 
 from __future__ import annotations
 
-import json
-import re
+import argparse
+import ast
+import os
+import stat
 import subprocess
 import sys
+import tempfile
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Callable
-
-# ─── helpers ────────────────────────────────────────────────────────────────
-
-RepoRoot = Path(__file__).resolve().parent
-
-CheckFn = Callable[[], tuple[bool, str]]
 
 
-def _result(label: str, ok: bool, reason: str) -> tuple[bool, str]:
-    status = "OK" if ok else "FAIL"
-    print(f"  [{status}] {label}: {reason}")
-    return ok, reason
+PROJECT_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from delta.build import BuildError, FIXED_SLUGS, build_all_reports
+from delta.notion import (
+    NotionPublicationError,
+    expected_publication_manifest,
+    load_publication_manifest,
+    verify_fetched_notion,
+)
+from doc_azure.azure_client import ALLOWED_OPERATIONS, is_allowlisted_read
 
 
-# ─── C1 Layout ─────────────────────────────────────────────────────────────
-
-def c1_layout() -> tuple[bool, str]:
-    """Every required TARGET LAYOUT file must exist and be non-empty.
-
-    out/ dirs may be absent until STEP 5. After STEP 5, out/ must exist
-    with wiki/process files.
-    """
-    ok = True
-    reasons = []
-
-    required_files = [
-        RepoRoot / "AGENTS.md",
-        RepoRoot / "verify.py",
-        RepoRoot / "pyproject.toml",
-        RepoRoot / ".gitignore",
-    ]
-    required_scripts = [
-        RepoRoot / "scripts" / "01_fetch_wiki.py",
-        RepoRoot / "scripts" / "02_fetch_process.py",
-        RepoRoot / "scripts" / "03_build_delta.py",
-        RepoRoot / "scripts" / "04_publish_notion.py",
-    ]
-    required_src = [
-        RepoRoot / "src" / "delta" / "__init__.py",
-    ]
-    required_tests = [
-        RepoRoot / "tests" / "test_classify.py",
-        RepoRoot / "tests" / "test_render.py",
-        RepoRoot / "tests" / "test_evidence.py",
-    ]
-    required_docs = [
-        RepoRoot / "docs" / "README.md",
-        RepoRoot / "docs" / "prior-work.md",
-        RepoRoot / "docs" / "api-contract.md",
-        RepoRoot / "docs" / "delta-method.md",
-        RepoRoot / "docs" / "decisions.md",
-        RepoRoot / "docs" / "notion-publication.md",
-    ]
-    required_deltas = [
-        RepoRoot / "deltas" / "leiame.md",
-        RepoRoot / "deltas" / "politicas.md",
-        RepoRoot / "deltas" / "changelog.md",
-        RepoRoot / "deltas" / "apendice.md",
-    ]
-    optional_out_dirs = [
-        RepoRoot / "out" / "wiki",
-        RepoRoot / "out" / "process",
-        RepoRoot / "out" / "delta",
-        RepoRoot / "out" / "notion",
-    ]
-
-    all_required = (
-        required_files + required_scripts + required_src
-        + required_tests + required_docs + required_deltas
-    )
-
-    for f in all_required:
-        if not f.exists() or f.stat().st_size == 0:
-            reasons.append(f"missing or empty: {f.relative_to(RepoRoot)}")
-            ok = False
-
-    # tests/fixtures/ must be a directory (may be empty)
-    fixtures_dir = RepoRoot / "tests" / "fixtures"
-    if not fixtures_dir.is_dir():
-        reasons.append("tests/fixtures/ is not a directory")
-        ok = False
-
-    # out/ dirs: warn only (they may be absent until STEP 5)
-    missing_out = [d for d in optional_out_dirs if not d.exists()]
-    if missing_out:
-        reasons.append(f"out/ dirs absent (expected until STEP 5): {[str(d.relative_to(RepoRoot)) for d in missing_out]}")
-        # Not a failure — out/ is explicitly allowed to be absent
-    return ok, "; ".join(reasons) if reasons else "all required files present"
+class VerificationError(RuntimeError):
+    """Raised when a repository invariant cannot be proved."""
 
 
-# ─── C2 Read-only proof ────────────────────────────────────────────────────
+def run_checked(command: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    """Run one local command and fail without replaying possibly sensitive output."""
 
-def c2_readonly() -> tuple[bool, str]:
-    """Fail if any .py under scripts/src contains write verbs
-    (POST/PATCH/PUT/DELETE/.post/.patch/.put/.delete) AND dev.azure.com
-    in the same file. Also fail on 52+-char base64 PAT strings.
-
-    Tests excluded: they verify read-only enforcement, not violate it.
-    .md excluded: docs describe the model, don't execute calls.
-    GUIDs excluded: not secrets (C3 handles real secrets from .env).
-    """
-    violations: list[str] = []
-    write_verbs = re.compile(
-        r"\b(POST|PATCH|PUT|DELETE|\.post\(|\.patch\(|\.put\(|\.delete\()",
-        re.IGNORECASE,
-    )
-    # PAT-shaped: 52+ base64 chars (no spaces, single line)
-    pat_pattern = re.compile(r"^[A-Za-z0-9+/]{52,}=*$", re.MULTILINE)
-
-    # Only check production code: scripts/ and src/ (not tests/, not docs/)
-    search_dirs = ["scripts", "src"]
-    for dname in search_dirs:
-        d = RepoRoot / dname
-        if not d.is_dir():
-            continue
-        for fpath in d.rglob("*.py"):
-            content = fpath.read_text(encoding="utf-8")
-            has_azure = "dev.azure.com" in content
-            for lineno, line in enumerate(content.splitlines(), 1):
-                if write_verbs.search(line) and has_azure:
-                    violations.append(
-                        f"{fpath.relative_to(RepoRoot)}:{lineno} "
-                        f"write-verb in azure context: {line.strip()}"
-                    )
-                if pat_pattern.search(line):
-                    violations.append(
-                        f"{fpath.relative_to(RepoRoot)}:{lineno} "
-                        f"PAT-shaped literal: {line.strip()[:100]}"
-                    )
-
-    if violations:
-        return False, "\n    ".join(violations)
-    return True, "no write verbs in production code, no hardcoded PATs"
-
-
-# ─── C3 Secrets ─────────────────────────────────────────────────────────────
-
-def c3_secrets() -> tuple[bool, str]:
-    """Every key in .env must not appear in any tracked file or out/deltas/docs."""
-    env_path = RepoRoot / ".env"
-    if not env_path.exists():
-        return True, ".env absent (no secrets to check)"
-
-    env_vars: dict[str, str] = {}
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" in line:
-            key = line.split("=", 1)[0].strip()
-            val = line.split("=", 1)[1].strip().strip("'\"").strip()
-            if key:
-                env_vars[key] = val
-
-    violations: list[str] = []
-
-    # Check .env is not tracked
-    result = subprocess.run(
-        ["git", "ls-files", "--error-unmatch", ".env"],
-        cwd=RepoRoot,
+    if not command or any(not isinstance(part, str) or not part for part in command):
+        raise VerificationError("subprocess command is invalid")
+    completed = subprocess.run(
+        list(command),
+        cwd=Path(cwd),
         capture_output=True,
         text=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
-    if result.returncode == 0:
-        violations.append(".env is tracked by git (R2 violation)")
-
-    # Check each value against tracked files
-    tracked = (
-        subprocess.run(
-            ["git", "ls-files"],
-            cwd=RepoRoot,
-            capture_output=True,
-            text=True,
+    if completed.returncode != 0:
+        raise VerificationError(
+            f"subprocess {command[0]!r} failed with exit code "
+            f"{completed.returncode}"
         )
-        .stdout.splitlines()
-    )
-    for frel in tracked:
-        f = RepoRoot / frel
-        if not f.is_file():
-            continue
-        try:
-            content = f.read_text(encoding="utf-8")
-        except Exception:
-            continue
-        for key, val in env_vars.items():
-            if val and val in content:
-                violations.append(
-                    f"secret key '{key}' value appears in tracked file: {frel}"
-                )
-
-    # Check against out/, deltas/, docs/
-    for pattern in ["out/", "deltas/", "docs/"]:
-        for fpath in RepoRoot.glob(f"{pattern}**/*"):
-            if fpath.is_dir():
-                continue
-            try:
-                content = fpath.read_text(encoding="utf-8")
-            except Exception:
-                continue
-            for key, val in env_vars.items():
-                if val and val in content:
-                    violations.append(
-                        f"secret key '{key}' value appears in {fpath.relative_to(RepoRoot)}"
-                    )
-
-    if violations:
-        return False, "; ".join(violations)
-    return True, "no secrets leaked to tracked files or out/deltas/docs"
+    return completed
 
 
-# ─── C4 Tests ───────────────────────────────────────────────────────────────
+def verify_reports(root: Path) -> None:
+    """Rebuild all claims in a temporary directory and compare exact bytes."""
 
-def c4_tests() -> tuple[bool, str]:
-    """Run pytest -q; must exit 0 and collect >= 8 tests.
-    Fail if tests/ imports httpx, requests, urllib, or asyncio.
-    """
-    # Check imports first
-    test_import_violations: list[str] = []
-    bad_imports = {"httpx", "requests", "asyncio"}
-    for fpath in (RepoRoot / "tests").rglob("*.py"):
-        content = fpath.read_text(encoding="utf-8")
-        for lineno, line in enumerate(content.splitlines(), 1):
-            if line.strip().startswith("#"):
-                continue
-            for imp in bad_imports:
-                if re.search(rf"\bimport\s+{imp}\b", line) or re.search(
-                    rf"\bfrom\s+{imp}\b", line
-                ):
-                    test_import_violations.append(
-                        f"{fpath.relative_to(RepoRoot)}:{lineno} "
-                        f"imports {imp}"
-                    )
-    if test_import_violations:
-        return False, "; ".join(test_import_violations)
-
-    # Run pytest
-    result = subprocess.run(
-        ["uv", "run", "pytest", "-q", "--collect-only"],
-        cwd=RepoRoot,
-        capture_output=True,
-        text=True,
-    )
-    collected = 0
-    for line in result.stdout.splitlines():
-        m = re.search(r"(\d+)\s+test", line)
-        if m:
-            collected = int(m.group(1))
-            break
-
-    result_run = subprocess.run(
-        ["uv", "run", "pytest", "-q"],
-        cwd=RepoRoot,
-        capture_output=True,
-        text=True,
-    )
-
-    if result_run.returncode != 0:
-        return False, f"pytest failed: {result_run.stdout[:200]} {result_run.stderr[:200]}"
-    if collected < 8:
-        return False, f"only {collected} tests collected (need >= 8)"
-    return True, f"{collected} tests collected, all passing"
-
-
-# ─── C5 Evidence integrity ─────────────────────────────────────────────────
-
-import unicodedata
-
-
-def _normalize_word(word: str) -> str:
-    """Remove accents for Portuguese/English matching."""
-    nfkd = unicodedata.normalize("NFKD", word)
-    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
-
-
-def _claim_keywords(claim_text: str) -> list[str]:
-    """Extract meaningful keywords from a pt-BR claim for substantiation matching."""
-    words = re.findall(r"[a-zA-ZÀ-ÿ]{4,}", claim_text)
-    stop = {
-        "como", "tipo", "item", "trabalho", "define", "campo", "descreve",
-        "menciona", "processo", "wiki", "principal",
-    }
-    kws = []
-    for w in words:
-        lw = w.lower()
-        normalized = _normalize_word(w)
-        if lw not in stop and normalized not in stop and len(lw) > 2:
-            kws.append(lw)
-            kws.append(normalized)  # Add accent-stripped version for matching
-    return list(dict.fromkeys(kws))[:8]  # dedupe, keep order, limit
-
-
-def c5_evidence() -> tuple[bool, str]:
-    """Parse deltas/*.md. For every row: class is one of 4 literals.
-    Every non-n/a evidence pointer resolves to existing file + line / JSON path.
-    Fail: DOC_ONLY with non-n/a azure_evidence, AZURE_ONLY with non-n/a doc_evidence.
-    """
-    violations: list[str] = []
-    slugs = ["leiame", "politicas", "changelog", "apendice"]
-
-    for slug in slugs:
-        fpath = RepoRoot / "deltas" / f"{slug}.md"
-        if not fpath.exists():
-            violations.append(f"deltas/{slug}.md missing")
-            continue
-
-        content = fpath.read_text(encoding="utf-8")
-        lines = content.splitlines()
-        in_table = False
-
-        for lineno, raw in enumerate(lines, 1):
-            stripped = raw.strip()
-            # Detect table header
-            if stripped.startswith("| id |") or stripped.startswith("|id|"):
-                in_table = True
-                continue
-            if not in_table:
-                continue
-            # Skip separator |---|...
-            if re.match(r"^\|[\s\-:|]+\|$", stripped):
-                continue
-            # Skip empty rows
-            if stripped == "|" or stripped.strip("| ").strip() == "":
-                continue
-
-            # Parse cells
-            cells = [c.strip() for c in stripped.strip("|").split("|")]
-            if len(cells) < 5:
-                continue
-
-            row_id, claim, cls, doc_ev, azure_ev = (
-                cells[0], cells[1], cells[2], cells[3], cells[4]
-            )
-            consequence = cells[5] if len(cells) > 5 else ""
-
-            valid_classes = {"DOC_ONLY", "AZURE_ONLY", "DIVERGENT", "MATCH"}
-            if cls not in valid_classes:
-                violations.append(
-                    f"deltas/{slug}.md:{lineno} invalid class '{cls}'"
-                )
-
-            # Evidence constraints
-            if cls == "DOC_ONLY" and azure_ev not in ("n/a", ""):
-                violations.append(
-                    f"deltas/{slug}.md:{lineno} DOC_ONLY has non-n/a azure_evidence: {azure_ev}"
-                )
-            if cls == "AZURE_ONLY" and doc_ev not in ("n/a", ""):
-                violations.append(
-                    f"deltas/{slug}.md:{lineno} AZURE_ONLY has non-n/a doc_evidence: {doc_ev}"
-                )
-
-            # Resolve doc_evidence
-            if doc_ev and doc_ev != "n/a":
-                m = re.match(r"^(out/wiki/[^#]+)#L(\d+)$", doc_ev)
-                if m:
-                    doc_file = RepoRoot / m.group(1)
-                    line_num = int(m.group(2))
-                    if not doc_file.exists():
-                        violations.append(
-                            f"deltas/{slug}.md:{lineno} doc_evidence file not found: {doc_ev}"
-                        )
-                    else:
-                        doc_lines = doc_file.read_text(encoding="utf-8").splitlines()
-                        if line_num > len(doc_lines) or line_num < 1:
-                            violations.append(
-                                f"deltas/{slug}.md:{lineno} doc_evidence line {line_num} out of range"
-                            )
-                        else:
-                            # Substantiation: claim keywords must appear in cited context (±10 lines)
-                            kws = _claim_keywords(claim)
-                            if kws:
-                                lo = max(0, line_num - 11)
-                                hi = min(len(doc_lines), line_num + 10)
-                                # Normalize context to ASCII for accent-insensitive matching
-                                context = " ".join(doc_lines[lo:hi]).lower()
-                                context_ascii = _normalize_word(context)
-                                if not any(kw in context or kw in context_ascii for kw in kws):
-                                    violations.append(
-                                        f"deltas/{slug}.md:{lineno} row {row_id}: "
-                                        f"claim not substantiated by {doc_ev}"
-                                    )
-                else:
-                    violations.append(
-                        f"deltas/{slug}.md:{lineno} malformed doc_evidence: {doc_ev}"
-                    )
-
-            # Resolve azure_evidence
-            if azure_ev and azure_ev != "n/a":
-                m = re.match(r"^(out/process/[^#]+)#(.+)$", azure_ev)
-                if m:
-                    az_file = RepoRoot / m.group(1)
-                    json_path = m.group(2)
-                    if not az_file.exists():
-                        violations.append(
-                            f"deltas/{slug}.md:{lineno} azure_evidence file not found: {azure_ev}"
-                        )
-                    else:
-                        # Verify JSON path resolves
-                        try:
-                            data = json.loads(az_file.read_text(encoding="utf-8"))
-                            parts = json_path.split("/")
-                            node = data
-                            for part in parts:
-                                if part == "":
-                                    continue
-                                if isinstance(node, dict):
-                                    node = node.get(part)
-                                elif isinstance(node, list):
-                                    try:
-                                        node = node[int(part)]
-                                    except (ValueError, IndexError):
-                                        node = None
-                                else:
-                                    node = None
-                                if node is None:
-                                    violations.append(
-                                        f"deltas/{slug}.md:{lineno} "
-                                        f"json-path not found: {azure_ev}"
-                                    )
-                                    break
-                        except json.JSONDecodeError:
-                            violations.append(
-                                f"deltas/{slug}.md:{lineno} invalid JSON: {m.group(1)}"
-                            )
-                else:
-                    violations.append(
-                        f"deltas/{slug}.md:{lineno} malformed azure_evidence: {azure_ev}"
-                    )
-
-    if violations:
-        return False, "; ".join(violations)
-    return True, "all delta rows valid, all evidence pointers resolvable"
-
-
-# ─── C6 Counts ─────────────────────────────────────────────────────────────
-
-def c6_counts() -> tuple[bool, str]:
-    """Each delta's SUMMARY block counts must equal recomputed row counts."""
-    slugs = ["leiame", "politicas", "changelog", "apendice"]
-    violations: list[str] = []
-
-    for slug in slugs:
-        fpath = RepoRoot / "deltas" / f"{slug}.md"
-        if not fpath.exists():
-            continue  # handled by C1
-        content = fpath.read_text(encoding="utf-8")
-
-        # Extract SUMMARY block
-        m = re.search(
-            r"^\s*SUMMARY\s*\n((?:DOC_ONLY=\d+\n|AZURE_ONLY=\d+\n|"
-            r"DIVERGENT=\d+\n|MATCH=\d+\n)+)",
-            content,
-            re.MULTILINE,
-        )
-        if not m:
-            continue
-        summary_block = m.group(1)
-        stated = dict(
-            re.findall(r"(DOC_ONLY|AZURE_ONLY|DIVERGENT|MATCH)=(\d+)", summary_block)
-        )
-
-        # Count actual rows
-        actual = {"DOC_ONLY": 0, "AZURE_ONLY": 0, "DIVERGENT": 0, "MATCH": 0}
-        for cls_match in re.finditer(
-            r"^\|\s*[^|]+\|\s*[^|]+\|\s*(DOC_ONLY|AZURE_ONLY|DIVERGENT|MATCH)\s*\|",
-            content,
-            re.MULTILINE,
-        ):
-            actual[cls_match.group(1)] += 1
-
-        for cls in ["DOC_ONLY", "AZURE_ONLY", "DIVERGENT", "MATCH"]:
-            s = int(stated.get(cls, 0))
-            a = actual[cls]
-            if s != a:
-                violations.append(
-                    f"deltas/{slug}.md SUMMARY {cls}={s} != actual {a}"
-                )
-
-    if violations:
-        return False, "; ".join(violations)
-    return True, "all SUMMARY counts match actual row counts"
-
-
-# ─── C7 Non-emptiness ─────────────────────────────────────────────────────
-
-def c7_nonempty() -> tuple[bool, str]:
-    """Each delta has >=1 row; union has >=1 non-MATCH; no delta is
-    all-MATCH unless decisions.md explains why.
-    """
-    slugs = ["leiame", "politicas", "changelog", "apendice"]
-    violations: list[str] = []
-    total_non_match = 0
-    all_match_slugs: list[str] = []
-
-    decisions = (RepoRoot / "docs" / "decisions.md").read_text(
-        encoding="utf-8"
-    ) if (RepoRoot / "docs" / "decisions.md").exists() else ""
-
-    for slug in slugs:
-        fpath = RepoRoot / "deltas" / f"{slug}.md"
-        if not fpath.exists():
-            continue
-        content = fpath.read_text(encoding="utf-8")
-        rows = re.findall(
-            r"^\|\s*[^|]+\|\s*[^|]+\|\s*(DOC_ONLY|AZURE_ONLY|DIVERGENT|MATCH)\s*\|",
-            content,
-            re.MULTILINE,
-        )
-        if len(rows) == 0:
-            violations.append(f"deltas/{slug}.md has no rows")
-            continue
-        non_match = sum(1 for r in rows if r != "MATCH")
-        total_non_match += non_match
-        if non_match == 0:
-            all_match_slugs.append(slug)
-
-    if total_non_match == 0:
-        violations.append("Union of all deltas has zero non-MATCH rows")
-
-    if all_match_slugs:
-        # Check decisions.md for explanation
-        if not re.search(
-            r"(?i)(all.match|exclusively.match|only.match)",
-            decisions,
-        ):
-            violations.append(
-                f"Deltas with all-MATCH rows lack explanation in docs/decisions.md: {all_match_slugs}"
-            )
-
-    if violations:
-        return False, "; ".join(violations)
-    return True, "all deltas have rows, union has non-MATCH rows"
-
-
-# ─── C8 Coverage ────────────────────────────────────────────────────────────
-
-def c8_coverage() -> tuple[bool, str]:
-    """out/wiki/ must have exactly four .md files; out/process/ must have
-    process.json plus one file per WIT; WIT count must match process.json.
-    SKIP if out/ not populated.
-    """
-    wiki_dir = RepoRoot / "out" / "wiki"
-    proc_dir = RepoRoot / "out" / "process"
-
-    if not wiki_dir.exists() or not proc_dir.exists():
-        return True, "SKIP: out/ not yet populated"
-
-    wiki_files = list(wiki_dir.glob("*.md"))
-    expected_wiki = {"leiame.md", "politicas.md", "changelog.md", "apendice.md"}
-    actual_wiki = {f.name for f in wiki_files}
-
-    if actual_wiki != expected_wiki:
-        return False, (
-            f"wiki files mismatch: expected {expected_wiki}, got {actual_wiki}"
-        )
-
-    if any(f.stat().st_size == 0 for f in wiki_files):
-        return False, "some wiki files are empty"
-
-    proc_files = list(proc_dir.glob("*.json"))
-    proc_names = {f.stem for f in proc_files}
-
-    if "process" not in proc_names:
-        return False, "out/process/process.json missing"
-
-    process_json = (proc_dir / "process.json").read_text(encoding="utf-8")
+    repository_root = Path(root)
+    catalog = repository_root / "config" / "wiki_claims.json"
     try:
-        proc_data = json.loads(process_json)
-    except json.JSONDecodeError:
-        return False, "out/process/process.json is invalid JSON"
-
-    wit_count_field = None
-    for key in ["witCount", "workItemTypesCount", "workitemtypecount"]:
-        if key in proc_data:
-            wit_count_field = proc_data[key]
-            break
-
-    # Count WIT files (exclude process.json)
-    wit_files = [f for f in proc_files if f.name != "process.json"]
-    if wit_count_field is not None:
-        if len(wit_files) != wit_count_field:
-            return False, (
-                f"WIT count mismatch: process.json says {wit_count_field}, "
-                f"found {len(wit_files)} files"
+        with tempfile.TemporaryDirectory(prefix="doc-azure-verify-") as temporary:
+            rebuilt = build_all_reports(
+                repository_root,
+                catalog,
+                Path(temporary),
             )
-
-    return True, (
-        f"out/wiki/ has 4 files, out/process/ has process.json + "
-        f"{len(wit_files)} WIT files"
-    )
-
-
-# ─── C9 Consequence rule ───────────────────────────────────────────────────
-
-def c9_consequence() -> tuple[bool, str]:
-    """Every non-MATCH row must have a non-empty consequence sentence."""
-    slugs = ["leiame", "politicas", "changelog", "apendice"]
-    violations: list[str] = []
-
-    for slug in slugs:
-        fpath = RepoRoot / "deltas" / f"{slug}.md"
-        if not fpath.exists():
-            continue
-        content = fpath.read_text(encoding="utf-8")
-
-        for m in re.finditer(
-            r"^\|\s*[^|]+\|\s*[^|]+\|\s*(DOC_ONLY|AZURE_ONLY|DIVERGENT)\s*\|[^|]*\|[^|]*\|(.*)$",
-            content,
-            re.MULTILINE,
-        ):
-            cls, consequence = m.group(1), m.group(2).strip()
-            if not consequence:
-                lineno = content[: m.start()].count("\n") + 1
-                violations.append(
-                    f"deltas/{slug}.md:{lineno} {cls} row missing consequence"
-                )
-
-    if violations:
-        return False, "; ".join(violations)
-    return True, "all non-MATCH rows have consequence sentences"
-
-
-# ─── C10 Determinism ───────────────────────────────────────────────────────
-
-def c10_determinism() -> tuple[bool, str]:
-    """Run 03_build_delta.py twice; deltas/*.md must be byte-identical.
-    SKIP if out/ not populated.
-    """
-    out_wiki = RepoRoot / "out" / "wiki"
-    out_proc = RepoRoot / "out" / "process"
-    if not out_wiki.exists() or not out_proc.exists():
-        return True, "SKIP: out/ not yet populated"
-
-    script = RepoRoot / "scripts" / "03_build_delta.py"
-    if not script.exists():
-        return False, "scripts/03_build_delta.py not found"
-
-    # Run once
-    r1 = subprocess.run(
-        ["uv", "run", "python", str(script)],
-        cwd=RepoRoot,
-        capture_output=True,
-        text=True,
-    )
-
-    # Capture deltas after run 1
-    delta_dir = RepoRoot / "deltas"
-    slugs = ["leiame", "politicas", "changelog", "apendice"]
-    after1: dict[str, bytes] = {}
-    for slug in slugs:
-        f = delta_dir / f"{slug}.md"
-        if f.exists():
-            after1[slug] = f.read_bytes()
-
-    # Run again
-    r2 = subprocess.run(
-        ["uv", "run", "python", str(script)],
-        cwd=RepoRoot,
-        capture_output=True,
-        text=True,
-    )
-
-    for slug, data1 in after1.items():
-        f = delta_dir / f"{slug}.md"
-        data2 = f.read_bytes() if f.exists() else b""
-        if data1 != data2:
-            return False, f"deltas/{slug}.md changed between runs (non-deterministic)"
-
-    return True, "delta files are identical across two runs"
-
-
-# ─── C11 Idempotency ──────────────────────────────────────────────────────
-
-def c11_idempotency() -> tuple[bool, str]:
-    """Every script (01-04) accepts --refresh flag.
-    Without --refresh, second run performs zero network calls.
-    """
-    violations: list[str] = []
-    scripts = [
-        RepoRoot / "scripts" / f"{n:02d}_{name}.py"
-        for n, name in enumerate(
-            ["fetch_wiki", "fetch_process", "build_delta", "publish_notion"], 1
-        )
-    ]
-
-    for script in scripts:
-        if not script.exists():
-            violations.append(f"{script.name} not found")
-            continue
-        content = script.read_text(encoding="utf-8")
-        if "--refresh" not in content:
-            violations.append(f"{script.name} missing --refresh flag")
-
-    # Check calls counter
-    calls_file = RepoRoot / "out" / "_calls.json"
-    if not calls_file.exists():
-        # No calls file yet — skip the second-run network check
-        if violations:
-            return False, "; ".join(violations)
-        return True, "SKIP: out/_calls.json not present yet"
-
-    calls_before = json.loads(calls_file.read_text(encoding="utf-8"))
-
-    # Run a representative script (02_fetch_process) that has network calls
-    script02 = RepoRoot / "scripts" / "02_fetch_process.py"
-    if script02.exists():
-        subprocess.run(
-            ["uv", "run", "python", str(script02)],
-            cwd=RepoRoot,
-            capture_output=True,
-            text=True,
-        )
-
-    calls_after = json.loads(calls_file.read_text(encoding="utf-8"))
-    if calls_after.get("network_calls", 0) > calls_before.get("network_calls", 0):
-        violations.append("second run without --refresh made network calls")
-
-    if violations:
-        return False, "; ".join(violations)
-    return True, "all scripts accept --refresh; idempotency verified"
-
-
-# ─── C12 Docs ──────────────────────────────────────────────────────────────
-
-def c12_docs() -> tuple[bool, str]:
-    """docs/api-contract.md >= 4 learn.microsoft.com URLs.
-    docs/decisions.md >= 1 rejected alternative per script (01-04).
-    docs/prior-work.md exists and names session-1.md.
-    docs/README.md states what was done and why (<=200 lines).
-    """
-    violations: list[str] = []
-
-    # api-contract.md — >= 4 distinct learn.microsoft.com URLs
-    api_contract = RepoRoot / "docs" / "api-contract.md"
-    if api_contract.exists():
-        urls = re.findall(
-            r"https://learn\.microsoft\.com[^\s\)]+", api_contract.read_text()
-        )
-        if len(set(urls)) < 4:
-            violations.append(
-                f"docs/api-contract.md has only {len(set(urls))} "
-                f"learn.microsoft.com URLs (need >= 4)"
-            )
-    else:
-        violations.append("docs/api-contract.md missing")
-
-    # decisions.md — >= 1 rejected alternative per script 01-04
-    decisions = RepoRoot / "docs" / "decisions.md"
-    if decisions.exists():
-        for n in range(1, 5):
-            pattern = rf"(?i)(descartad|rejected|dismissed).*?(script|script.0{n}|0{n}_)"
-            if not re.search(pattern, decisions.read_text()):
-                violations.append(f"docs/decisions.md missing rejected alternative for script 0{n}")
-    else:
-        violations.append("docs/decisions.md missing")
-
-    # prior-work.md — names session-1.md
-    prior_work = RepoRoot / "docs" / "prior-work.md"
-    if prior_work.exists():
-        if "session-1.md" not in prior_work.read_text():
-            violations.append("docs/prior-work.md does not reference session-1.md")
-    else:
-        violations.append("docs/prior-work.md missing")
-
-    # README.md — exists, <=200 lines, states what/why
-    readme = RepoRoot / "docs" / "README.md"
-    if readme.exists():
-        lines = readme.read_text(encoding="utf-8").splitlines()
-        if len(lines) > 200:
-            violations.append(
-                f"docs/README.md has {len(lines)} lines (limit 200)"
-            )
-        # Check it states purpose
-        content = readme.read_text(encoding="utf-8").lower()
-        if "why" not in content and "por" not in content and "porque" not in content:
-            violations.append("docs/README.md does not state purpose/why")
-    else:
-        violations.append("docs/README.md missing")
-
-    if violations:
-        return False, "; ".join(violations)
-    return True, "all doc requirements met"
-
-
-# ─── C13 Publication ───────────────────────────────────────────────────────
-
-def c13_publication() -> tuple[bool, str]:
-    """docs/notion-publication.md lists 4 Notion URLs with timestamps.
-    Each out/notion/<slug>.fetched.md must exist, contain DELTA-AUDIT-MARKER-<slug>,
-    and verbatim first non-MATCH row text from matching deltas/<slug>.md.
-    SKIP until STEP 9.
-    """
-    notion_pub = RepoRoot / "docs" / "notion-publication.md"
-    out_notion = RepoRoot / "out" / "notion"
-    if not notion_pub.exists() or not out_notion.exists():
-        return True, "SKIP: Notion publication pending (docs/notion-publication.md or out/notion/ absent)"
-
-    violations: list[str] = []
-    content = notion_pub.read_text(encoding="utf-8")
-    urls = re.findall(r"https://app\.notion\.com/[^\s\)'\"]+", content)
-
-    if len(urls) != 4:
-        violations.append(
-            f"docs/notion-publication.md has {len(urls)} Notion URLs (need exactly 4)"
-        )
-
-    # Check timestamps
-    timestamps = re.findall(
-        r"(?:\d{4}-\d{2}-\d{2}|created|updated|published)\s*[:\-]\s*\d",
-        content,
-        re.IGNORECASE,
-    )
-    if len(timestamps) < 4:
-        violations.append(
-            f"docs/notion-publication.md has only {len(timestamps)} timestamps (need >= 4)"
-        )
-
-    slugs = ["leiame", "politicas", "changelog", "apendice"]
-    for slug in slugs:
-        fetched = out_notion / f"{slug}.fetched.md"
-        if not fetched.exists():
-            violations.append(f"out/notion/{slug}.fetched.md missing")
-            continue
-        fetched_content = fetched.read_text(encoding="utf-8")
-        marker = f"DELTA-AUDIT-MARKER-{slug}"
-        if marker not in fetched_content:
-            violations.append(
-                f"out/notion/{slug}.fetched.md missing marker '{marker}'"
-            )
-        # Check verbatim first non-MATCH row
-        delta_file = RepoRoot / "deltas" / f"{slug}.md"
-        if delta_file.exists():
-            delta_content = delta_file.read_text(encoding="utf-8")
-            # Extract first non-MATCH row claim text
-            m = re.search(
-                r"^\|\s*[^|]+\|\s*([^|]+)\|\s*(DOC_ONLY|AZURE_ONLY|DIVERGENT)\s*\|",
-                delta_content,
-                re.MULTILINE,
-            )
-            if m:
-                claim_text = m.group(1).strip()
-                if claim_text and claim_text not in fetched_content:
-                    violations.append(
-                        f"out/notion/{slug}.fetched.md missing verbatim row: {claim_text[:60]}"
+            for rebuilt_path in rebuilt:
+                versioned_path = repository_root / "deltas" / rebuilt_path.name
+                try:
+                    expected = _read_regular_file(
+                        rebuilt_path, "rebuilt report"
                     )
-
-    if violations:
-        return False, "; ".join(violations)
-    return True, "Notion publication verified"
-
-
-# ─── C14 No prose-only module ─────────────────────────────────────────────
-
-def c14_no_prose_only() -> tuple[bool, str]:
-    """Every .py under src/ and scripts/ must contain at least one def or __main__."""
-    violations: list[str] = []
-    for dname in ["src", "scripts"]:
-        d = RepoRoot / dname
-        if not d.is_dir():
-            continue
-        for fpath in d.rglob("*.py"):
-            content = fpath.read_text(encoding="utf-8")
-            if "def " not in content and "__main__" not in content:
-                violations.append(
-                    f"{fpath.relative_to(RepoRoot)} is prose-only (no def or __main__)"
-                )
-    if violations:
-        return False, "; ".join(violations)
-    return True, "all .py modules have executable code"
+                    actual = _read_regular_file(
+                        versioned_path, "versioned report"
+                    )
+                except VerificationError:
+                    raise
+                if actual != expected:
+                    raise VerificationError(
+                        f"deltas/{rebuilt_path.name} differs from verified rebuild"
+                    )
+    except BuildError as error:
+        raise VerificationError(f"verified report rebuild failed: {error}") from None
 
 
-# ─── Main ──────────────────────────────────────────────────────────────────
+def verify_secret_literals(root: Path) -> None:
+    """Reject tracked or generated files containing a sensitive .env value."""
 
-CHECKS: list[tuple[str, CheckFn]] = [
-    ("C1 Layout", c1_layout),
-    ("C2 Read-only proof", c2_readonly),
-    ("C3 Secrets", c3_secrets),
-    ("C4 Tests", c4_tests),
-    ("C5 Evidence integrity", c5_evidence),
-    ("C6 Counts", c6_counts),
-    ("C7 Non-emptiness", c7_nonempty),
-    ("C8 Coverage", c8_coverage),
-    ("C9 Consequence rule", c9_consequence),
-    ("C10 Determinism", c10_determinism),
-    ("C11 Idempotency", c11_idempotency),
-    ("C12 Docs", c12_docs),
-    ("C13 Publication", c13_publication),
-    ("C14 No prose-only module", c14_no_prose_only),
-]
+    repository_root = Path(root)
+    env_path = repository_root / ".env"
+    if not env_path.exists():
+        return
+    secret_values = _load_secret_values(env_path)
+    tracked = _tracked_files(repository_root)
+    if ".env" in tracked or any(
+        path.startswith(".env.") and path != ".env.example" for path in tracked
+    ):
+        raise VerificationError("a secret environment file is tracked")
+    if not secret_values:
+        return
 
-
-def main() -> int:
-    print("=== verify.py gate ===")
-    results: list[tuple[str, bool, str]] = []
-    for label, fn in CHECKS:
+    leaked_paths: set[str] = set()
+    for path in _candidate_secret_scan_files(repository_root, tracked):
         try:
-            ok, reason = fn()
-        except Exception as exc:
-            ok, reason = False, f"EXCEPTION: {exc}"
-        results.append((label, ok, reason))
+            body = path.read_bytes()
+        except OSError:
+            raise VerificationError(
+                f"cannot scan {path.relative_to(repository_root)} for secrets"
+            ) from None
+        if any(value in body for value in secret_values):
+            leaked_paths.add(path.relative_to(repository_root).as_posix())
+    if leaked_paths:
+        raise VerificationError(
+            "secret literal found in: " + ", ".join(sorted(leaked_paths))
+        )
 
-    print()
-    all_ok = all(ok for _, ok, _ in results)
-    ok_checks = [label for label, ok, _ in results if ok]
-    fail_checks = [(label, reason) for label, ok, reason in results if not ok]
 
-    print(f"  OK: {ok_checks}")
-    if fail_checks:
-        print(f"  FAIL ({len(fail_checks)}):")
-        for label, reason in fail_checks:
-            print(f"    {label}: {reason}")
+def verify_gitignore(root: Path) -> None:
+    """Require an ignore pattern for every user-requested local artifact class."""
 
-    print()
-    if all_ok:
-        print("GATE_OK")
-        return 0
-    else:
-        reasons_str = ", ".join(label for label, _ in fail_checks)
-        print(f"GATE_FAIL: {reasons_str}")
+    path = Path(root) / ".gitignore"
+    try:
+        patterns = {
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+    except (OSError, UnicodeError):
+        raise VerificationError(".gitignore is missing or unreadable") from None
+    categories = {
+        "secrets": ({".env", ".env.*"}, {"*.pem", "*.key"}),
+        "credentials": ({"*credentials*.json"}, {"*token*.json", "*token*.txt"}),
+        "python caches": ({"__pycache__/", "*.py[cod]"}, {".pytest_cache/"}),
+        "virtual environments": ({".venv/", "venv/", "env/"},),
+        "builds": ({"build/", "dist/"}, {"*.egg-info/"}, {"out/"}),
+        "editor and OS state": ({".DS_Store", "Thumbs.db"}, {".idea/", ".vscode/"}, {"*.swp", "*.swo"}),
+        "logs": ({"*.log", "logs/"},),
+        "local databases": ({"*.db", "*.sqlite", "*.sqlite3"},),
+        "local agent state": ({".worktrees/", ".superpowers/", ".opencode/"},),
+    }
+    for category, required_groups in categories.items():
+        if any(not (patterns & alternatives) for alternatives in required_groups):
+            raise VerificationError(f"gitignore category is incomplete: {category}")
+
+
+def verify_read_allowlist() -> None:
+    """Exercise the imported semantic operation table instead of scanning verbs."""
+
+    if not ALLOWED_OPERATIONS or any(
+        operation.method not in {"GET", "POST"} for operation in ALLOWED_OPERATIONS
+    ):
+        raise VerificationError("Azure operation allowlist contains an invalid method")
+    post_operations = tuple(
+        operation for operation in ALLOWED_OPERATIONS if operation.method == "POST"
+    )
+    if len(post_operations) != 2:
+        raise VerificationError("Azure query-only POST allowlist is not exact")
+
+    allowed_samples = (
+        ("GET", "/Project/_apis/wiki/wikis/Wiki/pages/35"),
+        ("GET", "/_apis/work/processes"),
+        ("GET", "/_apis/work/processes/process-id/workitemtypes"),
+        ("POST", "/Project/_apis/wit/wiql"),
+        ("POST", "/Project/_apis/wit/workitemsbatch"),
+    )
+    if any(not is_allowlisted_read(method, path) for method, path in allowed_samples):
+        raise VerificationError("an approved Azure read route is not allowlisted")
+    rejected_samples = (
+        ("POST", "/_apis/work/processes"),
+        ("POST", "/Project/_apis/wiki/wikis/Wiki/pages/35"),
+        ("POST", "/Project/_apis/wit/wiql/query-id"),
+        ("PUT", "/_apis/work/processes/process-id"),
+        ("PATCH", "/_apis/work/processes/process-id"),
+        ("DELETE", "/_apis/work/processes/process-id"),
+    )
+    if any(is_allowlisted_read(method, path) for method, path in rejected_samples):
+        raise VerificationError("a mutating or non-query Azure route is allowlisted")
+
+
+def verify_notion_artifacts(root: Path, *, require_fetched: bool = False) -> None:
+    """Check fixed page identities, current hashes, and optional read-back receipts."""
+
+    repository_root = Path(root)
+    try:
+        expected = expected_publication_manifest(repository_root)
+        notion_root = repository_root / "out" / "notion"
+        manifest_path = notion_root / "publication-manifest.json"
+        fetched_root = notion_root / "fetched"
+        if manifest_path.exists():
+            actual = load_publication_manifest(manifest_path)
+            if actual != expected:
+                raise VerificationError(
+                    "Notion publication manifest is stale relative to reports"
+                )
+        else:
+            actual = None
+        if fetched_root.exists():
+            if actual is None:
+                raise VerificationError(
+                    "Notion fetched receipts exist without a publication manifest"
+                )
+            verify_fetched_notion(actual, fetched_root)
+        elif require_fetched:
+            raise VerificationError("verified Notion fetched receipts are missing")
+        if require_fetched and actual is None:
+            raise VerificationError("Notion publication manifest is missing")
+    except NotionPublicationError as error:
+        raise VerificationError(f"Notion verification failed: {error}") from None
+
+
+def verify_layout(root: Path) -> None:
+    """Require the executable, documentation, test, and report contract."""
+
+    repository_root = Path(root)
+    required = (
+        "AGENTS.md",
+        ".gitignore",
+        "pyproject.toml",
+        "verify.py",
+        "config/wiki_claims.json",
+        "scripts/setup.py",
+        "scripts/01_fetch_wiki.py",
+        "scripts/02_fetch_process.py",
+        "scripts/03_build_delta.py",
+        "scripts/04_prepare_notion.py",
+        "src/delta/build.py",
+        "src/delta/render.py",
+        "src/delta/notion.py",
+        "tests/test_delta_builder.py",
+        "tests/test_delta_render.py",
+        "tests/test_prepare_notion.py",
+        "tests/test_script_entrypoints.py",
+        "tests/test_verify.py",
+        "docs/delta-method.md",
+        "docs/decisions.md",
+        "docs/notion-publication.md",
+        *(f"deltas/{slug}.md" for slug in FIXED_SLUGS),
+    )
+    missing = [
+        relative
+        for relative in required
+        if not _is_nonempty_regular_file(repository_root / relative)
+    ]
+    if missing:
+        raise VerificationError("required files are missing: " + ", ".join(missing))
+    legacy = (
+        "scripts/04_publish_notion.py",
+        "tests/test_classify.py",
+        "tests/test_render.py",
+        "tests/test_evidence.py",
+    )
+    present = [relative for relative in legacy if (repository_root / relative).exists()]
+    if present:
+        raise VerificationError("legacy contract files remain: " + ", ".join(present))
+
+
+def verify_python_modules(root: Path) -> None:
+    """Reject syntax errors and Python files containing only a prose docstring."""
+
+    repository_root = Path(root)
+    for directory in ("src", "scripts"):
+        for path in sorted((repository_root / directory).rglob("*.py")):
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            except (OSError, UnicodeError, SyntaxError):
+                raise VerificationError(
+                    f"Python module is unreadable or invalid: {path.relative_to(repository_root)}"
+                ) from None
+            executable_nodes = [
+                node
+                for node in tree.body
+                if not (
+                    isinstance(node, ast.Expr)
+                    and isinstance(node.value, ast.Constant)
+                    and isinstance(node.value.value, str)
+                )
+            ]
+            if not executable_nodes:
+                raise VerificationError(
+                    f"prose-only Python module: {path.relative_to(repository_root)}"
+                )
+
+
+def verify_documented_contract(root: Path) -> None:
+    """Require the current status model and reject the retired heuristic model."""
+
+    repository_root = Path(root)
+    combined = "\n".join(
+        (repository_root / relative).read_text(encoding="utf-8")
+        for relative in ("AGENTS.md", "docs/delta-method.md")
+    )
+    for status in (
+        "CONFIRMADO",
+        "DIVERGENTE",
+        "NAO_VERIFICAVEL_API_PROCESSO",
+        "AMBIGUO",
+    ):
+        if status not in combined:
+            raise VerificationError(f"documented status is missing: {status}")
+    for retired in ("DOC_ONLY", "AZURE_ONLY", "MATCH"):
+        if retired in combined:
+            raise VerificationError(f"retired heuristic status remains: {retired}")
+
+
+def verify_script_entrypoints(root: Path) -> None:
+    """Prove every user-facing script can be invoked with one command."""
+
+    repository_root = Path(root)
+    for name in (
+        "setup.py",
+        "01_fetch_wiki.py",
+        "02_fetch_process.py",
+        "03_build_delta.py",
+        "04_prepare_notion.py",
+    ):
+        run_checked((sys.executable, f"scripts/{name}", "--help"), repository_root)
+
+
+def verify_repository(root: Path, *, require_fetched: bool = False) -> None:
+    """Run every non-mutating repository gate in dependency order."""
+
+    repository_root = Path(root)
+    verify_layout(repository_root)
+    verify_gitignore(repository_root)
+    verify_read_allowlist()
+    verify_python_modules(repository_root)
+    verify_documented_contract(repository_root)
+    verify_secret_literals(repository_root)
+    verify_reports(repository_root)
+    verify_notion_artifacts(repository_root, require_fetched=require_fetched)
+    verify_script_entrypoints(repository_root)
+    run_checked(("uv", "run", "pytest", "-q"), repository_root)
+
+
+def _load_secret_values(env_path: Path) -> tuple[bytes, ...]:
+    sensitive_fragments = (
+        "PAT",
+        "TOKEN",
+        "SECRET",
+        "PASSWORD",
+        "CREDENTIAL",
+        "API_KEY",
+        "PRIVATE_KEY",
+    )
+    values: list[bytes] = []
+    try:
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError):
+        raise VerificationError(".env is unreadable") from None
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        normalized_key = key.strip().upper()
+        cleaned = value.strip().strip("'\"")
+        if any(fragment in normalized_key for fragment in sensitive_fragments):
+            if cleaned:
+                values.append(cleaned.encode("utf-8"))
+    return tuple(dict.fromkeys(values))
+
+
+def _tracked_files(root: Path) -> set[str]:
+    if not (root / ".git").exists():
+        return set()
+    completed = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=root,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        raise VerificationError("git could not enumerate tracked files")
+    try:
+        return {
+            item for item in completed.stdout.decode("utf-8").split("\0") if item
+        }
+    except UnicodeError:
+        raise VerificationError("git returned non-UTF-8 tracked paths") from None
+
+
+def _candidate_secret_scan_files(root: Path, tracked: Iterable[str]) -> tuple[Path, ...]:
+    candidates = {
+        root / relative
+        for relative in tracked
+        if relative != ".env" and not relative.startswith(".env.")
+    }
+    for relative in ("out", "deltas", "docs", "config", "scripts", "src", "tests"):
+        directory = root / relative
+        if directory.is_dir():
+            candidates.update(directory.rglob("*"))
+    for relative in ("AGENTS.md", "README.md", "verify.py", "pyproject.toml"):
+        candidates.add(root / relative)
+    return tuple(
+        sorted(
+            (
+                path
+                for path in candidates
+                if path.is_file() and not path.is_symlink()
+            ),
+            key=lambda path: path.as_posix(),
+        )
+    )
+
+
+def _read_regular_file(path: Path, label: str) -> bytes:
+    no_follow = getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, os.O_RDONLY | no_follow)
+    except OSError:
+        raise VerificationError(
+            f"{label} must be a regular file: {path.name}"
+        ) from None
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise VerificationError(
+                f"{label} must be a regular file: {path.name}"
+            )
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            return stream.read()
+    finally:
+        os.close(descriptor)
+
+
+def _is_nonempty_regular_file(path: Path) -> bool:
+    if path.is_symlink():
+        return False
+    try:
+        metadata = path.stat()
+    except OSError:
+        return False
+    return stat.S_ISREG(metadata.st_mode) and metadata.st_size > 0
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse the optional final-publication requirement."""
+
+    parser = argparse.ArgumentParser(description="Verify the complete doc-azure audit.")
+    parser.add_argument(
+        "--require-publication",
+        action="store_true",
+        help="require exact connector-fetched receipts for all four Notion pages",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the gate and emit one stable completion marker."""
+
+    arguments = parse_args(argv)
+    try:
+        verify_repository(
+            PROJECT_ROOT,
+            require_fetched=arguments.require_publication,
+        )
+    except (OSError, UnicodeError, VerificationError) as error:
+        print(f"GATE_FAIL: {error}", file=sys.stderr)
         return 1
+    print("GATE_OK")
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

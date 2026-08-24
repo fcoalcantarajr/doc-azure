@@ -353,7 +353,7 @@ Run: `uv run pytest tests/test_process_collector.py -q`
 
 Run: `uv run python -m compileall -q src scripts tests`
 
-- [ ] **Step 6: Commit exact paths**
+- [x] **Step 6: Commit exact paths**
 
 Commit: `fix(process): collect complete atomic evidence`
 
@@ -457,7 +457,7 @@ Commit: `feat(delta): evaluate explicit wiki claims`
 - Produces: `prepare_notion(root: Path) -> PublicationManifest`.
 - Produces: `verify_fetched_notion(manifest: PublicationManifest, fetched_root: Path) -> None`.
 
-- [ ] **Step 1: Write failing renderer tests**
+- [x] **Step 1: Write failing renderer tests**
 
 ```python
 def test_renderer_uses_exact_portuguese_statuses_and_separate_pages():
@@ -469,35 +469,35 @@ def test_renderer_uses_exact_portuguese_statuses_and_separate_pages():
 
 Test deterministic row order by catalog order, Markdown escaping, no empty confirmed values, non-confirmed impact/limit, and stable summary counts.
 
-- [ ] **Step 2: Write failing verifier tests**
+- [x] **Step 2: Write failing verifier tests**
 
 Test that the gate rejects: a resolvable but wrong JSON pointer, a nearby rather than exact wiki line, evaluator/status mismatch, failed subprocess, report mutation, missing Notion parent/page/hash, stale fetched content, and a secret literal.
 
-- [ ] **Step 3: Observe RED**
+- [x] **Step 3: Observe RED**
 
 Run: `uv run pytest tests/test_delta_render.py tests/test_verify.py tests/test_prepare_notion.py -q`
 
 Expected: new modules/functions are missing. Record RED.
 
-- [ ] **Step 4: Implement offline build and rendering**
+- [x] **Step 4: Implement offline build and rendering**
 
 `03_build_delta.py` takes `--evidence-root`, `--catalog`, and `--output-dir`, defaults to project paths, performs no network, writes atomically, and returns non-zero on any claim error. A second identical run must not change bytes.
 
-- [ ] **Step 5: Replace the Notion stub with local preparation**
+- [x] **Step 5: Replace the Notion stub with local preparation**
 
 `04_prepare_notion.py` creates `out/notion/publication-manifest.json` and one deterministic Markdown body per slug. It never claims an external write. `--verify-fetched` validates connector-fetched snapshots against page ID, parent ID, URL, and SHA-256.
 
-- [ ] **Step 6: Make `verify.py` non-mutating and substantive**
+- [x] **Step 6: Make `verify.py` non-mutating and substantive**
 
 Run builders in a temporary directory, check return codes, compare bytes against versioned reports, reload every claim, rerun every evaluator, and verify exact documentary/Azure values. Keep secret, layout, docs, script one-command, and no-prose-module checks. Replace lexical method detection with tests/imported allowlist assertions.
 
 Verify `.gitignore` contains the complete requested categories: secrets/credentials, Python caches, virtual environments, builds/generated `out/`, editor/OS state, logs, local databases, and local agent/worktree state. It already satisfies the design unless a focused test proves a missing category.
 
-- [ ] **Step 7: Complete the atomic contract transition**
+- [x] **Step 7: Complete the atomic contract transition**
 
 Replace the old English relation classes in `AGENTS.md` with the exact Portuguese statuses from Global Constraints. Keep the semantic read-only, secret, TDD, one-command, async, language, and Git rules. State that actual live operations are logged and absence requires complete endpoint evidence. Remove the three legacy delta tests and legacy exports only after the new builder/verifier tests are green.
 
-- [ ] **Step 8: Verify GREEN and full suite**
+- [x] **Step 8: Verify GREEN and full suite**
 
 Run: `uv run pytest tests/test_delta_render.py tests/test_verify.py tests/test_prepare_notion.py -q`
 

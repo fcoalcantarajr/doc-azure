@@ -1,7 +1,0 @@
-{
-  "id": "R004",
-  "claim_pt": "Processo implementa campo System.Description em User Story",
-  "class": "AZURE_ONLY",
-  "doc_evidence": "n/a",
-  "azure_evidence": "out/process/userstory.json#/fields/1/referenceName"
-}
