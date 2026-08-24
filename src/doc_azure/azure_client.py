@@ -1,231 +1,351 @@
-"""A narrowly allowlisted Azure DevOps JSON client.
+"""Semantically read-only access to the Azure DevOps REST API."""
 
-The client deliberately supports only operations that cannot persist Azure
-DevOps state: selected GET endpoints plus WIQL and work-item batch reads.
-"""
+from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import re
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from typing import Callable, Mapping, Pattern
-from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from typing import Pattern
+from urllib.parse import quote, quote_plus, urlsplit, urlunsplit
+
+import httpx
 
 
 class AzureReadError(RuntimeError):
-    """Raised when a read request is rejected or cannot be completed safely."""
+    """Raised when a request cannot be completed inside the read boundary."""
 
 
 @dataclass(frozen=True)
-class ReadOperation:
-    """An HTTP method and the normalized Azure REST path it may use."""
+class AllowedOperation:
+    """An exact HTTP method and Azure REST path family permitted for reads."""
 
     method: str
     path_pattern: Pattern[str]
 
 
 @dataclass(frozen=True)
-class ApiResponse:
-    """A JSON object returned by an allowlisted Azure REST request."""
+class RequestRecord:
+    """A sanitized receipt for one real HTTP attempt."""
 
-    payload: Mapping[str, object]
-    headers: Mapping[str, str]
-    url: str
+    method: str
+    path: str
+
+    def __post_init__(self) -> None:
+        if self.method not in {"GET", "POST"}:
+            raise ValueError("request record method is not a permitted read method")
+        if _normalize_path(self.path) != self.path or "?" in self.path:
+            raise ValueError("request record path must be a sanitized relative path")
 
 
-READ_OPERATIONS = (
-    ReadOperation("GET", re.compile(r"^/[^/]+/_apis/wiki/wikis/[^/]+/pages(?:/[0-9]+)?$")),
-    ReadOperation("GET", re.compile(r"^/_apis/work/processes(?:/.*)?$")),
-    ReadOperation(
+_SEGMENT = r"[^/?#]+"
+
+
+def _route(pattern: str) -> Pattern[str]:
+    return re.compile(pattern, re.IGNORECASE)
+
+
+ALLOWED_OPERATIONS = (
+    AllowedOperation(
         "GET",
-        re.compile(r"^/[^/]+/_apis/wit/(?:wiql|workitemsbatch|workitems(?:/.*)?)$"),
+        _route(rf"^/{_SEGMENT}/_apis/wiki/wikis/{_SEGMENT}/pages/[0-9]+$"),
     ),
-    ReadOperation(
-        "GET", re.compile(r"^/_apis/wit/(?:wiql|workitemsbatch|workitems(?:/.*)?)$")
+    AllowedOperation("GET", _route(r"^/_apis/work/processes$")),
+    AllowedOperation("GET", _route(rf"^/_apis/work/processes/{_SEGMENT}$")),
+    AllowedOperation(
+        "GET",
+        _route(
+            rf"^/_apis/work/processes/{_SEGMENT}/(?:workitemtypes|behaviors)$"
+        ),
+    ),
+    AllowedOperation(
+        "GET",
+        _route(
+            rf"^/_apis/work/processes/{_SEGMENT}/workitemtypes/{_SEGMENT}"
+            r"(?:/(?:fields|states|rules|layout))?$"
+        ),
+    ),
+    AllowedOperation(
+        "GET",
+        _route(
+            rf"^/_apis/work/processes/{_SEGMENT}/workitemtypesbehaviors/"
+            rf"{_SEGMENT}/behaviors$"
+        ),
+    ),
+    AllowedOperation(
+        "GET",
+        _route(rf"^/{_SEGMENT}/_apis/wit/wiql(?:/{_SEGMENT})?$"),
+    ),
+    AllowedOperation(
+        "GET",
+        _route(rf"^/{_SEGMENT}/_apis/wit/workitems(?:/[0-9]+)?$"),
+    ),
+    AllowedOperation("POST", _route(rf"^/{_SEGMENT}/_apis/wit/wiql$")),
+    AllowedOperation(
+        "POST", _route(rf"^/{_SEGMENT}/_apis/wit/workitemsbatch$")
     ),
 )
 
-_POST_SUFFIXES = ("/_apis/wit/wiql", "/_apis/wit/workitemsbatch")
-_SENSITIVE_QUERY_KEYS = re.compile(r".*(?:authorization|auth|pat|token|secret).*", re.I)
-_AUTHORIZATION_HEADER = re.compile(
-    r"\b(?:proxy-)?authorization\s*:\s*[^\r\n]*",
-    re.I,
+RETRYABLE_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+MAX_ATTEMPTS = 5
+DEFAULT_RETRY_DELAY = 1.0
+_SENSITIVE_QUERY_KEYS = frozenset(
+    {
+        "authorization",
+        "proxyauthorization",
+        "pat",
+        "token",
+        "accesstoken",
+        "secret",
+        "credential",
+        "password",
+        "apikey",
+    }
 )
 _AUTHORIZATION_MATERIAL = re.compile(
-    r"(?:^|[\r\n])\s*(?:proxy-)?authorization\s*[:=]\s*\S+",
-    re.I,
+    r"\b(?:proxy-)?authorization\s*[:=]\s*[^\r\n]*", re.IGNORECASE
 )
-_AUTHORIZATION_HEADER_NAME = re.compile(r"(?:proxy-)?authorization", re.I)
 
-Transport = Callable[[Request, float], object]
-
-
-class _RejectRedirectHandler(HTTPRedirectHandler):
-    """Stop redirects before urllib can repeat an authenticated request."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise HTTPError(req.full_url, code, "redirects are not permitted", headers, fp)
-
-
-def _default_transport(request: Request, timeout: float) -> object:
-    """Open one request only; redirects cannot copy Authorization elsewhere."""
-
-    return build_opener(_RejectRedirectHandler).open(request, timeout=timeout)
+AsyncSleeper = Callable[[float], Awaitable[None]]
 
 
 def is_allowlisted_read(method: str, path: str) -> bool:
-    """Return whether a method-path pair is a semantically read-only route."""
+    """Return whether ``method`` and ``path`` form an approved query."""
 
     normalized_path = _normalize_path(path)
     if normalized_path is None:
         return False
-
     normalized_method = method.upper()
-    if normalized_method == "POST":
-        return normalized_path.endswith(_POST_SUFFIXES)
     return any(
         operation.method == normalized_method
         and operation.path_pattern.fullmatch(normalized_path)
-        for operation in READ_OPERATIONS
+        for operation in ALLOWED_OPERATIONS
     )
 
 
-class AzureClient:
-    """Execute only Azure REST reads through an injectable transport."""
+class AzureReadClient:
+    """Reuse one async HTTP client while enforcing the semantic read boundary."""
 
     def __init__(
         self,
+        http: httpx.AsyncClient,
         base_url: str,
         pat: str,
-        transport: Transport = _default_transport,
-        *,
-        timeout: float = 30,
+        semaphore: asyncio.Semaphore,
+        sleeper: AsyncSleeper = asyncio.sleep,
     ) -> None:
+        if not isinstance(pat, str) or not pat:
+            raise ValueError("pat must be a non-empty string")
+        self._http = http
         self._base_url = _normalize_base_url(base_url)
         self._pat = pat
-        self._transport = transport
-        self._timeout = timeout
+        self._semaphore = semaphore
+        self._sleeper = sleeper
+        self._request_records: list[RequestRecord] = []
 
-    def request_json(
+    @property
+    def request_records(self) -> tuple[RequestRecord, ...]:
+        """Return immutable sanitized receipts for all real HTTP attempts."""
+
+        return tuple(self._request_records)
+
+    async def request_json(
         self,
         method: str,
         path: str,
         *,
-        query: Mapping[str, str] | None = None,
+        query: Mapping[str, object] | None = None,
         body: Mapping[str, object] | None = None,
-    ) -> ApiResponse:
-        """Request a JSON object from a route permitted by the read allowlist."""
+    ) -> dict[str, object]:
+        """Return one JSON object from an explicitly approved read operation."""
 
-        normalized_path = _normalize_path(path)
         normalized_method = method.upper()
-        if normalized_path is None or not is_allowlisted_read(method, path):
+        normalized_path = _normalize_path(path)
+        if normalized_path is None or not is_allowlisted_read(
+            normalized_method, normalized_path
+        ):
             raise AzureReadError(f"{normalized_method} request is not allowlisted")
-        if body is not None and normalized_method != "POST":
-            raise AzureReadError("request bodies are only allowed for POST read queries")
-        _validate_query(query, self._pat)
 
-        try:
-            request_url = self._build_url(normalized_path, query)
-            safe_url = _sanitize_url(request_url, self._pat)
-            request = self._build_request(normalized_method, request_url, body)
-        except (TypeError, UnicodeError, ValueError):
-            raise AzureReadError(
-                f"{normalized_method} request could not be constructed safely"
-            ) from None
-
-        try:
-            response = self._transport(request, self._timeout)
-            payload = _decode_json_object(response.read())
-        except HTTPError as error:
-            response_message = _read_http_error(error)
-            raise AzureReadError(
-                f"{normalized_method} {safe_url} HTTP {error.code}: "
-                f"{_redact(response_message, self._pat)[:500]}"
-            ) from None
-        except (URLError, OSError, ValueError, json.JSONDecodeError) as error:
-            message = getattr(error, "reason", str(error))
-            raise AzureReadError(
-                f"{normalized_method} {safe_url} failed: "
-                f"{_redact(str(message), self._pat)[:500]}"
-            ) from None
-
-        return ApiResponse(
-            payload=payload,
-            headers=_safe_response_headers(response.headers),
-            url=safe_url,
+        parameters = _validated_query(query, self._pat)
+        validated_body = _validated_body(
+            normalized_method, normalized_path, body, self._pat
         )
-
-    def _build_url(
-        self, normalized_path: str, query: Mapping[str, str] | None
-    ) -> str:
-        parameters = {
-            key: value
-            for key, value in (query or {}).items()
-            if key.lower() != "api-version"
-        }
-        parameters["api-version"] = "7.1"
-        encoded_path = quote(normalized_path, safe="/-._~")
-        return f"{self._base_url}{encoded_path}?{urlencode(parameters)}"
-
-    def _build_request(
-        self, method: str, url: str, body: Mapping[str, object] | None
-    ) -> Request:
+        url = f"{self._base_url}{normalized_path}"
         headers = {
             "Accept": "application/json",
             "Authorization": _basic_authorization(self._pat),
         }
-        encoded_body = None
-        if body is not None:
-            encoded_body = json.dumps(body, separators=(",", ":")).encode("utf-8")
-            headers["Content-Type"] = "application/json"
-        return Request(url, data=encoded_body, headers=headers, method=method)
+
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            record = RequestRecord(normalized_method, normalized_path)
+            try:
+                async with self._semaphore:
+                    self._request_records.append(record)
+                    response = await self._http.request(
+                        normalized_method,
+                        url,
+                        params=parameters,
+                        json=validated_body,
+                        headers=headers,
+                        follow_redirects=False,
+                    )
+            except httpx.RequestError as error:
+                detail = _redact(str(error), self._pat)[:500]
+                raise AzureReadError(
+                    f"{normalized_method} {normalized_path} failed: {detail}"
+                ) from None
+
+            if 300 <= response.status_code < 400:
+                raise AzureReadError(
+                    f"{normalized_method} {normalized_path} redirect rejected "
+                    f"(HTTP {response.status_code})"
+                )
+
+            if response.status_code in RETRYABLE_STATUSES and attempt < MAX_ATTEMPTS:
+                await self._sleeper(_retry_delay(response.headers.get("Retry-After")))
+                continue
+
+            if response.status_code >= 400:
+                detail = _redact(response.text, self._pat)[:500]
+                raise AzureReadError(
+                    f"{normalized_method} {normalized_path} HTTP "
+                    f"{response.status_code}: {detail}"
+                )
+
+            try:
+                payload = response.json()
+            except (UnicodeError, ValueError):
+                raise AzureReadError(
+                    f"{normalized_method} {normalized_path} returned an invalid "
+                    "JSON object"
+                ) from None
+            if not isinstance(payload, dict):
+                raise AzureReadError(
+                    f"{normalized_method} {normalized_path} returned an invalid "
+                    "JSON object"
+                )
+            return payload
+
+        raise AssertionError("retry loop exhausted without returning or raising")
 
 
 def _normalize_base_url(base_url: str) -> str:
     parts = urlsplit(base_url)
+    path_segments = [segment for segment in parts.path.split("/") if segment]
     if (
         parts.scheme != "https"
-        or not parts.netloc
+        or parts.hostname != "dev.azure.com"
+        or parts.netloc.lower() != "dev.azure.com"
         or parts.username is not None
         or parts.password is not None
         or parts.query
         or parts.fragment
+        or len(path_segments) != 1
+        or "%" in parts.path
+        or path_segments[0] in {".", ".."}
     ):
-        raise ValueError("base_url must be an HTTPS origin with an optional path")
-    return urlunsplit((parts.scheme, parts.netloc, parts.path.rstrip("/"), "", ""))
+        raise ValueError("base_url must identify one HTTPS dev.azure.com organization")
+    return urlunsplit(("https", "dev.azure.com", f"/{path_segments[0]}", "", ""))
 
 
 def _normalize_path(path: str) -> str | None:
-    """Return a canonical relative path, rejecting URL injection primitives."""
-
+    if not isinstance(path, str) or not path.startswith("/") or path.startswith("//"):
+        return None
     parts = urlsplit(path)
-    if (
-        not path
-        or parts.scheme
-        or parts.netloc
-        or parts.query
-        or parts.fragment
-        or not parts.path.startswith("/")
+    if parts.scheme or parts.netloc or parts.query or parts.fragment:
+        return None
+    if "\\" in path or "\x00" in path or "%" in path or path.endswith("/"):
+        return None
+    segments = path[1:].split("/")
+    if not segments or any(
+        not segment
+        or segment in {".", ".."}
+        or any(ord(character) < 32 for character in segment)
+        for segment in segments
     ):
         return None
+    return path
 
-    decoded_path = unquote(parts.path)
-    if "\\" in decoded_path or "\x00" in decoded_path or "%" in decoded_path:
-        return None
 
-    segments: list[str] = []
-    for segment in decoded_path.split("/"):
-        if segment in ("", "."):
+def _validated_query(
+    query: Mapping[str, object] | None, pat: str
+) -> tuple[tuple[str, object], ...]:
+    parameters: list[tuple[str, object]] = []
+    for raw_key, value in (query or {}).items():
+        if not isinstance(raw_key, str) or not raw_key:
+            raise AzureReadError("query contains an invalid parameter name")
+        normalized_key = re.sub(r"[^a-z0-9]", "", raw_key.casefold())
+        if normalized_key in _SENSITIVE_QUERY_KEYS:
+            raise AzureReadError("query contains credential material")
+        if raw_key.casefold() == "api-version":
             continue
-        if segment == "..":
-            if not segments:
-                return None
-            segments.pop()
-        else:
-            segments.append(segment)
-    return "/" + "/".join(segments)
+        if _contains_credential_material(str(value), pat):
+            raise AzureReadError("query contains credential material")
+        parameters.append((raw_key, value))
+    parameters.append(("api-version", "7.1"))
+    return tuple(parameters)
+
+
+def _validated_body(
+    method: str,
+    path: str,
+    body: Mapping[str, object] | None,
+    pat: str,
+) -> dict[str, object] | None:
+    if method == "GET":
+        if body is not None:
+            raise AzureReadError("GET body is forbidden for Azure reads")
+        return None
+    if not isinstance(body, Mapping):
+        raise AzureReadError("POST read body must be a JSON object")
+
+    materialized = dict(body)
+    if path.casefold().endswith("/_apis/wit/wiql"):
+        query = materialized.get("query")
+        if set(materialized) != {"query"} or not isinstance(query, str) or not query:
+            raise AzureReadError("WIQL read body must contain only a non-empty query")
+    elif path.casefold().endswith("/_apis/wit/workitemsbatch"):
+        _validate_batch_body(materialized)
+    else:
+        raise AzureReadError("POST body is forbidden outside approved query routes")
+
+    try:
+        serialized = json.dumps(materialized, separators=(",", ":"))
+    except (TypeError, ValueError):
+        raise AzureReadError("POST read body must be JSON serializable") from None
+    if _contains_credential_material(serialized, pat):
+        raise AzureReadError("POST read body contains credential material")
+    return materialized
+
+
+def _validate_batch_body(body: dict[str, object]) -> None:
+    allowed_keys = {"ids", "fields", "$expand", "errorPolicy"}
+    ids = body.get("ids")
+    if not set(body).issubset(allowed_keys):
+        raise AzureReadError("work-items-batch body contains an unsupported field")
+    if (
+        not isinstance(ids, list)
+        or not ids
+        or len(ids) > 200
+        or any(not isinstance(item, int) or isinstance(item, bool) for item in ids)
+    ):
+        raise AzureReadError("work-items-batch body requires 1 to 200 integer ids")
+    fields = body.get("fields")
+    if fields is not None and (
+        not isinstance(fields, list)
+        or any(not isinstance(field, str) or not field for field in fields)
+    ):
+        raise AzureReadError("work-items-batch body fields must be non-empty strings")
+    expand = body.get("$expand")
+    if expand is not None and not isinstance(expand, str):
+        raise AzureReadError("work-items-batch body $expand must be a string")
+    error_policy = body.get("errorPolicy")
+    if error_policy is not None and error_policy not in {"Fail", "Omit"}:
+        raise AzureReadError("work-items-batch body errorPolicy is invalid")
 
 
 def _basic_authorization(pat: str) -> str:
@@ -233,69 +353,42 @@ def _basic_authorization(pat: str) -> str:
     return f"Basic {encoded}"
 
 
-def _validate_query(query: Mapping[str, str] | None, pat: str) -> None:
-    for value in (query or {}).values():
-        query_value = str(value)
-        if _contains_pat(query_value, pat) or _AUTHORIZATION_MATERIAL.search(
-            query_value
-        ):
-            raise AzureReadError("query contains credential material")
-
-
-def _decode_json_object(raw_payload: bytes) -> Mapping[str, object]:
-    payload = json.loads(raw_payload.decode("utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("Azure response must be a JSON object")
-    return payload
-
-
-def _read_http_error(error: HTTPError) -> str:
-    if error.fp is None:
-        return error.reason if isinstance(error.reason, str) else str(error.reason)
+def _retry_delay(retry_after: str | None) -> float:
+    if retry_after is None:
+        return DEFAULT_RETRY_DELAY
     try:
-        raw_body = error.read(500)
-    except (OSError, TypeError, ValueError):
-        return "response body unavailable"
-    if isinstance(raw_body, bytes):
-        return raw_body.decode("utf-8", errors="replace")
-    return str(raw_body)[:500]
+        return max(0.0, float(retry_after))
+    except ValueError:
+        pass
+    try:
+        retry_at = parsedate_to_datetime(retry_after)
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=timezone.utc)
+        return max(0.0, (retry_at - datetime.now(timezone.utc)).total_seconds())
+    except (TypeError, ValueError, OverflowError):
+        return DEFAULT_RETRY_DELAY
 
 
-def _safe_response_headers(headers: object) -> Mapping[str, str]:
-    items = getattr(headers, "items", lambda: ())()
-    return {
-        str(name): str(value)
-        for name, value in items
-        if not _AUTHORIZATION_HEADER_NAME.fullmatch(str(name))
-    }
-
-
-def _sanitize_url(url: str, pat: str) -> str:
-    parts = urlsplit(url)
-    safe_parameters = []
-    for key, value in parse_qsl(parts.query, keep_blank_values=True):
-        safe_parameters.append(
-            (key, "<redacted>" if _SENSITIVE_QUERY_KEYS.fullmatch(key) else value)
-        )
-    safe_url = urlunsplit(
-        (parts.scheme, parts.netloc, parts.path, urlencode(safe_parameters), "")
+def _contains_credential_material(value: str, pat: str) -> bool:
+    return _AUTHORIZATION_MATERIAL.search(value) is not None or any(
+        variant in value for variant in _secret_variants(pat)
     )
-    return _redact(safe_url, pat)
 
 
 def _redact(value: str, pat: str) -> str:
     redacted = value
-    for secret_variant in _pat_variants(pat):
-        redacted = redacted.replace(secret_variant, "<redacted>")
-    return _AUTHORIZATION_HEADER.sub("<redacted>", redacted)
+    for variant in _secret_variants(pat):
+        redacted = redacted.replace(variant, "<redacted>")
+    return _AUTHORIZATION_MATERIAL.sub("<redacted>", redacted)
 
 
-def _contains_pat(value: str, pat: str) -> bool:
-    return any(secret_variant in value for secret_variant in _pat_variants(pat))
-
-
-def _pat_variants(pat: str) -> tuple[str, ...]:
+def _secret_variants(pat: str) -> tuple[str, ...]:
     if not pat:
         return ()
-    variants = {pat, quote(pat, safe=""), urlencode({"value": pat})[6:]}
+    variants = {
+        pat,
+        quote(pat, safe=""),
+        quote_plus(pat),
+        base64.b64encode(f":{pat}".encode("utf-8")).decode("ascii"),
+    }
     return tuple(sorted(variants, key=len, reverse=True))

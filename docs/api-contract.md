@@ -14,11 +14,45 @@ Authorization: Basic dXNlcm5hbWU6cGF0X3Rva2Vu
 - Source: https://learn.microsoft.com/en-us/azure/devops/accounts/use-personal-access-tokens-to-authenticate
 - Alternative curl format: `curl -u :<PAT> https://dev.azure.com/{org}/...`
 
-**API Version:** All requests must include `api-version=7.1` (or appropriate preview version).
+**API Version:** The reviewed client forces `api-version=7.1` and discards any
+caller-supplied override.
+
+## Semantic read boundary
+
+Read-only is determined by the HTTP method and the exact route together, not by
+the method alone. The client permits GET only for the cataloged wiki, process,
+and work-item read families. It permits POST only for the two query operations
+documented below. Creation POST routes, PUT, PATCH, DELETE, method override,
+absolute request URLs, and redirects are rejected before a second request can
+occur.
+
+Every real attempt records only its method and normalized route. Query values,
+headers, and credentials never enter request receipts. Sensitive query keys or
+values are rejected before transport. The client retries at most five times and
+only for HTTP 408, 429, 500, 502, 503, and 504; it honors `Retry-After` and never
+retries 401 or 403.
 
 ---
 
 ## Endpoints
+
+### Execute a WIQL query (query-only POST)
+
+- Method+URL: `POST https://dev.azure.com/{organization}/{project}/_apis/wit/wiql?api-version=7.1`
+- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/wiql/query-by-wiql?view=azure-devops-rest-7.1
+- Body: exactly one non-empty `query` string.
+- Safety classification: reads matching work-item IDs; it does not create a
+  stored query or mutate a work item. The superficially similar query-creation
+  routes are not allowlisted.
+
+### Read work items in one batch (query-only POST)
+
+- Method+URL: `POST https://dev.azure.com/{organization}/{project}/_apis/wit/workitemsbatch?api-version=7.1`
+- Source: https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/get-work-items-batch?view=azure-devops-rest-7.1
+- Body: 1–200 integer `ids`, with only the documented optional `fields`,
+  `$expand`, and `errorPolicy` members.
+- Safety classification: retrieves existing work items; no creation or update
+  route is allowlisted.
 
 ### Wiki Page By ID With Content
 - Method+URL: `GET https://dev.azure.com/{organization}/{project}/_apis/wiki/wikis/{wikiIdentifier}/pages/{id}?includeContent=true&api-version=7.1`

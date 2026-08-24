@@ -1,412 +1,460 @@
+from __future__ import annotations
+
+import asyncio
 import base64
 import inspect
-import io
-import json
-from unittest import TestCase
-from urllib.error import HTTPError, URLError
+from collections.abc import Awaitable, Callable, Sequence
+from typing import Any
 from urllib.parse import quote, quote_plus
-from urllib.request import Request
 
-import doc_azure.azure_client as azure_client
+import httpx
+import pytest
+
 from doc_azure.azure_client import (
-    ApiResponse,
-    AzureClient,
+    ALLOWED_OPERATIONS,
+    AzureReadClient,
     AzureReadError,
-    _redact,
+    RequestRecord,
     is_allowlisted_read,
 )
 
 
-class _JsonResponse:
-    def __init__(self, payload, headers):
-        self._payload = payload
-        self.headers = headers
+class SequencedTransport:
+    """Return complete HTTP responses in order while recording real requests."""
 
-    def read(self):
-        return json.dumps(self._payload).encode("utf-8")
+    def __init__(
+        self,
+        responses: Sequence[
+            tuple[int, dict[str, object] | bytes, dict[str, str]] | Exception
+        ],
+    ) -> None:
+        self._responses = list(responses)
+        self.requests: list[httpx.Request] = []
 
-
-class _RawResponse:
-    def __init__(self, raw_payload, headers=None):
-        self._raw_payload = raw_payload
-        self.headers = headers or {}
-
-    def read(self):
-        return self._raw_payload
-
-
-class _BrokenRead:
-    def read(self, size=-1):
-        raise OSError("body unavailable")
-
-    def close(self):
-        pass
-
-
-class ReadOnlyBoundaryTests(TestCase):
-    def test_redirect_handler_fails_closed_before_following_location(self):
-        handler_class = getattr(azure_client, "_RejectRedirectHandler", None)
-        self.assertIsNotNone(handler_class)
-        handler = handler_class()
-        request = Request("https://example.com/org/_apis/work/processes")
-
-        with self.assertRaises(HTTPError) as raised:
-            handler.redirect_request(
-                request,
-                None,
-                302,
-                "Found",
-                {"Location": "https://other.example/next"},
-                "https://other.example/next",
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if not self._responses:
+            raise AssertionError("unexpected HTTP request")
+        response = self._responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        status, payload, headers = response
+        if isinstance(payload, bytes):
+            return httpx.Response(
+                status,
+                content=payload,
+                headers=headers,
+                request=request,
             )
-
-        self.assertEqual(raised.exception.code, 302)
-        self.assertIn("redirect", str(raised.exception).lower())
-
-    def test_allows_get_process_metadata(self):
-        self.assertTrue(
-            is_allowlisted_read(
-                "GET",
-                "/_apis/work/processes/process-id/workitemtypes",
-            )
+        return httpx.Response(
+            status,
+            json=payload,
+            headers=headers,
+            request=request,
         )
 
-    def test_allows_every_documented_get_family(self):
-        allowed_paths = (
-            "/project/_apis/wiki/wikis/wiki-id/pages/35",
-            "/_apis/work/processes/process-id/behaviors",
-            "/project/_apis/wit/workitems/123",
-            "/_apis/wit/workitems/123/fields",
+
+class RecordingSleeper:
+    def __init__(self) -> None:
+        self.delays: list[float] = []
+
+    async def __call__(self, delay: float) -> None:
+        self.delays.append(delay)
+
+
+def run(coroutine: Awaitable[dict[str, object]]) -> dict[str, object]:
+    return asyncio.run(coroutine)
+
+
+def make_client(
+    http: httpx.AsyncClient,
+    *,
+    pat: str = "test-pat",
+    semaphore: asyncio.Semaphore | None = None,
+    sleeper: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> AzureReadClient:
+    return AzureReadClient(
+        http,
+        "https://dev.azure.com/example-org",
+        pat,
+        semaphore or asyncio.Semaphore(2),
+        sleeper=sleeper,
+    )
+
+
+def test_allows_only_semantic_reads() -> None:
+    allowed_gets = (
+        "/project/_apis/wiki/wikis/wiki-id/pages/35",
+        "/_apis/work/processes",
+        "/_apis/work/processes/process-id",
+        "/_apis/work/processes/process-id/workitemtypes",
+        "/_apis/work/processes/process-id/workitemtypes/wit-ref/fields",
+        "/_apis/work/processes/process-id/workitemtypes/wit-ref/states",
+        "/_apis/work/processes/process-id/workitemtypes/wit-ref/rules",
+        "/_apis/work/processes/process-id/workitemtypes/wit-ref/layout",
+        "/_apis/work/processes/process-id/behaviors",
+        "/_apis/work/processes/process-id/workitemtypesbehaviors/wit-ref/behaviors",
+        "/project/_apis/wit/workitems/123",
+    )
+    for path in allowed_gets:
+        assert is_allowlisted_read("GET", path), path
+
+    assert is_allowlisted_read("POST", "/project/_apis/wit/wiql")
+    assert is_allowlisted_read("POST", "/project/_apis/wit/workitemsbatch")
+    assert not is_allowlisted_read("POST", "/project/_apis/wit/queries")
+    assert not is_allowlisted_read("POST", "/nested/project/_apis/wit/wiql")
+    assert not is_allowlisted_read("PATCH", "/_apis/work/processes/x")
+    assert not is_allowlisted_read("X-HTTP-Method-Override", "/project/_apis/wit/wiql")
+    assert all(operation.method in {"GET", "POST"} for operation in ALLOWED_OPERATIONS)
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        "https://evil.invalid/_apis/work/processes",
+        "//evil.invalid/_apis/work/processes",
+        "/_apis/work/processes?api-version=999.0",
+        "/_apis/work/processes#fragment",
+        "/_apis/work/processes/../wit",
+        "/_apis/work/processes/%2e%2e/wit",
+        "/_apis/work/processes/%252f",
+        "/_apis/work/processes\\x",
+    ),
+)
+def test_rejects_absolute_or_noncanonical_paths(path: str) -> None:
+    assert not is_allowlisted_read("GET", path)
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        "http://dev.azure.com/example-org",
+        "https://evil.invalid/example-org",
+        "https://user:password@dev.azure.com/example-org",
+        "https://dev.azure.com/example-org?token=value",
+        "https://dev.azure.com/example-org#fragment",
+        "https://dev.azure.com",
+        "https://dev.azure.com/org/extra",
+    ),
+)
+def test_rejects_base_urls_outside_one_azure_organization(base_url: str) -> None:
+    with pytest.raises(ValueError, match="base_url"):
+        AzureReadClient(
+            httpx.AsyncClient(),
+            base_url,
+            "test-pat",
+            asyncio.Semaphore(1),
         )
 
-        for path in allowed_paths:
-            with self.subTest(path=path):
-                self.assertTrue(is_allowlisted_read("GET", path))
 
-    def test_allows_documented_post_queries(self):
-        self.assertTrue(is_allowlisted_read("POST", "/project/_apis/wit/wiql"))
-        self.assertTrue(
-            is_allowlisted_read("POST", "/project/_apis/wit/workitemsbatch")
-        )
+def test_forces_api_version_and_returns_a_json_object() -> None:
+    transport = SequencedTransport([(200, {"count": 1}, {"X-Trace": "trace-1"})])
 
-    def test_rejects_post_query_creation_and_mutating_verbs(self):
-        self.assertFalse(is_allowlisted_read("POST", "/project/_apis/wit/queries"))
-        for method in ("PUT", "PATCH", "DELETE"):
-            with self.subTest(method=method):
-                self.assertFalse(
-                    is_allowlisted_read(method, "/_apis/work/processes/x")
-                )
-
-    def test_rejects_post_subresources_and_method_override(self):
-        self.assertFalse(is_allowlisted_read("POST", "/project/_apis/wit/wiql/x"))
-        self.assertFalse(
-            is_allowlisted_read("X-HTTP-Method-Override", "/_apis/wit/wiql")
-        )
-
-    def test_rejects_absolute_hosts_fragments_and_paths_outside_allowlist(self):
-        rejected_paths = (
-            "https://evil.example/_apis/work/processes",
-            "//evil.example/_apis/work/processes",
-            "/_apis/work/processes#fragment",
-            "/project/_apis/wit/wiql%2Fextra",
-            "/project/_apis/wit/queries",
-        )
-
-        for path in rejected_paths:
-            with self.subTest(path=path):
-                self.assertFalse(is_allowlisted_read("GET", path))
-
-    def test_rejects_path_query_string_so_only_query_argument_can_add_parameters(self):
-        self.assertFalse(
-            is_allowlisted_read(
-                "GET",
-                "/_apis/work/processes?api-version=999.0",
-            )
-        )
-
-    def test_rejects_residual_percent_escapes_after_one_decode(self):
-        for path in (
-            "/_apis/work/processes/%252f",
-            "/_apis/work/processes/%252e%252e",
-        ):
-            with self.subTest(path=path):
-                self.assertFalse(is_allowlisted_read("GET", path))
-
-    def test_error_message_redacts_pat(self):
-        def failing_transport(request, timeout):
-            raise URLError("connection failed")
-
-        client = AzureClient(
-            "https://example.com/org",
-            "top-secret",
-            failing_transport,
-        )
-
-        with self.assertRaises(AzureReadError) as raised:
-            client.request_json("GET", "/_apis/work/processes")
-
-        self.assertNotIn("top-secret", str(raised.exception))
-        self.assertNotIn("Authorization", str(raised.exception))
-
-    def test_request_encodes_only_allowlisted_route_and_fixed_api_version(self):
-        seen = {}
-
-        def transport(request, timeout):
-            seen["request"] = request
-            seen["timeout"] = timeout
-            return _JsonResponse({"count": 1}, {"X-Trace": "trace-1"})
-
-        client = AzureClient("https://example.com/org/", "safe-pat", transport)
-        response = client.request_json(
-            "GET",
-            "/_apis/work/processes",
-            query={"$top": "1", "api-version": "invalid"},
-        )
-
-        self.assertEqual(
-            seen["request"].full_url,
-            "https://example.com/org/_apis/work/processes?%24top=1&api-version=7.1",
-        )
-        self.assertEqual(seen["request"].method, "GET")
-        self.assertEqual(seen["timeout"], 30)
-        self.assertIsInstance(response, ApiResponse)
-        self.assertEqual(response.payload, {"count": 1})
-        self.assertEqual(response.headers, {"X-Trace": "trace-1"})
-        self.assertEqual(response.url, seen["request"].full_url)
-
-    def test_request_replaces_api_version_case_insensitively(self):
-        seen = {}
-
-        def transport(request, timeout):
-            seen["url"] = request.full_url
-            return _JsonResponse({"count": 0}, {})
-
-        client = AzureClient("https://example.com/org", "safe-pat", transport)
-        client.request_json(
-            "GET",
-            "/_apis/work/processes",
-            query={"API-Version": "999.0", "api-VERSION": "8.0", "$top": "2"},
-        )
-
-        self.assertEqual(
-            seen["url"],
-            "https://example.com/org/_apis/work/processes?%24top=2&api-version=7.1",
-        )
-
-    def test_response_url_redacts_sensitive_query_values(self):
-        def transport(request, timeout):
-            return _JsonResponse({"count": 0}, {})
-
-        client = AzureClient("https://example.com/org", "local-secret", transport)
-        response = client.request_json(
-            "GET",
-            "/_apis/work/processes",
-            query={"pat": "sensitive-param-value"},
-        )
-
-        # Sensitive key "pat" gets redacted, and PAT is never exposed
-        self.assertNotIn("local-secret", response.url)
-        self.assertNotIn("authorization", response.url)
-        self.assertIn("%3Credacted%3E", response.url)
-
-    def test_query_with_pat_is_rejected_before_transport_and_never_leaks(self):
-        pat = "a/b secret"
-        encoded_pat = quote(pat, safe="")
-
-        def transport(request, timeout):
-            self.fail("transport must not receive a query containing the PAT")
-
-        client = AzureClient("https://example.com/org", pat, transport)
-
-        for secret_value in (pat, encoded_pat, quote_plus(pat)):
-            with self.subTest(secret_value=secret_value):
-                with self.assertRaises(AzureReadError) as raised:
-                    client.request_json(
-                        "GET",
-                        "/_apis/work/processes",
-                        query={"continuationToken": secret_value},
-                    )
-                message = str(raised.exception)
-                self.assertNotIn(pat, message)
-                self.assertNotIn(encoded_pat, message)
-
-    def test_query_with_authorization_material_is_rejected_but_continuation_token_is_allowed(self):
-        seen = {}
-
-        def transport(request, timeout):
-            seen["url"] = request.full_url
-            return _JsonResponse({"count": 0}, {})
-
-        client = AzureClient("https://example.com/org", "safe-pat", transport)
-        client.request_json(
-            "GET",
-            "/_apis/work/processes",
-            query={"continuationToken": "page-2"},
-        )
-        self.assertIn("continuationToken=page-2", seen["url"])
-
-        with self.assertRaises(AzureReadError) as raised:
-            client.request_json(
+    async def scenario() -> tuple[dict[str, object], AzureReadClient]:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            client = make_client(http)
+            result = await client.request_json(
                 "GET",
                 "/_apis/work/processes",
-                query={"filter": "Proxy-Authorization: Custom credential"},
+                query={"$top": "1", "API-Version": "999", "api-version": "8"},
             )
-        self.assertNotIn("Custom", str(raised.exception))
+            return result, client
 
-    def test_redact_removes_literal_and_encoded_pat_without_erasing_common_text(self):
-        pat = "a/b secret"
-        encoded_pat = quote(pat, safe="")
-        plus_pat = quote_plus(pat)
-        message = (
-            f"Basic science; {pat}; {encoded_pat}; {plus_pat}; "
-            "Proxy-Authorization: Custom credential"
-        )
+    result, client = asyncio.run(scenario())
 
-        redacted = _redact(message, pat)
+    assert result == {"count": 1}
+    assert len(transport.requests) == 1
+    request = transport.requests[0]
+    assert request.method == "GET"
+    assert request.url.params.get_list("api-version") == ["7.1"]
+    assert request.url.params["$top"] == "1"
+    assert client.request_records == (
+        RequestRecord("GET", "/_apis/work/processes"),
+    )
 
-        self.assertIn("Basic science", redacted)
-        self.assertNotIn(pat, redacted)
-        self.assertNotIn(encoded_pat, redacted)
-        self.assertNotIn(plus_pat, redacted)
-        self.assertNotIn("credential", redacted)
 
-    def test_post_body_is_json_and_client_does_not_expose_arbitrary_headers(self):
-        seen = {}
+def test_builds_auth_internally_and_exposes_no_header_override() -> None:
+    transport = SequencedTransport([(200, {"count": 0}, {})])
 
-        def transport(request, timeout):
-            seen["request"] = request
-            return _JsonResponse({"workItems": []}, {})
-
-        client = AzureClient("https://example.com/org", "safe-pat", transport)
-        client.request_json(
-            "POST",
-            "/project/_apis/wit/wiql",
-            body={"query": "SELECT [System.Id] FROM WorkItems"},
-        )
-
-        request = seen["request"]
-        self.assertEqual(request.data, b'{"query":"SELECT [System.Id] FROM WorkItems"}')
-        self.assertEqual(request.get_header("Content-type"), "application/json")
-        self.assertIsNone(request.get_header("X-http-method-override"))
-        self.assertNotIn("headers", inspect.signature(client.request_json).parameters)
-        expected_auth = "Basic " + base64.b64encode(b":safe-pat").decode("ascii")
-        self.assertEqual(request.get_header("Authorization"), expected_auth)
-
-    def test_get_body_is_rejected_before_transport(self):
-        def transport(request, timeout):
-            self.fail("GET with a body must not reach transport")
-
-        client = AzureClient("https://example.com/org", "safe-pat", transport)
-
-        with self.assertRaisesRegex(AzureReadError, "bodies"):
-            client.request_json(
-                "GET", "/_apis/work/processes", body={"unexpected": "body"}
+    async def scenario() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            await make_client(http, pat="safe-pat").request_json(
+                "GET", "/_apis/work/processes"
             )
 
-    def test_non_json_post_body_becomes_safe_read_error_before_transport(self):
-        def transport(request, timeout):
-            self.fail("non-JSON body must not reach transport")
+    asyncio.run(scenario())
 
-        client = AzureClient("https://example.com/org", "safe-pat", transport)
+    expected = "Basic " + base64.b64encode(b":safe-pat").decode("ascii")
+    assert transport.requests[0].headers["Authorization"] == expected
+    assert "headers" not in inspect.signature(AzureReadClient.request_json).parameters
 
-        with self.assertRaises(AzureReadError) as raised:
-            client.request_json(
+
+@pytest.mark.parametrize("key", ("pat", "access_token", "Authorization", "secret"))
+def test_rejects_credential_query_keys_before_http(key: str) -> None:
+    transport = SequencedTransport([])
+
+    async def scenario() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError, match="credential"):
+                await make_client(http).request_json(
+                    "GET", "/_apis/work/processes", query={key: "not-a-secret"}
+                )
+
+    asyncio.run(scenario())
+    assert transport.requests == []
+
+
+def test_rejects_literal_encoded_or_authorization_query_values_without_leaking() -> None:
+    pat = "a/b private value"
+    basic = base64.b64encode(f":{pat}".encode()).decode()
+    secret_values = (
+        pat,
+        quote(pat, safe=""),
+        quote_plus(pat),
+        f"Authorization: Basic {basic}",
+    )
+    transport = SequencedTransport([])
+
+    async def scenario() -> list[str]:
+        messages = []
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            client = make_client(http, pat=pat)
+            for value in secret_values:
+                with pytest.raises(AzureReadError) as raised:
+                    await client.request_json(
+                        "GET",
+                        "/_apis/work/processes",
+                        query={"continuationToken": value},
+                    )
+                messages.append(str(raised.value))
+        return messages
+
+    messages = asyncio.run(scenario())
+
+    assert transport.requests == []
+    for message in messages:
+        assert pat not in message
+        assert quote(pat, safe="") not in message
+        assert basic not in message
+        assert "Authorization" not in message
+
+
+def test_serializes_only_valid_wiql_query_bodies() -> None:
+    transport = SequencedTransport([(200, {"workItems": []}, {})])
+
+    async def scenario() -> dict[str, object]:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            return await make_client(http).request_json(
                 "POST",
                 "/project/_apis/wit/wiql",
-                body={"unsupported": object()},
+                body={"query": "SELECT [System.Id] FROM WorkItems"},
             )
 
-        self.assertNotIn("safe-pat", str(raised.exception))
+    assert asyncio.run(scenario()) == {"workItems": []}
+    assert transport.requests[0].read() == (
+        b'{"query":"SELECT [System.Id] FROM WorkItems"}'
+    )
+    assert transport.requests[0].headers["Content-Type"] == "application/json"
 
-    def test_invalid_json_response_becomes_safe_read_error(self):
-        def transport(request, timeout):
-            return _RawResponse(b"{")
 
-        client = AzureClient("https://example.com/org", "safe-pat", transport)
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    (
+        ("GET", "/_apis/work/processes", {"unexpected": "body"}),
+        ("POST", "/project/_apis/wit/wiql", None),
+        ("POST", "/project/_apis/wit/wiql", {}),
+        ("POST", "/project/_apis/wit/wiql", {"query": ""}),
+        ("POST", "/project/_apis/wit/wiql", {"query": "SELECT", "extra": True}),
+        ("POST", "/project/_apis/wit/workitemsbatch", None),
+        ("POST", "/project/_apis/wit/workitemsbatch", {"ids": []}),
+        ("POST", "/project/_apis/wit/workitemsbatch", {"ids": [True]}),
+        ("POST", "/project/_apis/wit/workitemsbatch", {"ids": [1], "extra": True}),
+    ),
+)
+def test_rejects_bodies_outside_query_endpoint_schemas(
+    method: str, path: str, body: dict[str, Any] | None
+) -> None:
+    transport = SequencedTransport([])
 
-        with self.assertRaises(AzureReadError) as raised:
-            client.request_json("GET", "/_apis/work/processes")
+    async def scenario() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError, match="body"):
+                await make_client(http).request_json(method, path, body=body)
 
-        self.assertNotIn("safe-pat", str(raised.exception))
+    asyncio.run(scenario())
+    assert transport.requests == []
 
-    def test_json_array_response_becomes_safe_read_error(self):
-        def transport(request, timeout):
-            return _RawResponse(b"[]")
 
-        client = AzureClient("https://example.com/org", "safe-pat", transport)
+def test_accepts_work_item_batch_read_schema() -> None:
+    transport = SequencedTransport([(200, {"count": 2, "value": []}, {})])
+    body = {
+        "ids": [10, 20],
+        "fields": ["System.Id", "System.Title"],
+        "$expand": "Relations",
+        "errorPolicy": "Omit",
+    }
 
-        with self.assertRaises(AzureReadError) as raised:
-            client.request_json("GET", "/_apis/work/processes")
-
-        self.assertNotIn("safe-pat", str(raised.exception))
-
-    def test_http_error_with_unreadable_body_becomes_safe_read_error(self):
-        def transport(request, timeout):
-            raise HTTPError(
-                request.full_url,
-                500,
-                "Server Error",
-                {},
-                _BrokenRead(),
+    async def scenario() -> dict[str, object]:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            return await make_client(http).request_json(
+                "POST", "/project/_apis/wit/workitemsbatch", body=body
             )
 
-        client = AzureClient("https://example.com/org", "safe-pat", transport)
+    assert asyncio.run(scenario()) == {"count": 2, "value": []}
 
-        with self.assertRaises(AzureReadError) as raised:
-            client.request_json("GET", "/_apis/work/processes")
 
-        self.assertIn("HTTP 500", str(raised.exception))
-        self.assertNotIn("safe-pat", str(raised.exception))
+def test_redirect_is_rejected_without_second_request() -> None:
+    transport = SequencedTransport(
+        [(302, b"redirect", {"Location": "https://evil.invalid/next"})]
+    )
 
-    def test_response_headers_remove_authorization_schemes_but_keep_common_text(self):
-        def transport(request, timeout):
-            return _JsonResponse(
-                {"count": 0},
-                {
-                    "Authorization": "Custom secret",
-                    "Proxy-Authorization": "Odd secret",
-                    "WWW-Authenticate": "Bearer realm=example",
-                    "X-Note": "Basic science",
-                },
+    async def scenario() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(transport), follow_redirects=True
+        ) as http:
+            with pytest.raises(AzureReadError, match="redirect"):
+                await make_client(http).request_json("GET", "/_apis/work/processes")
+
+    asyncio.run(scenario())
+    assert len(transport.requests) == 1
+
+
+@pytest.mark.parametrize("status", (401, 403))
+def test_authentication_errors_are_never_retried(status: int) -> None:
+    transport = SequencedTransport([(status, {"message": "denied"}, {})])
+    sleeper = RecordingSleeper()
+
+    async def scenario() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError, match=f"HTTP {status}"):
+                await make_client(http, sleeper=sleeper).request_json(
+                    "GET", "/_apis/work/processes"
+                )
+
+    asyncio.run(scenario())
+    assert len(transport.requests) == 1
+    assert sleeper.delays == []
+
+
+def test_429_honors_retry_after_before_retrying() -> None:
+    transport = SequencedTransport(
+        [
+            (429, {"message": "slow down"}, {"Retry-After": "2.5"}),
+            (200, {"count": 0}, {}),
+        ]
+    )
+    sleeper = RecordingSleeper()
+
+    async def scenario() -> tuple[dict[str, object], tuple[RequestRecord, ...]]:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            client = make_client(http, sleeper=sleeper)
+            payload = await client.request_json("GET", "/_apis/work/processes")
+            return payload, client.request_records
+
+    payload, records = asyncio.run(scenario())
+
+    assert payload == {"count": 0}
+    assert sleeper.delays == [2.5]
+    assert len(transport.requests) == 2
+    assert records == (
+        RequestRecord("GET", "/_apis/work/processes"),
+        RequestRecord("GET", "/_apis/work/processes"),
+    )
+
+
+def test_transient_retry_is_capped_at_five_attempts() -> None:
+    pat = "local-private-value"
+    transport = SequencedTransport(
+        [(503, {"message": f"Authorization: Basic remote {pat}"}, {})] * 5
+    )
+    sleeper = RecordingSleeper()
+
+    async def scenario() -> str:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError) as raised:
+                await make_client(http, pat=pat, sleeper=sleeper).request_json(
+                    "GET", "/_apis/work/processes"
+                )
+            return str(raised.value)
+
+    message = asyncio.run(scenario())
+
+    assert len(transport.requests) == 5
+    assert sleeper.delays == [1.0, 1.0, 1.0, 1.0]
+    assert "HTTP 503" in message
+    assert pat not in message
+    assert "Authorization" not in message
+
+
+def test_non_retryable_http_error_is_sanitized_and_capped() -> None:
+    pat = "local-private-value"
+    body = b"Authorization: Basic remote-private-value\n" + (b"x" * 800)
+    transport = SequencedTransport([(400, body, {})])
+
+    async def scenario() -> str:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError) as raised:
+                await make_client(http, pat=pat).request_json(
+                    "GET", "/_apis/work/processes"
+                )
+            return str(raised.value)
+
+    message = asyncio.run(scenario())
+
+    assert len(transport.requests) == 1
+    assert "HTTP 400" in message
+    assert pat not in message
+    assert "remote-private-value" not in message
+    assert "Authorization" not in message
+    assert len(message) < 700
+
+
+def test_transport_error_is_not_retried_and_is_sanitized() -> None:
+    pat = "transport-private-value"
+    request = httpx.Request("GET", "https://dev.azure.com/example-org")
+    transport = SequencedTransport(
+        [httpx.ConnectError(f"failed with {pat}", request=request)]
+    )
+
+    async def scenario() -> str:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError) as raised:
+                await make_client(http, pat=pat).request_json(
+                    "GET", "/_apis/work/processes"
+                )
+            return str(raised.value)
+
+    message = asyncio.run(scenario())
+    assert len(transport.requests) == 1
+    assert pat not in message
+
+
+@pytest.mark.parametrize("payload", (b"{", b"[]", b"null"))
+def test_invalid_json_object_response_fails_closed(payload: bytes) -> None:
+    transport = SequencedTransport([(200, payload, {})])
+
+    async def scenario() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            with pytest.raises(AzureReadError, match="JSON object"):
+                await make_client(http).request_json("GET", "/_apis/work/processes")
+
+    asyncio.run(scenario())
+
+
+def test_shared_semaphore_gates_the_real_http_call() -> None:
+    transport = SequencedTransport([(200, {"count": 0}, {})])
+
+    async def scenario() -> dict[str, object]:
+        semaphore = asyncio.Semaphore(0)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as http:
+            task = asyncio.create_task(
+                make_client(http, semaphore=semaphore).request_json(
+                    "GET", "/_apis/work/processes"
+                )
             )
+            await asyncio.sleep(0)
+            assert transport.requests == []
+            semaphore.release()
+            return await task
 
-        client = AzureClient("https://example.com/org", "safe-pat", transport)
-        response = client.request_json("GET", "/_apis/work/processes")
-
-        self.assertNotIn("Authorization", response.headers)
-        self.assertNotIn("Proxy-Authorization", response.headers)
-        self.assertEqual(response.headers["WWW-Authenticate"], "Bearer realm=example")
-        self.assertEqual(response.headers["X-Note"], "Basic science")
-
-    def test_request_rejects_disallowed_routes_before_transport(self):
-        def transport(request, timeout):
-            self.fail("transport must not be called for a rejected route")
-
-        client = AzureClient("https://example.com/org", "safe-pat", transport)
-
-        with self.assertRaisesRegex(AzureReadError, "not allowlisted"):
-            client.request_json("POST", "/project/_apis/wit/queries")
-
-    def test_http_error_is_capped_and_redacts_authorization_like_remote_body(self):
-        body = b"Authorization: Basic remote-secret\n" + (b"x" * 600)
-
-        def failing_transport(request, timeout):
-            raise HTTPError(
-                request.full_url,
-                403,
-                "Forbidden",
-                {},
-                io.BytesIO(body),
-            )
-
-        client = AzureClient("https://example.com/org", "local-secret", failing_transport)
-
-        with self.assertRaises(AzureReadError) as raised:
-            client.request_json("GET", "/_apis/work/processes")
-
-        message = str(raised.exception)
-        self.assertIn("HTTP 403", message)
-        self.assertNotIn("local-secret", message)
-        self.assertNotIn("remote-secret", message)
-        self.assertNotIn("Authorization", message)
-        self.assertLessEqual(len(message), 700)
+    assert asyncio.run(scenario()) == {"count": 0}

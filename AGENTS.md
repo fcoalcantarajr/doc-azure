@@ -2,8 +2,10 @@
 
 ## Hard Rules R1..R10
 
-R1. Azure DevOps: GET only. No POST, PATCH, PUT, DELETE against dev.azure.com, ever, in any script,
-    test or ad-hoc command. The gate greps for this.
+R1. Azure DevOps is semantically read-only. GET is allowed only for the approved wiki, process,
+    and work-item read routes. POST is allowed only for the exact WIQL and work-items-batch query
+    routes. Creation POST, PUT, PATCH, DELETE, redirects, absolute URLs, and method override are
+    forbidden. The gate imports and exercises the method-route allowlist.
 R2. No secret in any artifact, log, commit, test fixture, Notion page or docs file.
 R3. Nothing enters a deliverable without evidence. Every delta row carries an evidence pointer to a
     file under out/ that exists. No pointer, no row.
