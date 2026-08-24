@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from enum import Enum
 
 
+def _require_non_blank_string(value: object, field: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field} must be a non-blank string")
+
+
 class FindingStatus(str, Enum):
     """Epistemic outcome of one documented-versus-implemented claim."""
 
@@ -23,10 +28,8 @@ class EvidencePointer:
     selector: str
 
     def __post_init__(self) -> None:
-        if not self.path.strip():
-            raise ValueError("EvidencePointer.path must not be blank")
-        if not self.selector.strip():
-            raise ValueError("EvidencePointer.selector must not be blank")
+        _require_non_blank_string(self.path, "EvidencePointer.path")
+        _require_non_blank_string(self.selector, "EvidencePointer.selector")
 
 
 @dataclass(frozen=True)
@@ -43,12 +46,18 @@ class Finding:
     impact_or_limit: str
 
     def __post_init__(self) -> None:
-        if not self.id.strip():
-            raise ValueError("Finding.id must not be blank")
-        if not self.finding.strip():
-            raise ValueError("Finding.finding must not be blank")
-        if self.doc_evidence is None:
+        _require_non_blank_string(self.id, "Finding.id")
+        _require_non_blank_string(self.finding, "Finding.finding")
+        _require_non_blank_string(self.documented, "Finding.documented")
+        _require_non_blank_string(self.implemented, "Finding.implemented")
+        if not isinstance(self.impact_or_limit, str):
+            raise ValueError("Finding.impact_or_limit must be a string")
+        if not isinstance(self.status, FindingStatus):
+            raise ValueError("Finding.status must be a FindingStatus")
+        if not isinstance(self.doc_evidence, EvidencePointer):
             raise ValueError("Finding.doc_evidence is required")
+        if self.azure_evidence is not None and not isinstance(self.azure_evidence, EvidencePointer):
+            raise ValueError("Finding.azure_evidence must be an EvidencePointer or None")
         if self.status in {FindingStatus.CONFIRMADO, FindingStatus.DIVERGENTE}:
             if self.azure_evidence is None:
                 raise ValueError("Finding.azure_evidence is required for this status")
@@ -63,6 +72,13 @@ class AuditResult:
     findings: tuple[Finding, ...]
 
     def __post_init__(self) -> None:
-        finding_ids = tuple(finding.id for finding in self.findings)
+        try:
+            findings = tuple(self.findings)
+        except TypeError as error:
+            raise ValueError("AuditResult.findings must be iterable") from error
+        if not all(isinstance(finding, Finding) for finding in findings):
+            raise ValueError("AuditResult.findings must contain Finding instances")
+        object.__setattr__(self, "findings", findings)
+        finding_ids = tuple(finding.id for finding in findings)
         if len(finding_ids) != len(set(finding_ids)):
             raise ValueError("AuditResult.findings contains duplicate finding IDs")

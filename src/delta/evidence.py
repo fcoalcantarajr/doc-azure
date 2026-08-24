@@ -66,6 +66,11 @@ def _decode_pointer_segment(raw_segment: str) -> str:
 
 
 def _array_index(segment: str) -> int | None:
-    if not segment.isdigit() or (len(segment) > 1 and segment.startswith("0")):
+    if not segment or any(character < "0" or character > "9" for character in segment):
         return None
-    return int(segment)
+    if len(segment) > 1 and segment.startswith("0"):
+        return None
+    try:
+        return int(segment)
+    except ValueError:
+        return None
