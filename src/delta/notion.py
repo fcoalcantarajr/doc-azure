@@ -11,22 +11,30 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from delta.notion_semantics import (
+    ReportSemantic,
+    ReportSemanticError,
+    parse_notion_semantics,
+    parse_report_semantics,
+    render_notion_body,
+)
+
 
 NOTION_PARENT_PAGE_ID = "2a1412e0-8c26-803b-a988-dc619a396e45"
 _PAGE_METADATA = {
     "leiame": {
-        "title": "Leiame × Processo-Agil implementado",
+        "title": "Delta — Leiame × Processo-Agil implementado",
         "page_id": "3c3412e0-8c26-813c-ad9c-d57026cfd566",
         "url": "https://app.notion.com/p/3c3412e08c26813cad9cd57026cfd566",
     },
     "politicas": {
-        "title": "Políticas Explícitas × Processo-Agil implementado",
+        "title": "Delta — Políticas Explícitas × Processo-Agil implementado",
         "page_id": "3c3412e0-8c26-813a-8312-dc52450adf39",
         "url": "https://app.notion.com/p/3c3412e08c26813a8312dc52450adf39",
     },
     "changelog": {
         "title": (
-            "Changelog - Processo Ágil no Azure DevOps × "
+            "Delta — Changelog - Processo Ágil no Azure DevOps × "
             "Processo-Agil implementado"
         ),
         "page_id": "3c3412e0-8c26-81b8-b9fd-cca04e04452b",
@@ -34,7 +42,7 @@ _PAGE_METADATA = {
     },
     "apendice": {
         "title": (
-            "Apêndice Técnico — Processo Organização Única × "
+            "Delta — Apêndice Técnico — Processo Organização Única × "
             "Processo-Agil implementado"
         ),
         "page_id": "3c3412e0-8c26-81dc-81c1-fbf0c7cac428",
@@ -51,6 +59,7 @@ _ENTRY_FIELDS = frozenset(
         "marker",
         "prepared_path",
         "body_sha256",
+        "semantic_sha256",
     }
 )
 _HASH = re.compile(r"^[0-9a-f]{64}$")
@@ -73,6 +82,7 @@ class PublicationEntry:
     marker: str
     prepared_path: str
     body_sha256: str
+    semantic_sha256: str
 
 
 @dataclass(frozen=True)
@@ -87,19 +97,33 @@ class PublicationManifest:
 def expected_publication_manifest(root: Path) -> PublicationManifest:
     """Build the expected manifest in memory without writing any file."""
 
-    manifest, _ = _collect_entries_and_bodies(Path(root))
+    manifest, _, _ = _collect_entries_and_bodies(Path(root))
     return manifest
 
 
-def prepare_notion(root: Path) -> PublicationManifest:
+def prepare_notion(
+    root: Path,
+    *,
+    repository_url: str | None = None,
+) -> PublicationManifest:
     """Validate all sources, then atomically stage four exact delta bodies."""
 
     repository_root = Path(root)
-    manifest, bodies = _collect_entries_and_bodies(repository_root)
+    manifest, bodies, semantics = _collect_entries_and_bodies(repository_root)
     notion_root = repository_root / "out" / "notion"
     for entry, body in zip(manifest.entries, bodies, strict=True):
         _atomic_write_bytes(repository_root / entry.prepared_path, body)
     _atomic_write_json(notion_root / "publication-manifest.json", manifest)
+    if repository_url is not None:
+        from delta.notion_gate import prepare_review_artifacts
+
+        prepare_review_artifacts(
+            repository_root,
+            manifest,
+            semantics,
+            repository_url,
+            NotionPublicationError,
+        )
     return manifest
 
 
@@ -139,7 +163,7 @@ def load_publication_manifest(path: Path) -> PublicationManifest:
 
 
 def verify_fetched_notion(manifest: PublicationManifest, fetched_root: Path) -> None:
-    """Reject any fetched Notion receipt that differs from the prepared manifest."""
+    """Reject identity or semantic differences in connector-fetched pages."""
 
     _validate_manifest(manifest)
     fetched = Path(fetched_root)
@@ -147,26 +171,54 @@ def verify_fetched_notion(manifest: PublicationManifest, fetched_root: Path) -> 
         receipt = _read_receipt(fetched / f"{entry.slug}.json")
         _verify_receipt(entry, receipt)
         body = _read_regular_bytes(fetched / f"{entry.slug}.md")
-        if _sha256(body) != entry.body_sha256:
+        try:
+            semantic = parse_notion_semantics(body.decode("utf-8"), entry.slug)
+        except (UnicodeError, ReportSemanticError):
             raise NotionPublicationError(
-                f"{entry.slug}: body hash does not match manifest"
+                f"{entry.slug}: fetched body semantic content is invalid"
+            ) from None
+        if semantic.sha256 != entry.semantic_sha256:
+            raise NotionPublicationError(
+                f"{entry.slug}: body semantic hash does not match manifest"
             )
+
+
+def verify_review_gate(root: Path) -> None:
+    """Verify the two external browser reviews and their reconciliation."""
+
+    from delta.notion_gate import verify_review_gate as verify
+
+    verify(Path(root), NotionPublicationError)
+
+
+def verify_publication_gate(root: Path) -> None:
+    """Verify reviews, publication receipts, and semantic read-back."""
+
+    from delta.notion_gate import verify_publication_gate as verify
+
+    verify(Path(root), NotionPublicationError)
 
 
 def _collect_entries_and_bodies(
     root: Path,
-) -> tuple[PublicationManifest, tuple[bytes, ...]]:
+) -> tuple[
+    PublicationManifest,
+    tuple[bytes, ...],
+    tuple[ReportSemantic, ...],
+]:
     entries: list[PublicationEntry] = []
     bodies: list[bytes] = []
+    semantics: list[ReportSemantic] = []
     for slug, metadata in _PAGE_METADATA.items():
-        body = _read_regular_bytes(root / "deltas" / f"{slug}.md")
+        source_body = _read_regular_bytes(root / "deltas" / f"{slug}.md")
         marker = f"DELTA-AUDIT-MARKER-{slug}"
         try:
-            lines = body.decode("utf-8").splitlines()
-        except UnicodeError:
-            raise NotionPublicationError(f"{slug}: delta body is not UTF-8") from None
-        if marker not in lines:
-            raise NotionPublicationError(f"{slug}: publication marker is missing")
+            semantic = parse_report_semantics(source_body.decode("utf-8"), slug)
+        except (UnicodeError, ReportSemanticError) as error:
+            raise NotionPublicationError(f"{slug}: {error}") from None
+        if semantic.marker != marker:
+            raise NotionPublicationError(f"{slug}: publication marker is invalid")
+        prepared_body = render_notion_body(semantic).encode("utf-8")
         entries.append(
             PublicationEntry(
                 slug=slug,
@@ -176,24 +228,26 @@ def _collect_entries_and_bodies(
                 url=metadata["url"],
                 marker=marker,
                 prepared_path=f"out/notion/prepared/{slug}.md",
-                body_sha256=_sha256(body),
+                body_sha256=_sha256(prepared_body),
+                semantic_sha256=semantic.sha256,
             )
         )
-        bodies.append(body)
+        bodies.append(prepared_body)
+        semantics.append(semantic)
     manifest = PublicationManifest(
-        schema_version=1,
+        schema_version=2,
         parent_page_id=NOTION_PARENT_PAGE_ID,
         entries=tuple(entries),
     )
     _validate_manifest(manifest)
-    return manifest, tuple(bodies)
+    return manifest, tuple(bodies), tuple(semantics)
 
 
 def _validate_manifest(manifest: PublicationManifest) -> None:
     if not isinstance(manifest, PublicationManifest):
         raise NotionPublicationError("publication manifest type is invalid")
     if (
-        manifest.schema_version != 1
+        manifest.schema_version != 2
         or manifest.parent_page_id != NOTION_PARENT_PAGE_ID
         or tuple(entry.slug for entry in manifest.entries)
         != tuple(_PAGE_METADATA)
@@ -218,6 +272,12 @@ def _validate_manifest(manifest: PublicationManifest) -> None:
         ) is None:
             raise NotionPublicationError(
                 f"{entry.slug}: publication manifest body hash is invalid"
+            )
+        if not isinstance(entry.semantic_sha256, str) or _HASH.fullmatch(
+            entry.semantic_sha256
+        ) is None:
+            raise NotionPublicationError(
+                f"{entry.slug}: publication manifest semantic hash is invalid"
             )
 
 

@@ -17,11 +17,48 @@ from delta.notion import (
 )
 
 
+SLUGS = ("leiame", "politicas", "changelog", "apendice")
+
+
+def report_body(slug: str, index: int) -> str:
+    return f"""# Delta — {slug}
+
+DELTA-AUDIT-MARKER-{slug}
+
+## Metodologia e status
+
+Comparação verificável.
+
+- `CONFIRMADO`: valores iguais.
+- `DIVERGENTE`: valores diferentes.
+- `NAO_VERIFICAVEL_API_PROCESSO`: API insuficiente.
+- `AMBIGUO`: mais de uma interpretação.
+
+## Proveniência dos snapshots
+
+- Wiki: geração `wiki`.
+- Processo: geração `processo`.
+
+## Resumo por status
+
+| Status | Quantidade |
+| --- | ---: |
+| CONFIRMADO | 1 |
+| DIVERGENTE | 0 |
+| NAO_VERIFICAVEL_API_PROCESSO | 0 |
+| AMBIGUO | 0 |
+
+## Achados detalhados
+
+| ID | Achado | Status | Documentado | Implementado | Evidência documental | Evidência Azure | Impacto ou limite |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| {index}-CLAIM-001 | Achado {slug} | CONFIRMADO | esperado | observado | out/wiki/{slug}.md#L1 | out/process/process.json#/name | limite |
+"""
+
+
 DELTA_BODIES = {
-    "leiame": "# Leiame\n\nDELTA-AUDIT-MARKER-leiame\n\nDelta de leiame.\n",
-    "politicas": "# Políticas\n\nDELTA-AUDIT-MARKER-politicas\n\nDelta de políticas.\n",
-    "changelog": "# Changelog\n\nDELTA-AUDIT-MARKER-changelog\n\nDelta de changelog.\n",
-    "apendice": "# Apêndice\n\nDELTA-AUDIT-MARKER-apendice\n\nDelta de apêndice.\n",
+    slug: report_body(slug, index)
+    for index, slug in enumerate(SLUGS, start=1)
 }
 
 
@@ -47,7 +84,7 @@ def write_fetched_snapshot(root: Path, entry: object, body: str) -> None:
     (root / f"{page.slug}.md").write_text(body, encoding="utf-8")
 
 
-def test_prepare_notion_copies_deltas_and_writes_deterministic_manifest(
+def test_prepare_notion_renders_deltas_and_writes_deterministic_manifest(
     tmp_path: Path,
 ) -> None:
     write_delta_files(tmp_path)
@@ -61,9 +98,10 @@ def test_prepare_notion_copies_deltas_and_writes_deterministic_manifest(
     assert [entry.slug for entry in manifest.entries] == list(DELTA_BODIES)
     for entry in manifest.entries:
         prepared = tmp_path / "out" / "notion" / "prepared" / f"{entry.slug}.md"
-        assert prepared.read_text(encoding="utf-8") == DELTA_BODIES[entry.slug]
+        prepared_body = prepared.read_text(encoding="utf-8")
+        assert '<table fit-page-width="true" header-row="true">' in prepared_body
         assert entry.body_sha256 == hashlib.sha256(
-            DELTA_BODIES[entry.slug].encode("utf-8")
+            prepared_body.encode("utf-8")
         ).hexdigest()
         assert entry.marker == f"DELTA-AUDIT-MARKER-{entry.slug}"
 
@@ -76,7 +114,8 @@ def test_prepare_notion_rejects_a_body_without_its_marker_before_writing(
 ) -> None:
     write_delta_files(tmp_path)
     (tmp_path / "deltas" / "leiame.md").write_text(
-        "# Leiame sem marcador\n", encoding="utf-8"
+        DELTA_BODIES["leiame"].replace("DELTA-AUDIT-MARKER-leiame\n", ""),
+        encoding="utf-8",
     )
 
     with pytest.raises(NotionPublicationError, match="marker"):
@@ -91,7 +130,8 @@ def test_verify_fetched_notion_accepts_matching_receipts(tmp_path: Path) -> None
     fetched_root = tmp_path / "fetched"
     fetched_root.mkdir()
     for entry in manifest.entries:
-        write_fetched_snapshot(fetched_root, entry, DELTA_BODIES[entry.slug])
+        body = (tmp_path / entry.prepared_path).read_text(encoding="utf-8")
+        write_fetched_snapshot(fetched_root, entry, body)
 
     verify_fetched_notion(manifest, fetched_root)
 
@@ -102,10 +142,12 @@ def test_verify_fetched_notion_rejects_body_hash_mismatch(tmp_path: Path) -> Non
     fetched_root = tmp_path / "fetched"
     fetched_root.mkdir()
     for entry in manifest.entries:
-        body = "alterado" if entry.slug == "leiame" else DELTA_BODIES[entry.slug]
+        body = (tmp_path / entry.prepared_path).read_text(encoding="utf-8")
+        if entry.slug == "leiame":
+            body = body.replace("Achado leiame", "Achado alterado")
         write_fetched_snapshot(fetched_root, entry, body)
 
-    with pytest.raises(NotionPublicationError, match="body hash"):
+    with pytest.raises(NotionPublicationError, match="semantic hash"):
         verify_fetched_notion(manifest, fetched_root)
 
 
@@ -115,7 +157,8 @@ def test_verify_fetched_notion_rejects_wrong_parent_receipt(tmp_path: Path) -> N
     fetched_root = tmp_path / "fetched"
     fetched_root.mkdir()
     for entry in manifest.entries:
-        write_fetched_snapshot(fetched_root, entry, DELTA_BODIES[entry.slug])
+        body = (tmp_path / entry.prepared_path).read_text(encoding="utf-8")
+        write_fetched_snapshot(fetched_root, entry, body)
     leiame_receipt = fetched_root / "leiame.json"
     payload = json.loads(leiame_receipt.read_text(encoding="utf-8"))
     payload["parent_page_id"] = "wrong-parent"
@@ -135,7 +178,8 @@ def test_verify_fetched_notion_rejects_missing_identity_field(
     fetched_root = tmp_path / "fetched"
     fetched_root.mkdir()
     for entry in manifest.entries:
-        write_fetched_snapshot(fetched_root, entry, DELTA_BODIES[entry.slug])
+        body = (tmp_path / entry.prepared_path).read_text(encoding="utf-8")
+        write_fetched_snapshot(fetched_root, entry, body)
     receipt = fetched_root / "leiame.json"
     payload = json.loads(receipt.read_text(encoding="utf-8"))
     del payload[field]

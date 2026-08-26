@@ -16,6 +16,7 @@ from verify import (
     VerificationError,
     run_checked,
     verify_gitignore,
+    verify_notion_artifacts,
     verify_reports,
     verify_secret_literals,
 )
@@ -204,3 +205,19 @@ def test_verify_gitignore_requires_every_requested_category(tmp_path: Path) -> N
 
 def test_repository_gitignore_covers_every_requested_category() -> None:
     verify_gitignore(Path(__file__).parents[1])
+
+
+def test_require_publication_delegates_to_the_strict_external_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[Path] = []
+    monkeypatch.setattr(
+        "verify.verify_publication_gate",
+        lambda root: calls.append(Path(root)),
+        raising=False,
+    )
+
+    verify_notion_artifacts(tmp_path, require_fetched=True)
+
+    assert calls == [tmp_path]

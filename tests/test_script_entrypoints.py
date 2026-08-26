@@ -33,3 +33,17 @@ def test_script_help_never_requires_credentials(script: str) -> None:
 
     assert completed.returncode == 0, completed.stderr
     assert "usage:" in completed.stdout.lower()
+
+
+def test_notion_entrypoint_exposes_review_and_strict_publication_modes() -> None:
+    completed = subprocess.run(
+        (sys.executable, "scripts/04_prepare_notion.py", "--help"),
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        env={"PATH": str(Path(sys.executable).parent)},
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "--repository-url" in completed.stdout
+    assert "--verify-publication" in completed.stdout

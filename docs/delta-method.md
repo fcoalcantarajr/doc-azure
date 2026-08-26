@@ -105,23 +105,25 @@ uv run python scripts/03_build_delta.py \
 
 ## Notion handoff
 
-`scripts/04_prepare_notion.py` only prepares local artifacts. It reads the four
-versioned reports, requires each fixed publication marker, binds it to the
-pre-existing parent/page IDs and URLs recorded in `docs/notion-publication.md`,
-writes exact bodies below ignored `out/notion/prepared`, and records body hashes
-in `out/notion/publication-manifest.json`. It never creates or updates a Notion
-page.
+`scripts/04_prepare_notion.py` only prepares or verifies local artifacts. It
+parses the four versioned reports into a canonical semantic model, renders
+Notion enhanced-Markdown tables, binds the output to the fixed existing page
+identities, and records both byte and semantic hashes. With `--repository-url`,
+it also creates a deterministic, secret-screened CSV and identical adversarial
+review prompt bound to the private GitHub repository. It never creates or
+updates a Notion page.
 
-After connector updates and connector read-back, pairs of `<slug>.json` and
-`<slug>.md` below `out/notion/fetched` are verified with:
+The legacy local identity check remains available for diagnosis:
 
 ```text
 uv run python scripts/04_prepare_notion.py \
   --verify-fetched out/notion/fetched
 ```
 
-The verifier rejects a wrong or missing slug, page ID, parent ID, URL, marker,
-or body hash.
+Final publication uses `--verify-publication`. It additionally requires two
+independent, packet-bound Notion AI review receipts, full reconciliation, raw
+update/fetch receipts, hierarchy proof, twelve duplicate searches, fresh
+timestamps, and exact semantic equivalence of every ordered finding.
 
 ## Repository gate
 
@@ -130,7 +132,8 @@ compares exact bytes without changing versioned outputs. It also imports and
 exercises the Azure method/route allowlist, runs the test suite and script entry
 points, checks the full ignore policy, scans sensitive `.env` values without
 printing them, validates the current status contract, rejects prose-only Python
-modules, and validates any local Notion manifest or fetched receipts.
+modules, and validates any local Notion manifest. With
+`--require-publication`, it delegates to the complete external-evidence gate.
 
 The final post-publication gate is:
 

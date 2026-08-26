@@ -696,3 +696,27 @@ tests/test_script_entrypoints.py -q`
 Result: `6 passed in 1.46s`. Setup now parses help before configuration,
 returns a sanitized failure on invalid local configuration, and idempotently
 creates only `out/wiki`, `out/process`, and `out/notion`.
+
+## Task 8 — semantic Notion publication gate
+
+RED command: `uv run pytest -q tests/test_notion_publication_gate.py`
+
+Result: `19 failed in 0.15s`. The prepared Notion bodies were byte-oriented
+GFM copies, and the project had no strict semantic parser, private-GitHub-bound
+review packet, dual-model review receipts, reconciliation receipt, or
+publication read-back gate.
+
+Decision: represent the report and its Notion rendering through one canonical
+semantic model. Bind deterministic review artifacts to the private repository,
+require independent Kimi K3 and Opus 5 receipts from distinct in-app browser
+chats at maximum effort, reconcile every review finding, and accept publication
+only after raw-receipt-backed hierarchy, duplicate-search, freshness, title,
+marker, and semantic-equivalence checks pass for all four existing pages.
+
+Entrypoint RED command: `uv run pytest -q
+tests/test_script_entrypoints.py::test_notion_entrypoint_exposes_review_and_strict_publication_modes
+tests/test_verify.py::test_require_publication_delegates_to_the_strict_external_gate`
+
+Result: `2 failed in 0.15s`. The one-command interface exposed neither the
+private-repository review binding nor the strict publication mode, and the
+repository gate still delegated to the legacy byte-oriented fetched-body check.

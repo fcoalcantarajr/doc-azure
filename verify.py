@@ -23,6 +23,7 @@ from delta.notion import (
     expected_publication_manifest,
     load_publication_manifest,
     verify_fetched_notion,
+    verify_publication_gate,
 )
 from doc_azure.azure_client import ALLOWED_OPERATIONS, is_allowlisted_read
 
@@ -181,6 +182,9 @@ def verify_notion_artifacts(root: Path, *, require_fetched: bool = False) -> Non
 
     repository_root = Path(root)
     try:
+        if require_fetched:
+            verify_publication_gate(repository_root)
+            return
         expected = expected_publication_manifest(repository_root)
         notion_root = repository_root / "out" / "notion"
         manifest_path = notion_root / "publication-manifest.json"
@@ -225,14 +229,18 @@ def verify_layout(root: Path) -> None:
         "src/delta/build.py",
         "src/delta/render.py",
         "src/delta/notion.py",
+        "src/delta/notion_gate.py",
+        "src/delta/notion_semantics.py",
         "tests/test_delta_builder.py",
         "tests/test_delta_render.py",
         "tests/test_prepare_notion.py",
+        "tests/test_notion_publication_gate.py",
         "tests/test_script_entrypoints.py",
         "tests/test_verify.py",
         "docs/delta-method.md",
         "docs/decisions.md",
         "docs/notion-publication.md",
+        "docs/session-2026-08-26.md",
         *(f"deltas/{slug}.md" for slug in FIXED_SLUGS),
     )
     missing = [

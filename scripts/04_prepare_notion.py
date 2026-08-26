@@ -17,6 +17,7 @@ from delta.notion import (
     load_publication_manifest,
     prepare_notion,
     verify_fetched_notion,
+    verify_publication_gate,
 )
 
 
@@ -32,11 +33,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=PROJECT_ROOT,
         help="project root containing deltas and out/notion",
     )
-    parser.add_argument(
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
         "--verify-fetched",
         type=Path,
         metavar="DIRECTORY",
         help="verify connector-fetched <slug>.json and <slug>.md receipts",
+    )
+    modes.add_argument(
+        "--verify-publication",
+        action="store_true",
+        help="require dual reviews and strict external Notion read-back receipts",
+    )
+    parser.add_argument(
+        "--repository-url",
+        help="private GitHub repository bound into the adversarial review packet",
     )
     return parser.parse_args(argv)
 
@@ -46,8 +57,14 @@ def main(argv: list[str] | None = None) -> int:
 
     arguments = parse_args(argv)
     try:
-        if arguments.verify_fetched is None:
-            manifest = prepare_notion(arguments.root)
+        if arguments.verify_publication:
+            verify_publication_gate(arguments.root)
+            print("NOTION_PUBLICATION_OK")
+        elif arguments.verify_fetched is None:
+            manifest = prepare_notion(
+                arguments.root,
+                repository_url=arguments.repository_url,
+            )
             print(arguments.root / "out" / "notion" / "publication-manifest.json")
             for entry in manifest.entries:
                 print(arguments.root / entry.prepared_path)
