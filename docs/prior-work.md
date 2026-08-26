@@ -15,10 +15,10 @@ repository state summarized here.
 | Delta methodology and decisions | Current | `docs/delta-method.md`, `docs/decisions.md` |
 | Offline report builder | Present and deterministic | `scripts/03_build_delta.py`, `src/delta/` |
 | Versioned reports | Current | `deltas/leiame.md`, `deltas/politicas.md`, `deltas/changelog.md`, `deltas/apendice.md` |
-| Local Notion preparation | Present; ignored output only | `scripts/04_prepare_notion.py`, `docs/notion-publication.md`, `out/notion/` |
+| Local Notion preparation | Semantic bodies and repository-bound review packet present; ignored output only | `scripts/04_prepare_notion.py`, `docs/notion-publication.md`, `out/notion/` |
 | Repository gate | Present; local gate passes | `verify.py` |
 | Tests and fixtures | Present | `tests/`, `tests/fixtures/` |
-| Current audit receipt | Present | `docs/session-2026-08-24.md` |
+| Current audit receipt | Present | `docs/session-2026-08-26.md` |
 | External Notion publication | Pending Task 8 | `docs/notion-publication.md` |
 
 ## Historical baseline

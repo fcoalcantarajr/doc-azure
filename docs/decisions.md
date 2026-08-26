@@ -720,3 +720,19 @@ tests/test_verify.py::test_require_publication_delegates_to_the_strict_external_
 Result: `2 failed in 0.15s`. The one-command interface exposed neither the
 private-repository review binding nor the strict publication mode, and the
 repository gate still delegated to the legacy byte-oriented fetched-body check.
+
+Entrypoint GREEN: the same command returned `2 passed in 0.24s`. Full GREEN:
+`uv run pytest -q` returned `300 passed in 1.05s`; `uv run python verify.py`
+returned `GATE_OK` after deterministic preparation against the intended private
+repository URL.
+
+## 2026-08-26 — fresh Azure read-only generation
+
+The Wiki and Processo-Agil collectors were rerun with `--refresh`. The Wiki
+generation `3da21e0bad63483fab84d4c997b64040` contains four GET receipts; the
+process generation `86456cdbde1c47f5bb579e9f0dbcfbe4` contains 110 artifacts
+and 109 GET receipts. Rebuilding twice changed no semantic finding or report
+hash beyond the expected provenance lines. Decision: supersede the 2026-08-24
+generation for publication because it is fresher and equally read-only, while
+recording that stability is evidence of no observed process delta, not proof
+that the documentation is complete or historically accurate.

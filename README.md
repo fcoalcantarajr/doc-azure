@@ -27,8 +27,9 @@ uv run python scripts/02_fetch_process.py --refresh
 # Offline catalog evaluation and deterministic reports.
 uv run python scripts/03_build_delta.py
 
-# Offline Notion-body preparation only; this does not publish.
-uv run python scripts/04_prepare_notion.py
+# Offline Notion-body and adversarial-review preparation; this does not publish.
+uv run python scripts/04_prepare_notion.py \
+  --repository-url https://github.com/fcoalcantarajr/doc-azure
 
 # Non-mutating local gate.
 uv run python verify.py
@@ -39,7 +40,8 @@ Outputs:
 - immutable raw snapshots and manifests: ignored `out/wiki` and `out/process`;
 - versioned reports: `deltas/leiame.md`, `deltas/politicas.md`,
   `deltas/changelog.md`, and `deltas/apendice.md`;
-- ignored prepared Notion bodies and manifest: `out/notion`.
+- ignored semantic Notion bodies, review packet, receipts, and publication
+  read-back evidence: `out/notion`.
 
 The current audit evaluates 222 explicit claims backed by exact documentary
 fragments. Reports identify the wiki/process generations, collection times,
@@ -51,11 +53,12 @@ Azure DevOps collection uses allowlisted GET requests only for this workflow.
 No collector creates, updates, or deletes process/wiki data. Raw evidence may
 contain employee data and must not be committed. Never stage `.env` or `out/`.
 
-Notion publication is a separate, pending step. After the required independent
-Notion AI reviews, use the authenticated Notion connector to update only the
-four fixed pages listed in `docs/notion-publication.md`, fetch them back, and run
-`uv run python verify.py --require-publication`. Local preparation is not proof
-of external publication.
+Notion publication is a separate gated step. Two independent reviews must use
+Kimi K3 and Opus 5 at maximum effort in the ChatGPT-integrated browser, with
+the same repository-bound CSV packet. After reconciliation, update only the
+four fixed pages listed in `docs/notion-publication.md`, fetch them back, and
+run `uv run python verify.py --require-publication`. Local preparation, a model
+verdict, or a marker alone is not proof of external publication.
 
 See `docs/delta-method.md` for the evidence model and
-`docs/session-2026-08-24.md` for the current audit receipt.
+`docs/session-2026-08-26.md` for the current audit receipt.
