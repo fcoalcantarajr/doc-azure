@@ -96,11 +96,8 @@ terminates between replacements.
 
 Custom local paths are explicit:
 
-```text
-uv run python scripts/03_build_delta.py \
-  --evidence-root /path/to/repository \
-  --catalog /path/to/wiki_claims.json \
-  --output-dir /path/to/reports
+```sh
+uv run python scripts/03_build_delta.py --evidence-root /path/to/repository --catalog /path/to/wiki_claims.json --output-dir /path/to/reports
 ```
 
 ## Notion handoff
@@ -115,9 +112,8 @@ updates a Notion page.
 
 The legacy local identity check remains available for diagnosis:
 
-```text
-uv run python scripts/04_prepare_notion.py \
-  --verify-fetched out/notion/fetched
+```sh
+uv run python scripts/04_prepare_notion.py --verify-fetched out/notion/fetched
 ```
 
 Final publication uses `--verify-publication`. It additionally requires two

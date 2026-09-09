@@ -11,6 +11,8 @@ technical references to operate the application.
    terminal message and follow one recovery path.
 3. [Notion publication contract](notion-publication.md) — prepare, review,
    publish, and prove the four fixed external pages.
+4. [Notion evidence file reference](notion-evidence-reference.md) — exact local
+   paths, required JSON fields, and raw connector envelopes for the strict gate.
 
 ## Understand the audit
 

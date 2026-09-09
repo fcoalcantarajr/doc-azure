@@ -22,9 +22,8 @@ build. It writes ignored enhanced-Markdown bodies, semantic hashes, a
 deterministic 222-row CSV, and an identical review prompt below `out/notion`;
 it performs no external operation and does not claim publication.
 
-```text
-uv run python scripts/04_prepare_notion.py \
-  --repository-url https://github.com/fcoalcantarajr/doc-azure
+```sh
+uv run python scripts/04_prepare_notion.py --repository-url https://github.com/fcoalcantarajr/doc-azure
 ```
 
 The 2026-09-09 handoff uses the hashes below. Source hashes bind the versioned
@@ -58,6 +57,11 @@ material conflict is reconciled against raw snapshot evidence, not by majority
 vote. If the exact model, maximum-effort setting, signed-in session, or required
 UI is unavailable, publication fails closed.
 
+If the two response bodies are byte-identical, or a response describes a model
+different from the model visibly selected before submission, independence is
+not established. Preserve the anomalous receipt, start two new chats, repeat
+both reviews, and do not update Notion until the new receipts satisfy the gate.
+
 For each chat, preserve a sanitized response file and JSON receipt containing
 the exact model, maximum effort, integrated-browser surface, distinct chat ID,
 packet/prompt hashes, timestamps, verdict, structured findings, and response
@@ -87,6 +91,9 @@ contradicted an already-enforced contract. No report semantic hash changed.
 The four fixed page IDs were then updated in place through the Notion connector.
 A connector read-back, common-parent/hub fetch and twelve parent-scoped searches
 now satisfy `NOTION_PUBLICATION_OK` and the unified publication gate.
+This historical action is not a precedent for accepting identical or
+self-inconsistent reviews in a new publication cycle; the fail-closed rule
+above governs every new run.
 
 ## Update and proof
 
@@ -95,6 +102,11 @@ page IDs in place. Fetch the parent, audit hub, all four pages, and three scoped
 duplicate searches per page (ID, exact title, and marker). Save sanitized raw
 connector results, receipts, and complete fetched bodies below ignored
 `out/notion`.
+
+Before the first external update, follow the
+[Notion evidence file reference](notion-evidence-reference.md). It defines the
+complete directory tree, exact JSON fields, raw result envelopes, hash command,
+and final checks. Do not invent fields or hand-edit raw connector results.
 
 - `<slug>.json`: fixed identities, times, semantic hash, and hashes/paths of the
   raw update and fetch receipts.

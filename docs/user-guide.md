@@ -40,13 +40,19 @@ only if publication is part of your task.
 
 ## Install the tools
 
+The application runs natively on macOS and Linux. On Windows, first install
+[WSL with Ubuntu](https://learn.microsoft.com/en-us/windows/wsl/install), open
+the Ubuntu terminal, and perform every project step there. Native PowerShell
+and Command Prompt are not supported because snapshot locking uses the Unix
+`fcntl` interface.
+
 ### 1. Install Git
 
 Run `git --version`. If it prints a version, continue.
 
 - macOS: running `git --version` opens the Command Line Tools installer when
   Git is absent.
-- Windows: install [Git for Windows](https://git-scm.com/download/win).
+- Windows with WSL: open Ubuntu and run `sudo apt update && sudo apt install git`.
 - Debian or Ubuntu: run `sudo apt install git`.
 - Other systems: use the [official Git installation guide](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
 
@@ -57,11 +63,6 @@ Use one official option:
 ```sh
 # macOS or Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-```powershell
-# Windows PowerShell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 Close and reopen the terminal. Run `uv --version`. If the command is still not
@@ -75,13 +76,26 @@ a compatible Python when needed.
 
 ### 1. Clone the private repository
 
+The recommended authentication path is GitHub CLI. Install it from the
+[official instructions](https://cli.github.com/), then run:
+
 ```sh
-git clone https://github.com/fcoalcantarajr/doc-azure.git
+gh auth login
+```
+
+Choose GitHub.com, HTTPS, browser authentication, and allow GitHub CLI to
+configure Git credentials. Confirm that the signed-in account has access to
+the private repository, then clone it:
+
+```sh
+gh repo clone fcoalcantarajr/doc-azure
 cd doc-azure
 ```
 
-If GitHub asks you to authenticate, use your approved organization method. A
-GitHub password is not accepted for Git operations over HTTPS.
+If your organization forbids GitHub CLI, use its approved HTTPS token or SSH
+method from [GitHub's authentication guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github).
+An account password is not accepted for Git operations over HTTPS. Never put a
+GitHub token in the clone URL.
 
 Already have the folder? Open a terminal in it and confirm:
 
@@ -103,16 +117,8 @@ You do not need to activate this environment; every project command begins with
 
 ### 3. Create the private configuration file
 
-macOS or Linux:
-
 ```sh
 cp .env.example .env
-```
-
-Windows PowerShell:
-
-```powershell
-Copy-Item .env.example .env
 ```
 
 Open `.env` in a text editor. Replace the placeholder after `AZDO_PAT=` with
@@ -126,9 +132,11 @@ Do not add quotes unless the token itself requires them. Never share the file
 or its contents. The application accepts `AZDO_PAT` from the process environment
 instead, but `.env` is easier for a first run.
 
-To open the file from the terminal, use `open -e .env` on macOS,
-`nano .env` on Linux, or `notepad .env` in Windows PowerShell. Save and close
-the editor before continuing.
+To open the file from the terminal, use `open -e .env` on macOS or `nano .env`
+on Linux and WSL. Save and close the editor before continuing.
+
+If you will operate only offline with approved snapshots, you do not need a PAT
+and may skip this configuration step and the next validation step.
 
 ### 4. Validate the configuration
 
@@ -179,6 +187,10 @@ uv run python scripts/run_audit.py --offline
 Offline mode never contacts Azure DevOps. It fails if this copy of the project
 does not already contain complete ignored snapshots under `out/wiki` and
 `out/process`. A new Git clone does not contain them.
+
+For offline-only operation, obtain an approved private copy of both directories,
+place them at those exact paths, and run the offline command directly. Do not
+create `.env` or run `scripts/setup.py`; neither is required by offline mode.
 
 ### Cache-first audit
 
@@ -239,7 +251,7 @@ The complete runtime creates an ignored diagnostic bundle. To rebuild the four
 versioned reports in `deltas/` from verified snapshots, run:
 
 ```sh
-uv run python scripts/03_build_delta.py
+uv run python scripts/03_build_delta.py --coverage-baseline config/document-coverage.json
 ```
 
 Expected output: the four paths under `deltas/`. This command performs no
@@ -249,19 +261,29 @@ backups for files already touched.
 
 ## Verify the repository
 
-Run the local project gate:
+This is a maintainer provenance gate, not a clean-clone health check. It can
+return `GATE_OK` only on a machine that retains the exact ignored Wiki and
+process snapshot generations named in the current files under `deltas/`.
+A fresh `--refresh` creates new generations and does not restore that historical
+evidence.
+
+If you have the retained generations, run:
 
 ```sh
 uv run python verify.py
 ```
 
-Expected success marker:
+Expected success marker on that evidence-bearing machine:
 
 ```text
 GATE_OK
 ```
 
-The gate runs tests, validates the Azure request boundary, rebuilds and compares
+For a clone without the historical snapshots, run `uv run pytest -q` as the
+portable code health check and expect all tests to pass. Do not report that as
+`GATE_OK`; it does not prove report provenance or publication.
+
+The full gate runs tests, validates the Azure request boundary, rebuilds and compares
 reports, checks ignored files, and scans for tracked secret values. If a local
 `out/notion` publication manifest exists, the gate also validates it. Therefore
 an obsolete external receipt can fail this command even when the Python tests
@@ -301,6 +323,10 @@ Follow [Notion publication contract](notion-publication.md) exactly. In summary:
 4. Update only the four fixed existing page IDs through the Notion connector,
    then fetch them and check their common parent and duplicates.
 
+Use the exact paths and JSON fields in the
+[Notion evidence file reference](notion-evidence-reference.md); the strict gate
+rejects missing and extra fields.
+
 If the exact model, effort, signed-in session, or fixed page identity is not
 available, stop. Do not substitute a model or create replacement pages.
 
@@ -332,6 +358,9 @@ publication.
   generated reports, and publication receipts; make an approved backup first
   if the audit trail must be retained.
 - Do not commit `.env` or `out/`. Run `git status --short` before every commit.
+- Before committing regenerated `deltas/` or sending prepared bodies to Notion,
+  inspect the exact text for employee names, contact details, credentials,
+  personal identifiers, or other material not approved for both destinations.
 
 The application has no remote cleanup operation because it does not create or
 change Azure DevOps data. Notion page changes are external and are governed by

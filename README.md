@@ -24,9 +24,11 @@ start with a script under `scripts/` unless that guide tells you to.
 
 ## What you need
 
-- A macOS, Linux, or Windows computer with a terminal.
-- Git, `uv`, and Python 3.11+. `uv` installs and selects the required Python
-  version, so a separate Python installation is optional.
+- A macOS or Linux computer with a terminal. On Windows, run the application
+  inside WSL; native Windows is not supported because snapshot locking uses
+  the Unix `fcntl` interface.
+- Git, GitHub CLI, `uv`, and Python 3.11+. `uv` installs and selects the
+  required Python version, so a separate Python installation is optional.
 - Read access to the fixed Azure DevOps organization, project, Wiki, and
   inherited process.
 - A short-lived, least-privilege Azure DevOps Personal Access Token (PAT) with
@@ -47,13 +49,14 @@ Run these commands from a terminal. Replace only the repository clone step if
 you already have this project folder.
 
 ```sh
-git clone https://github.com/fcoalcantarajr/doc-azure.git
+gh auth login
+gh repo clone fcoalcantarajr/doc-azure
 cd doc-azure
 uv sync --locked
 cp .env.example .env
 ```
 
-On Windows PowerShell, use `Copy-Item .env.example .env` instead of `cp`.
+On Windows, run these Linux commands inside WSL, not PowerShell.
 Open `.env`, replace the placeholder with your PAT, save the file, and then run:
 
 ```sh
@@ -77,6 +80,9 @@ transport.
 Keep `.env` and everything under `out/` private. They are ignored by Git
 because raw evidence can include employee data and `.env` contains a secret.
 Never paste a PAT into a command, issue, chat, log, report, or Notion page.
+Before committing or publishing regenerated files under `deltas/`, inspect them
+for employee names, contact details, identifiers, credentials, or other content
+that is not approved for the repository and the four destination pages.
 
 Notion publication is separate from the core audit. It updates only four fixed
 existing pages after independent Kimi K3 and Opus 5 reviews, reconciliation,
