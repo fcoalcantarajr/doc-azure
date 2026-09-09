@@ -33,6 +33,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="strict explicit-claim catalog",
     )
     parser.add_argument(
+        "--coverage-baseline",
+        type=Path,
+        help="reviewed documentary coverage baseline; rejects unmapped changes",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=PROJECT_ROOT / "deltas",
@@ -50,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
             arguments.evidence_root,
             arguments.catalog,
             arguments.output_dir,
+            coverage_baseline=arguments.coverage_baseline,
         )
     except BuildError as error:
         print(f"BUILD_FAILED: {error}", file=sys.stderr)

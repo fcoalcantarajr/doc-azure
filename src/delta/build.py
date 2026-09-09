@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 from delta.catalog import CatalogError, PAGE_SLUGS, load_catalog
+from delta.document_coverage import CoverageError, assess_documents
 from delta.evaluator import EvaluationError, evaluate_claim
 from delta.models import AuditResult, ReportProvenance
 from delta.render import render_report
@@ -31,14 +32,23 @@ def build_all_reports(
     root: Path,
     catalog_path: Path,
     output_dir: Path,
+    *,
+    coverage_baseline: Path | None = None,
 ) -> tuple[Path, ...]:
     """Evaluate all claims and publish four per-file atomic reports with rollback."""
 
     repository_root = Path(root)
     destination = Path(output_dir)
     try:
-        claims = load_catalog(catalog_path)
-    except CatalogError as error:
+        if coverage_baseline is None:
+            claims = load_catalog(catalog_path)
+        else:
+            coverage = assess_documents(repository_root, catalog_path, coverage_baseline)
+            if coverage.changes:
+                slugs = sorted({change.slug for change in coverage.changes})
+                raise BuildError("UNMAPPED_DOC_CHANGE: " + ", ".join(slugs))
+            claims = coverage.claims
+    except (CatalogError, CoverageError) as error:
         raise BuildError(f"catalog validation failed: {error}") from None
 
     grouped = {slug: [] for slug in FIXED_SLUGS}
