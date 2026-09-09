@@ -52,31 +52,31 @@ that the runtime coverage gate is already operational.
 **Files:** Extend `src/delta/coverage.py`; create a focused inventory module and
 `config/coverage.json`; extend coverage/inventory tests.
 
-- [ ] Build explicit baseline schema tied to catalog claim IDs and source hashes.
-- [ ] Test lost/duplicate claims and malformed/unknown baseline versions before implementation.
-- [ ] Compare complete process artifact inventories for WIT/field/state/rule/behavior/layout additions, removals and changes; do not equate unchanged baseline with assertion coverage.
-- [ ] Distinguish mapped evaluated changes from unreviewed surfaces; report exact artifact/selectors for gaps.
-- [ ] Use existing collector completeness checks and add missing partial-response/duplicate identity regressions.
-- [ ] Create reviewed baseline from current verified snapshots; never auto-accept drift during normal execution.
+- [x] Build explicit baseline schema tied to catalog claim IDs and source hashes.
+- [x] Test lost/duplicate claims and malformed/unknown baseline versions before implementation.
+- [x] Compare complete process artifact inventories for WIT/field/state/rule/behavior/layout additions, removals and changes; do not equate unchanged baseline with assertion coverage.
+- [x] Distinguish mapped evaluated changes from unreviewed surfaces; report exact artifact/selectors for gaps.
+- [x] Use existing collector completeness checks and add missing partial-response/duplicate identity regressions.
+- [x] Create reviewed baseline from current verified snapshots; never auto-accept drift during normal execution.
 
 ## Task 3: Unified run and outputs
 
 **Files:** Create `src/doc_azure/audit.py`, `src/doc_azure/__main__.py`,
 `tests/test_audit_runtime.py`; extend `src/delta/build.py` without duplicating evaluator logic.
 
-- [ ] Write fixture E2E tests for clean/delta/coverage/acquisition/internal exit outcomes.
-- [ ] Implement one async acquisition boundary reusing Settings and AzureReadClient.
-- [ ] Pin both generations for each run, validate completeness, evaluate coverage then existing assertions.
-- [ ] Publish four reports, global Markdown and structured JSON as one isolated run bundle.
-- [ ] Keep timestamps in provenance, outside logical content hash.
-- [ ] Test no network on offline replay, no Notion dependency, deterministic bytes and idempotency.
-- [ ] Document `uv run python -m doc_azure run` and explicit refresh/replay options.
+- [x] Write fixture E2E tests for clean/delta/coverage/acquisition/internal exit outcomes.
+- [x] Implement one async acquisition boundary reusing Settings and AzureReadClient.
+- [x] Pin both generations for each run, validate completeness, evaluate coverage then existing assertions.
+- [x] Publish four reports, global Markdown and structured JSON as one isolated run bundle.
+- [x] Keep timestamps in provenance, outside logical content hash.
+- [x] Test no network on offline replay, no Notion dependency, deterministic bytes and idempotency.
+- [x] Document `uv run python scripts/run_audit.py` and explicit refresh/replay options.
 
 ## Task 4: Real verification and delivery
 
 **Files:** README, architecture/maintenance/handoff docs and existing publication evidence.
 
-- [ ] Run complete current Azure audit read-only; inspect classifications and coverage, not just exit success.
+- [x] Run complete current Azure audit read-only; inspect classifications and coverage, not just exit success.
 - [ ] Rerun setup, all tests, local gates and historical secret scan.
 - [ ] Commit cohesive verified changes and synchronize private GitHub with remote read-back.
 - [ ] Only now request independent Opus 5 / Kimi K3 Notion AI falsification reviews through the required integrated browser.

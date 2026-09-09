@@ -51,7 +51,7 @@ coverage of new surfaces, but may require review for API ordering or metadata
 changes. No property is dropped as supposedly volatile without evidence. A
 reviewed baseline is not, by itself, proof that all relevant prose was modeled.
 
-## Current delivery status and remaining work
+## Reviewed baseline and current receipt
 
 The complete pipeline is tested against synthetic full collector fixtures, both
 offline and through HTTP transport substitution with the real collectors.
@@ -59,12 +59,28 @@ The refresh test observes 18 GET requests and no writes. The CLI is exercised as
 a subprocess. The first implementation exposed missing collector clock arguments
 and incorrect categorization of corrupt snapshots; both have regression tests.
 
-The live versioned baselines are not yet authored/reviewed. Therefore the default
-real-data command must currently report a coverage gap, not completion. Remaining
-work includes baseline maintenance tooling, finer mapped-change coverage policy,
-additional clean/internal-error/selector/partial-response regressions, final live
-refresh and inspection, documentation reconciliation, private GitHub sync, final
-Notion AI reviews and canonical Notion publication/read-back.
+The versioned baselines were prepared from the complete verified snapshots with
+`scripts/prepare_baselines.py`, then checked byte-for-byte before being added to
+`config/`. They contain 222 claim IDs, four page line inventories (572, 361, 593
+and 517 lines respectively) and 40,559 process JSON nodes across 110 artifacts.
+The files contain hashes and selectors, not raw Azure response bodies.
 
-Validation for this increment: 23 new runtime/inventory tests passed; full suite
-361 passed in 3.42s. This receipt is not the final application acceptance gate.
+Baseline SHA-256 values:
+
+- `config/document-coverage.json`: `2e0d956a8f74f3933779d297adfff1328267de1ccd8a04e555228b7edbf2990e`
+- `config/process-coverage.json`: `4fe95039f993a9473677b98e4a652bc4d0d79c1ad1a6658d6598bdfce9cd2418`
+
+A fresh `--refresh` run on 2026-09-09 collected four Wiki pages with four GETs
+and 109 process artifacts with 109 GETs. It returned code 1 (`DELTAS`), coverage
+complete, zero gaps and 222 classified findings: 123 `CONFIRMADO`, 59
+`DIVERGENTE`, 31 `NAO_VERIFICAVEL_API_PROCESSO` and 9 `AMBIGUO`. Its logical
+hash was `3ea48dc27b83ba7ba1491f56538e893433f52eaf9df063affe099dbca0166369`.
+
+Remaining work includes finer mapped-change coverage policy, additional selector
+and partial-response regressions, documentation reconciliation, private GitHub
+sync of the final commits, final Notion AI reviews and canonical Notion
+publication/read-back.
+
+Validation for this increment: duplicate-identifier RED/GREEN regression and
+baseline preparation tests pass; full suite currently has 367 tests. The fresh
+live run is evidence of the application path, not completion of the Notion gates.

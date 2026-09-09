@@ -754,3 +754,115 @@ changed the observed technical custom-field union from 209 to 214; its status
 remains `CONFIRMADO` because the documentary claim is the lower bound `50+`.
 This is a current implementation change, not evidence about authorship, cause,
 or the historical sequence of the five additional fields.
+
+## 2026-09-08 — adversarial whole-branch review hardening
+
+Two independent read-only reviewers inspected the branch from merge base
+`31078f9bff58c76da40e0d850df80598f6f2a622`. The fidelity review confirmed the
+local deliverables and identified only the still-pending external Notion gate
+plus a stale GitHub receipt. The standards review found three material defects:
+raw external receipts were hashed but not interpreted, collector cache readers
+could follow an artifact swapped after initial validation, and README dependency
+claims disagreed with executable metadata.
+
+External-evidence RED: three focused tests showed that a mismatched browser
+model, wrong raw fetch page, and wrong raw search results were not rejected.
+GREEN: the gate now parses raw browser and Notion tool-result envelopes and
+cross-checks every derived fact with the side receipts and saved response/body.
+Focused result: `27 passed in 0.65s`.
+
+Snapshot RED: two tests replaced a valid wiki/process artifact with an
+identical-content symlink after `resolve_snapshot_root`; both cache readers
+accepted it. GREEN: the shared snapshot module now owns strict manifest parsing,
+and collectors read manifested artifacts through the no-follow, digest-checking
+primitive. Focused result: `2 passed in 0.20s`; snapshot/collector regression:
+`97 passed in 0.75s`.
+
+Metadata RED: the new contract test showed `pytest` in runtime dependencies and
+README claims of Python 3.13/`httpx>=0.28.1` despite the approved design and
+package contract using Python 3.11+/`httpx>=0.25.0`. GREEN: `pytest>=8.0.0` is
+now in the default development group, the runtime has only `httpx`, and README
+matches `pyproject.toml`. Focused result: `1 passed in 0.01s`.
+
+The latest full regression after these corrections returned `311 passed in
+2.99s`; compile, `git diff --check`, and `uv run python verify.py` also passed.
+The raw tool captures remain local evidence rather than cryptographic server
+attestations, an interface limitation documented explicitly rather than hidden.
+
+## 2026-09-09 — deterministic documentary coverage increment
+
+The expanded objective requires unknown prose to become an explicit coverage
+gap rather than an inferred assertion. Added a pure line-fingerprint comparison
+component with immutable source-span records. It normalizes CRLF to LF only:
+trimming whitespace, case folding, Unicode folding and line deduplication were
+rejected because they can erase material Markdown or documentary differences.
+
+RED: `ImportError: cannot import name 'coverage' from 'delta'` established the
+missing module before implementation. GREEN: 14 focused cases passed; the full
+suite returned 325 passed in 2.87s. This is not yet the integrated coverage gate.
+The runtime plan tracks baseline validation, inventory coverage, unified outputs,
+real execution and external publication/review as separate unfinished tasks.
+
+## 2026-09-09 — source-bound documentary coverage
+
+Added a strict versioned documentary baseline consumer tied to the catalog byte
+hash, ordered claim IDs, all four page source hashes and ordered line hashes.
+Unknown keys, duplicate JSON keys, boolean schema versions, lost or duplicated
+claim inventory and missing pages fail closed. A materially changed page returns
+explicit change spans and contributes no evaluable claims; unchanged pages remain
+available. CRLF-only equivalence updates the in-memory evidence hash, then checks
+every exact excerpt against the actual current snapshot bytes. Catalog files are
+never rewritten during assessment.
+
+RED: `ImportError: cannot import name 'document_coverage' from 'delta'`.
+GREEN: `24 passed in 0.41s` across both coverage modules, including integration
+with the real catalog, snapshot reader and existing evaluator. No alternate
+semantic evaluator was introduced. Baseline authoring/review and unified run
+integration are still pending; this is not evidence of whole-process coverage.
+
+Builder integration RED: two failures reported unexpected keyword argument
+`coverage_baseline`. CLI RED: the subprocess rejected `--coverage-baseline`.
+GREEN: the option now enforces documentary coverage before report publication,
+accepts tested cosmetic equivalence and preserves old report bytes on a gap.
+Focused integration/build/entrypoint suite: 24 passed; full suite: 338 passed in
+2.89s. The option remains explicit until a reviewed live baseline is delivered;
+the unified application must make coverage mandatory rather than inherit this
+legacy compatibility default.
+
+## 2026-09-09 — unified deterministic runtime and process inventory
+
+Added a single-command pipeline reusing both collectors, documentary coverage,
+the existing evaluator/renderer and atomic snapshot publication. JSON inventory
+fingerprints preserve types, empty containers, array order and exact escaped
+pointers. Drift remains an explicit coverage gap, even when individual claims
+still evaluate. No second semantic evaluator or AI service was introduced.
+
+RED: missing `process_coverage` and `audit` modules; executable command missing.
+Behavioral RED then exposed refresh returning code 4 (missing required `now`
+argument) and a corrupt snapshot returning 4 instead of validation code 3.
+GREEN: 23 focused cases, including real collectors over fixture HTTP (18 GETs),
+subprocess CLI, gap bundles and deterministic replay; full suite 361 passed in
+3.42s. Live baseline review remains a required subsequent step; normal execution
+never manufactures a baseline to suppress a gap.
+
+## 2026-09-09 — reviewed production baselines and identifier closure
+
+Baseline candidates were prepared from the complete local snapshots with no
+network or file mutation outside ignored `out/baseline-candidate/`. The exact
+candidate bytes were checked against the committed configuration: 222 catalog
+claim IDs, four page line inventories and 40,559 process JSON nodes across 110
+artifacts. The process candidate stores hashes and JSON pointers, not response
+bodies.
+
+Fresh `scripts/run_audit.py --refresh` evidence collected four Wiki pages in four
+GETs and 109 process artifacts in 109 GETs. It returned `DELTAS` (code 1),
+coverage complete, zero gaps and 222 findings (123 confirmed, 59 divergent, 31
+API-unverifiable and 9 ambiguous). Reports were rebuilt for the fresh generation
+and the repository gate returned `GATE_OK`.
+
+Adversarial RED: three process fixtures with duplicate field/state/rule
+identifiers were accepted. GREEN: the collector now rejects duplicate normalized
+identities before snapshot publication; full suite then returned 367 tests, and
+the final runtime/clean/internal exit-code additions returned 370 tests. The
+coverage gate also became part of `verify.py`; a report cannot pass the gate by
+omitting the reviewed documentary baseline.

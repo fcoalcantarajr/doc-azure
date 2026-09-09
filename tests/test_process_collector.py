@@ -568,6 +568,25 @@ def test_malformed_family_aborts_instead_of_becoming_an_empty_list(
 
 
 @pytest.mark.parametrize(
+    ("family", "identity_path"),
+    (("fields", ("referenceName",)), ("states", ("id",)), ("rules", ("id",))),
+)
+def test_collection_rejects_duplicate_family_identifiers(
+    tmp_path: Path, family: str, identity_path: tuple[str, ...]
+) -> None:
+    payloads = fixture_payloads()
+    route = next(path for path in payloads if path.endswith(f"/{family}"))
+    entries = payloads[route]["value"]
+    entries.append(copy.deepcopy(entries[0]))
+    payloads[route]["count"] = len(entries)
+    with pytest.raises(ProcessArtifactError, match=f"{family}.*unique"):
+        asyncio.run(
+            collect_process(tmp_path, FixtureClient(payloads), refresh=False, now=fixed_now)
+        )
+    assert not (tmp_path / "out" / "process" / "CURRENT").exists()
+
+
+@pytest.mark.parametrize(
     ("route_suffix", "remove_path", "error_family"),
     (
         (

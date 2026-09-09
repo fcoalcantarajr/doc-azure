@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
+import json
 import os
 import stat
 import subprocess
@@ -18,6 +20,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from delta.build import BuildError, FIXED_SLUGS, build_all_reports
+from delta.catalog import CatalogError, load_catalog
+from delta.document_coverage import CoverageError, _load_baseline, assess_documents
+from delta.process_coverage import _validate_inventory
+from doc_azure.audit import _process_gaps
 from delta.notion import (
     NotionPublicationError,
     expected_publication_manifest,
@@ -63,6 +69,11 @@ def verify_reports(root: Path) -> None:
                 repository_root,
                 catalog,
                 Path(temporary),
+                coverage_baseline=(
+                    repository_root / "config" / "document-coverage.json"
+                    if (repository_root / "config" / "document-coverage.json").exists()
+                    else None
+                ),
             )
             for rebuilt_path in rebuilt:
                 versioned_path = repository_root / "deltas" / rebuilt_path.name
@@ -81,6 +92,44 @@ def verify_reports(root: Path) -> None:
                     )
     except BuildError as error:
         raise VerificationError(f"verified report rebuild failed: {error}") from None
+
+
+def verify_coverage_baselines(root: Path) -> None:
+    """Validate versioned coverage contracts and current snapshots when present."""
+
+    repository_root = Path(root)
+    catalog_path = repository_root / "config" / "wiki_claims.json"
+    document_path = repository_root / "config" / "document-coverage.json"
+    process_path = repository_root / "config" / "process-coverage.json"
+    if not all(path.is_file() and not path.is_symlink() for path in (
+        catalog_path, document_path, process_path
+    )):
+        raise VerificationError("coverage baseline files are missing")
+    try:
+        claims = load_catalog(catalog_path)
+        _load_baseline(document_path, catalog_path, claims)
+        payload = json.loads(process_path.read_bytes())
+        if not isinstance(payload, dict) or set(payload) != {
+            "schema_version", "catalog_sha256", "entries"
+        } or type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
+            raise VerificationError("process coverage baseline schema is invalid")
+        if payload["catalog_sha256"] != hashlib.sha256(catalog_path.read_bytes()).hexdigest():
+            raise VerificationError("process coverage baseline catalog hash differs")
+        _validate_inventory(payload["entries"])
+        wiki_current = (repository_root / "out" / "wiki" / "CURRENT").exists()
+        process_current = (repository_root / "out" / "process" / "CURRENT").exists()
+        if wiki_current:
+            documentary = assess_documents(repository_root, catalog_path, document_path)
+            if documentary.changes:
+                raise VerificationError("current wiki snapshot has unmapped documentary changes")
+        if process_current:
+            gaps, _ = _process_gaps(repository_root, catalog_path, process_path)
+            if gaps:
+                raise VerificationError("current process snapshot differs from coverage baseline")
+    except (CatalogError, CoverageError, OSError, UnicodeError, ValueError, TypeError) as error:
+        if isinstance(error, VerificationError):
+            raise
+        raise VerificationError(f"coverage baseline is invalid: {type(error).__name__}") from None
 
 
 def verify_secret_literals(root: Path) -> None:
@@ -319,6 +368,8 @@ def verify_script_entrypoints(root: Path) -> None:
         "02_fetch_process.py",
         "03_build_delta.py",
         "04_prepare_notion.py",
+        "prepare_baselines.py",
+        "run_audit.py",
     ):
         run_checked((sys.executable, f"scripts/{name}", "--help"), repository_root)
 
@@ -329,6 +380,7 @@ def verify_repository(root: Path, *, require_fetched: bool = False) -> None:
     repository_root = Path(root)
     verify_layout(repository_root)
     verify_gitignore(repository_root)
+    verify_coverage_baselines(repository_root)
     verify_read_allowlist()
     verify_python_modules(repository_root)
     verify_documented_contract(repository_root)

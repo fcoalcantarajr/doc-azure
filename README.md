@@ -6,8 +6,8 @@ semantically read-only; generated evidence remains ignored under `out/`.
 
 ## Setup
 
-Python 3.13 and `uv` are required. The project has one runtime dependency,
-`httpx>=0.28.1`.
+Python 3.11+ and `uv` are required. The project has one runtime dependency,
+`httpx>=0.25.0`; the default development group adds `pytest>=8.0.0`.
 
 ```text
 uv sync
@@ -20,6 +20,12 @@ the PAT. Keep `AZDO_PAT` only in the ignored `.env` file.
 ## Workflow
 
 ```text
+# Canonical complete run (read-only Azure collection plus all coverage gates).
+uv run python scripts/run_audit.py --refresh
+
+# Replay the current generations without network access.
+uv run python scripts/run_audit.py --offline
+
 # Networked Azure DevOps reads; both collectors fail closed outside the allowlist.
 uv run python scripts/01_fetch_wiki.py --refresh
 uv run python scripts/02_fetch_process.py --refresh
@@ -61,4 +67,6 @@ run `uv run python verify.py --require-publication`. Local preparation, a model
 verdict, or a marker alone is not proof of external publication.
 
 See `docs/delta-method.md` for the evidence model and
-`docs/session-2026-09-08.md` for the current audit receipt.
+`docs/audit-runtime.md` and `docs/architecture.md` for the executable pipeline.
+See `docs/session-2026-09-08.md` for the current audit receipt. The independent
+local review and its dispositions are in `docs/adversarial-review-2026-09-08.md`.

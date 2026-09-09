@@ -597,6 +597,7 @@ def _validate_artifact_payload(
         return
 
     entries = _validate_envelope(payload, f"{kind} artifact")
+    _validate_unique_artifact_entries(entries, kind)
     if kind == "fields":
         if any(
             not isinstance(entry.get("referenceName"), str)
@@ -631,6 +632,34 @@ def _validate_artifact_payload(
             raise ProcessCollectionError(
                 "behavior association booleans or id are malformed"
             )
+
+
+def _validate_unique_artifact_entries(
+    entries: tuple[dict[str, object], ...], kind: str
+) -> None:
+    """Reject duplicate identities before an evaluator can choose ambiguously."""
+
+    if kind == "fields":
+        identities = [entry.get("referenceName") for entry in entries]
+    elif kind in {"states", "rules"}:
+        identities = [entry.get("id") for entry in entries]
+    elif kind == "behaviors":
+        identities = [
+            entry.get("behavior", {}).get("id")
+            if isinstance(entry.get("behavior"), dict)
+            else None
+            for entry in entries
+        ]
+    else:
+        return
+    normalized = [
+        unicodedata.normalize("NFC", identity).casefold()
+        if isinstance(identity, str)
+        else None
+        for identity in identities
+    ]
+    if None in normalized or len(normalized) != len(set(normalized)):
+        raise ProcessCollectionError(f"{kind} identifiers are not unique")
 
 
 def _is_legacy_layout_payload(

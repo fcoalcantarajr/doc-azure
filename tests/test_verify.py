@@ -18,6 +18,7 @@ from verify import (
     verify_gitignore,
     verify_notion_artifacts,
     verify_reports,
+    verify_coverage_baselines,
     verify_secret_literals,
 )
 
@@ -162,6 +163,12 @@ def test_verify_reports_rejects_a_symlink_even_with_identical_bytes(
 
     with pytest.raises(VerificationError, match="regular file"):
         verify_reports(tmp_path)
+
+
+def test_verify_coverage_baselines_rejects_missing_versioned_contract(tmp_path):
+    seed_verified_repository(tmp_path)
+    with pytest.raises(VerificationError, match="coverage baseline"):
+        verify_coverage_baselines(tmp_path)
 
 
 def test_run_checked_rejects_failed_subprocess_without_echoing_output(

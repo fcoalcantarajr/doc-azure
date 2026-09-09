@@ -12,6 +12,8 @@ repository state summarized here.
 | Azure settings and read boundary | Present and tested | `src/doc_azure/settings.py`, `src/doc_azure/azure_client.py`, `docs/api-contract.md` |
 | Immutable wiki/process collectors | Present and tested | `scripts/01_fetch_wiki.py`, `scripts/02_fetch_process.py`, `src/doc_azure/` |
 | Explicit claim catalog | 222 source-backed claims | `config/wiki_claims.json` |
+| Versioned coverage baselines | Reviewed documentary and process inventories | `config/document-coverage.json`, `config/process-coverage.json` |
+| Canonical deterministic runtime | Refresh/offline audit with exit contract | `scripts/run_audit.py`, `docs/audit-runtime.md` |
 | Delta methodology and decisions | Current | `docs/delta-method.md`, `docs/decisions.md` |
 | Offline report builder | Present and deterministic | `scripts/03_build_delta.py`, `src/delta/` |
 | Versioned reports | Current | `deltas/leiame.md`, `deltas/politicas.md`, `deltas/changelog.md`, `deltas/apendice.md` |
@@ -31,7 +33,7 @@ verification receipts named above.
 ## Resume point
 
 The local handoff is complete only when the current receipt records deterministic
-report hashes, two identical non-secret setup runs without versioned mutation,
-the full test result, and `GATE_OK`. External completion additionally requires
+report hashes, fresh read-only collection, two identical non-secret setup runs
+without versioned mutation, the full test result, and `GATE_OK`. External completion additionally requires
 the independent Notion AI reviews, in-place connector updates to the four fixed
 pages, connector read-back, and `uv run python verify.py --require-publication`.

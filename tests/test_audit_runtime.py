@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from doc_azure import audit
+from doc_azure import baselines
 from delta.process_coverage import fingerprint_json
 from doc_azure.snapshot import read_snapshot_artifact, read_snapshot_manifest
 from tests.test_process_collector import seed_process_snapshot
@@ -86,6 +87,32 @@ def test_missing_baseline_cannot_report_success(tmp_path):
     assert result.exit_code == 2
     summary = json.loads(read_snapshot_artifact(tmp_path / "out/audit", "run.json"))
     assert summary["coverage_complete"] is False
+
+
+def test_clean_exit_code_requires_all_explicit_claims_confirmed(tmp_path):
+    catalog, _, _ = seed_run(tmp_path)
+    payload = json.loads(catalog.read_text())
+    for claim in payload["claims"]:
+        claim["check"] = {
+            "kind": "equals", "artifact": "process.json",
+            "pointer": "/name", "expected": "Processo-Agil",
+        }
+    catalog.write_text(json.dumps(payload))
+    candidates = baselines.prepare_baselines(tmp_path, catalog)
+    for name, value in candidates.items():
+        (tmp_path / name).write_text(json.dumps(value))
+    result = run(tmp_path, (catalog, tmp_path / "document-coverage.json", tmp_path / "process-coverage.json"))
+    assert result.exit_code == 0
+    summary = json.loads(read_snapshot_artifact(tmp_path / "out/audit", "run.json"))
+    assert summary["status"] == "CLEAN"
+    assert all(row["status"] == "CONFIRMADO" for row in summary["findings"])
+
+
+def test_unexpected_runtime_failure_has_internal_exit_code(tmp_path, monkeypatch):
+    inputs = seed_run(tmp_path)
+    monkeypatch.setattr(audit, "assess_documents", lambda *args: (_ for _ in ()).throw(RuntimeError("boom")))
+    result = run(tmp_path, inputs)
+    assert result.exit_code == 4
 
 
 def test_refresh_executes_real_collectors_through_read_only_http(tmp_path, monkeypatch):
