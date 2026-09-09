@@ -19,8 +19,8 @@ local proof from the remaining external Notion gate.
 | Repository gate | `uv run python verify.py`: `GATE_OK` | `PROVEN` |
 | Fresh real end-to-end run | `--refresh`: code 1 `DELTAS`, zero gaps, 222 findings | `PROVEN` |
 | Idempotent setup | Two `scripts/setup.py` runs; unchanged Git state | `PROVEN` |
-| No tracked secrets | 276 reachable blobs scanned; no `.env`, known values or token/key patterns | `PROVEN` (bounded scan) |
-| Private GitHub final state | `PRIVATE`; branch read-back `dbe31f130c94f0e456309b290793d5ffe6b8b951` | `PROVEN` |
+| No tracked secrets | 285 reachable blobs scanned; no `.env`, known values or token/key patterns | `PROVEN` (bounded scan) |
+| Private GitHub final state | `PRIVATE`; branch read-back `061ecf1e4e4d60c385c45c44f91b7da9ce3c6201` | `PROVEN` |
 | Kimi K3 review | No exact model/browser tool available in this session | `PENDING_EXTERNAL` |
 | Opus 5 review | No exact model/browser tool available in this session | `PENDING_EXTERNAL` |
 | Valid findings reconciled | Cannot reconcile reviews that have not run | `PENDING_EXTERNAL` |
@@ -31,6 +31,23 @@ or Opus 5. The exposed tool inventory lacks browser control/Computer Use. The
 required exact-model reviews therefore remain a real external dependency; this
 audit does not substitute connector output or another model and does not update
 the four Notion pages prematurely.
+
+## Revalidation on 2026-09-09
+
+- The active worktree is clean on `fix/adversarial-delta-audit` at
+  `061ecf1e4e4d60c385c45c44f91b7da9ce3c6201`.
+- The local `origin` configuration was restored to the authorized private
+  repository and a normal, non-force push reported `Everything up-to-date`.
+  Read-back still reports the private repository, `main` at
+  `d1764951eacb235326db1886117e67505abc67d6`, and the audit branch at the
+  current commit above.
+- Exact Notion-agent searches for `Kimi K3` and `Opus 5` returned no agents.
+  Historical-session search is also unavailable because the connected Notion
+  integration returned HTTP 403 `restricted_resource`: it lacks the
+  `interact with agents` capability and requires reconnect/re-authorization.
+- No Notion page was updated in this revalidation. Publication remains
+  fail-closed until the exact integrated-browser reviews and their raw
+  receipts exist.
 
 ## Fresh hashes
 
