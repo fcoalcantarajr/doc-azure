@@ -14,6 +14,13 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
 
+from delta.notion_external_evidence import (
+    ExternalEvidenceError,
+    parse_browser_review_result,
+    parse_notion_fetch_result,
+    parse_notion_search_result,
+    parse_notion_update_result,
+)
 from delta.notion_semantics import ReportSemantic, parse_notion_semantics
 
 
@@ -39,6 +46,8 @@ _REVIEW_RECEIPT_FIELDS = {
     "verdict",
     "response_path",
     "response_sha256",
+    "browser_result_path",
+    "browser_result_sha256",
     "findings",
 }
 _PUBLICATION_RECEIPT_FIELDS = {
@@ -207,7 +216,6 @@ def verify_publication_gate(root: Path, error_type: type[ValueError]) -> None:
             error_type,
             f"{entry.slug} publication receipt",
         )
-        _verify_publication_receipt(repository_root, entry, receipt, error_type)
         fetched_body = _read_regular_bytes(
             fetched_root / f"{entry.slug}.md", error_type, "fetched body"
         )
@@ -222,6 +230,13 @@ def verify_publication_gate(root: Path, error_type: type[ValueError]) -> None:
             or receipt.get("semantic_sha256") != entry.semantic_sha256
         ):
             raise error_type(f"{entry.slug}: semantic read-back differs")
+        _verify_publication_receipt(
+            repository_root,
+            entry,
+            receipt,
+            fetched_body,
+            error_type,
+        )
         fetched_receipts[entry.slug] = receipt
     _verify_hierarchy(repository_root, fetched_root, manifest, error_type)
     _verify_duplicate_searches(repository_root, fetched_root, manifest, error_type)
@@ -316,6 +331,53 @@ def _verify_review_receipt(
         error_type,
         f"{model} response",
     )
+    _verify_bound_file(
+        root,
+        receipt.get("browser_result_path"),
+        receipt.get("browser_result_sha256"),
+        error_type,
+        f"{model} browser result",
+    )
+    response = _read_root_file(
+        root,
+        str(receipt["response_path"]),
+        error_type,
+        f"{model} response",
+    )
+    browser_raw = _read_root_file(
+        root,
+        str(receipt["browser_result_path"]),
+        error_type,
+        f"{model} browser result",
+    )
+    try:
+        browser = parse_browser_review_result(browser_raw)
+    except ExternalEvidenceError as error:
+        raise error_type(f"{model}: browser result is invalid: {error}") from None
+    expected_browser = {
+        "surface": receipt["surface"],
+        "chat_id": receipt["chat_id"],
+        "chat_url": receipt["chat_url"],
+        "model": receipt["model"],
+        "effort": receipt["effort"],
+        "packet_sha256": receipt["packet_sha256"],
+        "prompt_sha256": receipt["prompt_sha256"],
+        "model_verified_at": receipt["model_verified_at"],
+        "effort_verified_at": receipt["effort_verified_at"],
+        "sent_at": receipt["sent_at"],
+        "completed_at": receipt["completed_at"],
+    }
+    for field, value in expected_browser.items():
+        if getattr(browser, field) != value:
+            raise error_type(
+                f"{model}: browser result {field} disagrees with review receipt"
+            )
+    try:
+        browser_response = browser.response_markdown.encode("utf-8")
+    except UnicodeError:
+        raise error_type(f"{model}: browser result response is invalid") from None
+    if browser_response != response:
+        raise error_type(f"{model}: browser result response differs")
     findings = receipt.get("findings")
     if not isinstance(findings, list):
         raise error_type(f"{model}: review findings are invalid")
@@ -399,6 +461,7 @@ def _verify_publication_receipt(
     root: Path,
     entry: object,
     receipt: dict[str, object],
+    fetched_body: bytes,
     error_type: type[ValueError],
 ) -> None:
     if set(receipt) != _PUBLICATION_RECEIPT_FIELDS or receipt.get("schema_version") != 1:
@@ -435,6 +498,37 @@ def _verify_publication_receipt(
             error_type,
             label,
         )
+    raw_fetch = _read_root_file(
+        root,
+        str(receipt["raw_fetch_path"]),
+        error_type,
+        f"{entry.slug} raw fetch",
+    )
+    raw_update = _read_root_file(
+        root,
+        str(receipt["update_receipt_path"]),
+        error_type,
+        f"{entry.slug} update receipt",
+    )
+    try:
+        fetched = parse_notion_fetch_result(raw_fetch)
+        update = parse_notion_update_result(raw_update)
+    except ExternalEvidenceError as error:
+        raise error_type(f"{entry.slug}: raw fetch/update is invalid: {error}") from None
+    expected_fetch = {
+        "page_id": entry.page_id,
+        "parent_page_id": entry.parent_page_id,
+        "title": entry.title,
+        "url": entry.url,
+        "connector_as_of": receipt["connector_as_of"],
+        "last_edited_time": receipt["last_edited_time"],
+    }
+    if any(getattr(fetched, field) != value for field, value in expected_fetch.items()):
+        raise error_type(f"{entry.slug}: raw fetch disagrees with publication receipt")
+    if fetched.body.encode("utf-8") != fetched_body:
+        raise error_type(f"{entry.slug}: raw fetch body differs from saved read-back")
+    if fetched.page_id != update.page_id or fetched.url != update.url:
+        raise error_type(f"{entry.slug}: raw update identity differs")
 
 
 def _verify_hierarchy(root: Path, fetched: Path, manifest: object, error_type: type[ValueError]) -> None:
@@ -466,6 +560,32 @@ def _verify_hierarchy(root: Path, fetched: Path, manifest: object, error_type: t
             error_type,
             f"hierarchy {prefix} raw fetch",
         )
+    try:
+        parent = parse_notion_fetch_result(
+            _read_root_file(
+                root,
+                str(payload["parent_fetch_path"]),
+                error_type,
+                "hierarchy parent raw fetch",
+            )
+        )
+        hub = parse_notion_fetch_result(
+            _read_root_file(
+                root,
+                str(payload["hub_fetch_path"]),
+                error_type,
+                "hierarchy hub raw fetch",
+            )
+        )
+    except ExternalEvidenceError as error:
+        raise error_type(f"Notion hierarchy raw fetch is invalid: {error}") from None
+    if (
+        parent.page_id != manifest.parent_page_id
+        or payload.get("parent_title") not in {parent.title, parent.title.removeprefix("⛵ ")}
+        or hub.page_id != payload.get("hub_page_id")
+        or hub.parent_page_id != manifest.parent_page_id
+    ):
+        raise error_type("Notion hierarchy raw fetch disagrees with receipt")
     expected_pages = [
         {
             "page_id": entry.page_id,
@@ -534,6 +654,21 @@ def _verify_duplicate_searches(
             error_type,
             "duplicate search raw receipt",
         )
+        raw_search = _read_root_file(
+            root,
+            str(search["raw_search_path"]),
+            error_type,
+            "duplicate search raw receipt",
+        )
+        try:
+            observed = parse_notion_search_result(raw_search).exact_page_ids(
+                str(search["kind"]),
+                str(search["query"]),
+            )
+        except ExternalEvidenceError as error:
+            raise error_type(f"duplicate raw search is invalid: {error}") from None
+        if list(observed) != search.get("matched_page_ids"):
+            raise error_type("duplicate raw search disagrees with receipt")
         seen.add(key)
     if seen != set(expected):
         raise error_type("duplicate search coverage is incomplete")

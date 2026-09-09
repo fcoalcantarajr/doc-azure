@@ -125,6 +125,16 @@ independent, packet-bound Notion AI review receipts, full reconciliation, raw
 update/fetch receipts, hierarchy proof, twelve duplicate searches, fresh
 timestamps, and exact semantic equivalence of every ordered finding.
 
+The strict gate parses the saved raw tool-result envelopes. It derives browser
+model, effort, chat identity, packet/prompt hashes, timestamps and response from
+the browser result, then compares those facts with the review receipt and saved
+response. For Notion, it derives page identity, title, parent, body and server
+timestamps from raw fetch results; page identity from update results; and exact
+matches from every raw search result. A side receipt and a matching file hash
+alone are insufficient. These local captures are reproducible provenance, not
+cryptographic server attestations; Notion and the browser do not expose such an
+attestation through the available interfaces.
+
 ## Repository gate
 
 `uv run python verify.py` rebuilds reports into a temporary directory and

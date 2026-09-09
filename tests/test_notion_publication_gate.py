@@ -80,6 +80,54 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _connector_result(payload: dict[str, object]) -> str:
+    return json.dumps(
+        {
+            "content": [{"type": "text", "text": json.dumps(payload)}],
+            "isError": False,
+        }
+    )
+
+
+def _fetch_connector_result(
+    *,
+    title: str,
+    url: str,
+    parent_id: str | None,
+    body: str,
+    as_of: str,
+    last_edited: str,
+) -> str:
+    parent = ""
+    if parent_id is not None:
+        parent = (
+            "<ancestor-path>\n"
+            f'<parent-page url="https://app.notion.com/p/{parent_id.replace("-", "")}" '
+            'title="Azure"/>\n'
+            "</ancestor-path>\n"
+        )
+    return _connector_result(
+        {
+            "metadata": {"type": "page"},
+            "title": title,
+            "url": url,
+            "text": (
+                f'Here is the result of "fetch" as of {as_of}:\n'
+                f'<page url="{url}">\n'
+                f"{parent}"
+                "<properties>\n"
+                f"{json.dumps({'title': title}, ensure_ascii=False)}\n"
+                "</properties>\n"
+                "<content>\n"
+                f"{body}\n"
+                "</content>\n"
+                "</page>"
+            ),
+            "page_last_edited_at": last_edited,
+        }
+    )
+
+
 def test_prepare_notion_renders_semantically_equivalent_notion_tables(
     tmp_path: Path,
 ) -> None:
@@ -186,6 +234,32 @@ def _seed_review_gate(root: Path) -> object:
         response_path = responses / f"{slug}.md"
         response_path.write_text(f"# {model}\n\nPASS\n", encoding="utf-8")
         response_hashes[model] = _sha(response_path)
+        raw_path = review_root / "raw" / f"{slug}.json"
+        raw_path.parent.mkdir(exist_ok=True)
+        model_verified_at = (now + timedelta(minutes=offset)).isoformat()
+        effort_verified_at = (now + timedelta(minutes=offset)).isoformat()
+        sent_at = (now + timedelta(minutes=offset + 1)).isoformat()
+        completed_at = (now + timedelta(minutes=offset + 2)).isoformat()
+        raw_path.write_text(
+            _connector_result(
+                {
+                    "surface": "chatgpt-integrated-browser",
+                    "chat_id": f"chat-{offset}",
+                    "chat_url": f"https://app.notion.com/chat-{offset}",
+                    "model": model,
+                    "effort": "maximum",
+                    "packet_name": "packet.csv",
+                    "packet_sha256": review_manifest["packet_sha256"],
+                    "prompt_sha256": review_manifest["prompt_sha256"],
+                    "model_verified_at": model_verified_at,
+                    "effort_verified_at": effort_verified_at,
+                    "sent_at": sent_at,
+                    "completed_at": completed_at,
+                    "response_markdown": response_path.read_text(encoding="utf-8"),
+                }
+            ),
+            encoding="utf-8",
+        )
         receipt = {
             "schema_version": 1,
             "model": model,
@@ -195,13 +269,15 @@ def _seed_review_gate(root: Path) -> object:
             "prompt_sha256": review_manifest["prompt_sha256"],
             "chat_id": f"chat-{offset}",
             "chat_url": f"https://app.notion.com/chat-{offset}",
-            "model_verified_at": (now + timedelta(minutes=offset)).isoformat(),
-            "effort_verified_at": (now + timedelta(minutes=offset)).isoformat(),
-            "sent_at": (now + timedelta(minutes=offset + 1)).isoformat(),
-            "completed_at": (now + timedelta(minutes=offset + 2)).isoformat(),
+            "model_verified_at": model_verified_at,
+            "effort_verified_at": effort_verified_at,
+            "sent_at": sent_at,
+            "completed_at": completed_at,
             "verdict": "PASS",
             "response_path": str(response_path.relative_to(root)),
             "response_sha256": response_hashes[model],
+            "browser_result_path": str(raw_path.relative_to(root)),
+            "browser_result_sha256": _sha(raw_path),
             "findings": [],
         }
         (receipts / f"{slug}.json").write_text(
@@ -275,6 +351,44 @@ def test_review_gate_rejects_reused_chat_and_missing_response(tmp_path: Path) ->
         _function("verify_review_gate")(tmp_path)
 
 
+def test_review_gate_cross_checks_receipt_against_raw_browser_result(
+    tmp_path: Path,
+) -> None:
+    _seed_reports(tmp_path)
+    _seed_review_gate(tmp_path)
+    review_root = tmp_path / "out" / "notion" / "review"
+    receipt_path = review_root / "receipts" / "kimi-k3.json"
+    receipt = json.loads(receipt_path.read_text())
+    response = (tmp_path / receipt["response_path"]).read_text(encoding="utf-8")
+    raw_path = review_root / "raw-kimi.json"
+    raw_path.write_text(
+        _connector_result(
+            {
+                "surface": receipt["surface"],
+                "chat_id": receipt["chat_id"],
+                "chat_url": receipt["chat_url"],
+                "model": "Other",
+                "effort": receipt["effort"],
+                "packet_name": "packet.csv",
+                "packet_sha256": receipt["packet_sha256"],
+                "prompt_sha256": receipt["prompt_sha256"],
+                "model_verified_at": receipt["model_verified_at"],
+                "effort_verified_at": receipt["effort_verified_at"],
+                "sent_at": receipt["sent_at"],
+                "completed_at": receipt["completed_at"],
+                "response_markdown": response,
+            }
+        ),
+        encoding="utf-8",
+    )
+    receipt["browser_result_path"] = str(raw_path.relative_to(tmp_path))
+    receipt["browser_result_sha256"] = _sha(raw_path)
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    with pytest.raises(NotionPublicationError, match="browser result"):
+        _function("verify_review_gate")(tmp_path)
+
+
 def test_review_gate_rejects_stale_or_incomplete_reconciliation(tmp_path: Path) -> None:
     _seed_reports(tmp_path)
     _seed_review_gate(tmp_path)
@@ -314,8 +428,23 @@ def _seed_publication_gate(root: Path) -> object:
         fetched_body.write_bytes(prepared.read_bytes())
         raw_fetch = raw_root / f"{entry.slug}-fetch.json"
         raw_update = raw_root / f"{entry.slug}-update.json"
-        raw_fetch.write_text(json.dumps({"page_id": entry.page_id}), encoding="utf-8")
-        raw_update.write_text(json.dumps({"page_id": entry.page_id}), encoding="utf-8")
+        raw_fetch.write_text(
+            _fetch_connector_result(
+                title=entry.title,
+                url=entry.url,
+                parent_id=entry.parent_page_id,
+                body=fetched_body.read_text(encoding="utf-8"),
+                as_of=(update_time + timedelta(minutes=1)).isoformat(),
+                last_edited=(update_time + timedelta(minutes=1)).isoformat(),
+            ),
+            encoding="utf-8",
+        )
+        raw_update.write_text(
+            _connector_result(
+                {"page_id": entry.page_id, "url": entry.url, "status": "updated"}
+            ),
+            encoding="utf-8",
+        )
         receipt = {
             "schema_version": 1,
             "slug": entry.slug,
@@ -327,8 +456,8 @@ def _seed_publication_gate(root: Path) -> object:
             "updated_at": update_time.isoformat(),
             "fetched_at": (update_time + timedelta(minutes=1)).isoformat(),
             "connector_as_of": (update_time + timedelta(minutes=1)).isoformat(),
-            "last_edited_available": False,
-            "last_edited_time": None,
+            "last_edited_available": True,
+            "last_edited_time": (update_time + timedelta(minutes=1)).isoformat(),
             "semantic_sha256": entry.semantic_sha256,
             "raw_fetch_path": str(raw_fetch.relative_to(root)),
             "raw_fetch_sha256": _sha(raw_fetch),
@@ -341,17 +470,31 @@ def _seed_publication_gate(root: Path) -> object:
     parent_raw = raw_root / "parent-fetch.json"
     hub_raw = raw_root / "hub-fetch.json"
     parent_raw.write_text(
-        json.dumps(
-            {
-                "children": [
-                    {"page_id": entry.page_id, "title": entry.title}
-                    for entry in manifest.entries
-                ]
-            }
+        _fetch_connector_result(
+            title="Azure",
+            url=(
+                "https://app.notion.com/p/"
+                + manifest.parent_page_id.replace("-", "")
+            ),
+            parent_id=None,
+            body="Parent page",
+            as_of=(update_time + timedelta(minutes=2)).isoformat(),
+            last_edited=(update_time + timedelta(minutes=2)).isoformat(),
         ),
         encoding="utf-8",
     )
-    hub_raw.write_text(json.dumps({"page_id": "hub-page"}), encoding="utf-8")
+    hub_id = "3c3412e0-8c26-809d-8e12-e5498b5fde60"
+    hub_raw.write_text(
+        _fetch_connector_result(
+            title="Sessão com Codex - Delta do Azure",
+            url="https://app.notion.com/p/" + hub_id.replace("-", ""),
+            parent_id=manifest.parent_page_id,
+            body="Hub page",
+            as_of=(update_time + timedelta(minutes=2)).isoformat(),
+            last_edited=(update_time + timedelta(minutes=2)).isoformat(),
+        ),
+        encoding="utf-8",
+    )
     hierarchy = {
         "schema_version": 1,
         "parent_page_id": manifest.parent_page_id,
@@ -384,7 +527,20 @@ def _seed_publication_gate(root: Path) -> object:
         ):
             raw_path = raw_root / f"search-{entry.slug}-{kind}.json"
             raw_path.write_text(
-                json.dumps({"results": [{"page_id": entry.page_id}]}),
+                _connector_result(
+                    {
+                        "results": [
+                            {
+                                "id": entry.page_id,
+                                "title": entry.title,
+                                "url": entry.url,
+                                "type": "page",
+                                "highlight": entry.marker,
+                            }
+                        ],
+                        "type": "workspace_search",
+                    }
+                ),
                 encoding="utf-8",
             )
             searches.append(
@@ -485,4 +641,74 @@ def test_publication_gate_rejects_reordered_or_extra_findings(tmp_path: Path) ->
     body_path.write_text(body.replace("</table>", row + "</table>", 2), encoding="utf-8")
 
     with pytest.raises(NotionPublicationError, match="semantic"):
+        _function("verify_publication_gate")(tmp_path)
+
+
+def test_publication_gate_cross_checks_raw_fetch_identity(tmp_path: Path) -> None:
+    _seed_reports(tmp_path)
+    _seed_publication_gate(tmp_path)
+    fetched = tmp_path / "out" / "notion" / "fetched"
+    receipt_path = fetched / "leiame.json"
+    receipt = json.loads(receipt_path.read_text())
+    raw_path = tmp_path / receipt["raw_fetch_path"]
+    raw_path.write_text(
+        _connector_result(
+            {
+                "metadata": {"type": "page"},
+                "title": receipt["title"],
+                "url": "https://app.notion.com/p/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "text": (
+                    'Here is the result of "fetch" as of 2026-08-26T15:01:00Z:\n'
+                    '<page url="https://app.notion.com/p/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">\n'
+                    "<ancestor-path>\n"
+                    '<parent-page url="https://app.notion.com/p/'
+                    + receipt["parent_page_id"].replace("-", "")
+                    + '" title="Azure"/>\n'
+                    "</ancestor-path>\n"
+                    "<properties>\n"
+                    + json.dumps({"title": receipt["title"]}, ensure_ascii=False)
+                    + "\n</properties>\n<content>\n"
+                    + (fetched / "leiame.md").read_text(encoding="utf-8")
+                    + "\n</content>\n</page>"
+                ),
+                "page_last_edited_at": "2026-08-26T15:01:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    receipt["raw_fetch_sha256"] = _sha(raw_path)
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    with pytest.raises(NotionPublicationError, match="raw fetch"):
+        _function("verify_publication_gate")(tmp_path)
+
+
+def test_publication_gate_cross_checks_raw_search_matches(tmp_path: Path) -> None:
+    _seed_reports(tmp_path)
+    _seed_publication_gate(tmp_path)
+    fetched = tmp_path / "out" / "notion" / "fetched"
+    duplicate_path = fetched / "duplicate-search.json"
+    duplicate = json.loads(duplicate_path.read_text())
+    row = duplicate["searches"][0]
+    raw_path = tmp_path / row["raw_search_path"]
+    raw_path.write_text(
+        _connector_result(
+            {
+                "results": [
+                    {
+                        "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                        "title": "Other",
+                        "url": "https://app.notion.com/p/aaaaaaaabbbbccccddddeeeeeeeeeeee",
+                        "type": "page",
+                    }
+                ],
+                "type": "workspace_search",
+            }
+        ),
+        encoding="utf-8",
+    )
+    row["raw_search_sha256"] = _sha(raw_path)
+    duplicate_path.write_text(json.dumps(duplicate), encoding="utf-8")
+
+    with pytest.raises(NotionPublicationError, match="raw search"):
         _function("verify_publication_gate")(tmp_path)
