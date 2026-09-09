@@ -6,10 +6,12 @@ The offline builder now accepts a reviewed documentary baseline:
 uv run python scripts/03_build_delta.py --coverage-baseline config/document-coverage.json
 ```
 
-The referenced configuration must be explicitly created and reviewed; it is not
-automatically accepted from current source text. A production baseline and the
-unified runtime remain pending. Omitting this option retains the older builder's
-exact-source behavior and does not assert full documentary coverage.
+The referenced configuration was explicitly created, reviewed, and versioned.
+It is not automatically accepted from current source text. The canonical
+runtime supplies `config/document-coverage.json`; passing the option explicitly
+is useful for fixture and diagnostic runs. Omitting the option in the standalone
+builder retains the older exact-source behavior and does not, by itself, assert
+full documentary coverage.
 
 ## Schema version 1
 
@@ -47,9 +49,9 @@ To adopt a material documentary change, review the exact changed text, update
 the explicit claims and regressions, and review a new baseline in the same
 versioned change. Never refresh the baseline merely to make a gate green.
 
-This component does not yet provide process-inventory coverage, whole-run
-structured reports or the final application's distinct exit codes. Those remain
-explicit tasks in the deterministic-runtime plan.
+Process-inventory coverage, whole-run structured reports, and distinct runtime
+exit codes are now provided by `scripts/run_audit.py`. This document remains the
+focused contract for the documentary side of that completed runtime.
 
 ## Verification receipt
 

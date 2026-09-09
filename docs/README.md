@@ -1,21 +1,42 @@
-# doc-azure
+# Documentation map
 
-Audit project comparing Azure DevOps wiki pages against Processo-Agil implementation.
+Start with the document that matches your task. You do not need to read the
+technical references to operate the application.
 
-## What was done
+## Use the application
 
-Compared 4 wiki pages (leiame, politicas, changelog, apendice) against the
-Processo-Agil custom process in the bancodonordeste org, produced delta markdown
-files, and prepared the fixed existing Notion pages for publication. Publication
-remains pending until the mandatory dual-model adversarial review, reconciliation,
-connector update, and verified read-back all pass.
+1. [Complete user guide](user-guide.md) — install, configure, run, interpret,
+   repeat, and remove local secrets.
+2. [Troubleshooting](troubleshooting.md) — identify an error by its exact
+   terminal message and follow one recovery path.
+3. [Notion publication contract](notion-publication.md) — prepare, review,
+   publish, and prove the four fixed external pages.
 
-## Why
+## Understand the audit
 
-The wiki documents the intended process; the Azure DevOps process model shows what
-is actually implemented. The delta reveals gaps between documentation and reality.
+- [Evidence-backed delta method](delta-method.md) explains what is compared and
+  what each status means.
+- [Deterministic runtime](audit-runtime.md) explains the pipeline, outputs, and
+  exit codes.
+- [Application architecture](architecture.md) explains boundaries, data flow,
+  and maintenance rules.
+- [Documentary coverage](document-coverage.md) explains how unmapped Wiki
+  changes stop publication.
+- [Azure DevOps API contract](api-contract.md) lists every approved endpoint
+  and authentication boundary.
 
-## How
+## Audit trail
 
-See docs/api-contract.md for endpoints, docs/delta-method.md for the delta
-algorithm, docs/decisions.md for rejected alternatives.
+These files are historical evidence, not operating instructions:
+
+- [Completion audit — 2026-09-09](completion-audit-2026-09-09.md)
+- [Independent branch review — 2026-09-08](adversarial-review-2026-09-08.md)
+- [Decisions](decisions.md)
+- [Prior work](prior-work.md)
+- Session receipts: [2026-08-24](session-2026-08-24.md),
+  [2026-08-26](session-2026-08-26.md), and
+  [2026-09-08](session-2026-09-08.md)
+- [GitHub branch publication receipt](github-branch-publication-2026-09-09.md)
+
+Historical files can describe an earlier incomplete state. For current
+operating instructions, prefer the complete user guide and the current code.

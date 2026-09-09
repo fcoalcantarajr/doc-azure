@@ -85,10 +85,15 @@ logical findings and stable report text remain byte-compared, so a fresh
 equivalent collection cannot create a false drift while a real report mutation
 still fails the gate.
 
-Remaining work is external to the deterministic runtime: the exact Notion AI
-reviews and the gated canonical Notion publication/read-back.
+The 2026-09-09 publication cycle completed the external Notion AI reviews and
+the gated canonical publication/read-back described in
+`docs/completion-audit-2026-09-09.md`. That historical completion does not
+approve a later report generation. Every new publication must repeat the exact
+review, reconciliation, update, read-back, and strict gate in
+`docs/notion-publication.md`.
 
-Validation for this increment: duplicate-identifier RED/GREEN regression,
-offline no-network, clean/internal exit and process-drift regressions pass; full
-suite currently has 374 tests. The fresh
+The deterministic-runtime implementation receipt recorded 374 passing tests,
+including duplicate-identifier RED/GREEN, offline no-network, clean/internal
+exit, and process-drift regressions. Later revisions can add tests; use the
+current `uv run pytest -q` result rather than this historical count. A fresh
 live run is evidence of the application path, not completion of the Notion gates.
