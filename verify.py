@@ -33,6 +33,7 @@ from delta.notion import (
     verify_publication_gate,
 )
 from doc_azure.azure_client import ALLOWED_OPERATIONS, is_allowlisted_read
+from doc_azure.snapshot import SnapshotError, read_snapshot_manifest
 
 
 class VerificationError(RuntimeError):
@@ -57,6 +58,64 @@ _VOLATILE_PROVENANCE_LINES = (
         "SHA-256 do manifesto `<volatile>`.\n",
     ),
 )
+
+_REPORT_PROVENANCE_LINE = re.compile(
+    r"^- (?P<kind>Wiki|Processo): coletad[ao] em `(?P<collected_at>[^`]+)`; "
+    r"geração `(?P<generation>[0-9a-f]{32})`; SHA-256 do manifesto "
+    r"`(?P<manifest_sha256>[0-9a-f]{64})`\.$"
+)
+
+
+def _verify_versioned_report_provenance(
+    root: Path,
+    payload: bytes,
+    label: str,
+    verified: set[tuple[str, str, str, str]],
+) -> None:
+    """Require every masked provenance line to identify one real snapshot."""
+
+    try:
+        lines = payload.decode("utf-8").splitlines()
+    except UnicodeDecodeError:
+        raise VerificationError(f"{label} is not valid UTF-8") from None
+    matches = [
+        match
+        for line in lines
+        if (match := _REPORT_PROVENANCE_LINE.fullmatch(line))
+    ]
+    if len(matches) != 2 or {
+        match["kind"] for match in matches
+    } != {"Wiki", "Processo"}:
+        raise VerificationError(f"{label} provenance is malformed")
+    for match in matches:
+        kind = match["kind"]
+        key = (
+            kind,
+            match["generation"],
+            match["collected_at"],
+            match["manifest_sha256"],
+        )
+        if key in verified:
+            continue
+        snapshot_kind = "wiki" if kind == "Wiki" else "process"
+        generation_root = (
+            root / "out" / snapshot_kind / "snapshots" / match["generation"]
+        )
+        try:
+            manifest = read_snapshot_manifest(generation_root)
+            manifest_bytes = _read_regular_file(
+                generation_root / "manifest.json",
+                f"{snapshot_kind} provenance manifest",
+            )
+        except (SnapshotError, VerificationError):
+            raise VerificationError(f"{label} provenance is unverifiable") from None
+        if (
+            manifest.collected_at != match["collected_at"]
+            or hashlib.sha256(manifest_bytes).hexdigest()
+            != match["manifest_sha256"]
+        ):
+            raise VerificationError(f"{label} provenance is unverifiable")
+        verified.add(key)
 
 
 def _canonical_report_bytes(payload: bytes, label: str) -> bytes:
@@ -110,6 +169,7 @@ def verify_reports(root: Path) -> None:
 
     repository_root = Path(root)
     catalog = repository_root / "config" / "wiki_claims.json"
+    verified_provenance: set[tuple[str, str, str, str]] = set()
     try:
         with tempfile.TemporaryDirectory(prefix="doc-azure-verify-") as temporary:
             rebuilt = build_all_reports(
@@ -133,6 +193,12 @@ def verify_reports(root: Path) -> None:
                     )
                 except VerificationError:
                     raise
+                _verify_versioned_report_provenance(
+                    repository_root,
+                    actual,
+                    f"deltas/{rebuilt_path.name}",
+                    verified_provenance,
+                )
                 if _canonical_report_bytes(actual, "versioned report") != _canonical_report_bytes(
                     expected, "rebuilt report"
                 ):

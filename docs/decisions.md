@@ -884,3 +884,19 @@ paths, security defects and nondeterminism, and to require that reviewers verify
 the runtime works without AI. It names Kimi K3 and Opus 5 at maximum effort and
 the integrated ChatGPT browser as hard constraints. Focused prompt tests passed;
 the regenerated prompt hash is recorded in `docs/notion-publication.md`.
+
+## 2026-09-09 — adversarial provenance closure
+
+The external reviews exposed one reproducible integrity gap in the local gate:
+report comparison correctly ignored run-specific snapshot identity, but it also
+accepted a versioned provenance line whose generation and manifest hash did not
+identify any immutable local snapshot. The logical comparison and provenance
+authentication are now separate checks. A versioned report may differ from the
+current equivalent generation, but each masked provenance line must resolve to
+a complete immutable generation whose `collected_at` and manifest SHA-256 match.
+
+RED: `test_verify_reports_rejects_unverifiable_versioned_provenance` failed with
+`Failed: DID NOT RAISE VerificationError` after replacing the Wiki generation
+and manifest hash with well-formed zero values. GREEN: the new case, the fresh
+equivalent-generation case, and the exact-unmodified-output case all passed
+(`3 passed in 3.01s`). No delta report or publication semantic hash changed.

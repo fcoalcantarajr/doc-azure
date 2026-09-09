@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from subprocess import CompletedProcess
@@ -139,6 +140,27 @@ def test_verify_reports_ignores_run_specific_snapshot_provenance(
     )
 
     verify_reports(tmp_path)
+
+
+def test_verify_reports_rejects_unverifiable_versioned_provenance(
+    tmp_path: Path,
+) -> None:
+    seed_verified_repository(tmp_path)
+    report = tmp_path / "deltas" / "leiame.md"
+    report.write_text(
+        re.sub(
+            r"- Wiki: coletada em `[^`]+`; geração `[^`]+`; "
+            r"SHA-256 do manifesto `[^`]+`\.",
+            "- Wiki: coletada em `2026-08-24T00:00:00+00:00`; "
+            f"geração `{'0' * 32}`; SHA-256 do manifesto `{'0' * 64}`.",
+            report.read_text(encoding="utf-8"),
+            count=1,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(VerificationError, match="provenance"):
+        verify_reports(tmp_path)
 
 
 def test_verify_reports_rejects_resolvable_but_wrong_json_pointer(
