@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass
 
 _STATUS_BULLET = re.compile(r"^- `([^`]+)`: (.+)$")
 _PROVENANCE_BULLET = re.compile(r"^- (.+)$")
+_CONNECTOR_AUTOLINK = re.compile(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)")
 _EXPECTED_FINDING_HEADERS = (
     "ID",
     "Achado",
@@ -289,6 +290,7 @@ def _normalize_cell(value: str) -> str:
 
 
 def _parse_xml_table(section: str) -> tuple[tuple[str, ...], ...]:
+    section = re.sub(r"<br\s*>", "<br />", section)
     try:
         table = element_tree.fromstring(section)
     except element_tree.ParseError:
@@ -318,7 +320,21 @@ def _xml_cell_text(cell: element_tree.Element) -> str:
             raise ReportSemanticError("Notion table cell markup is invalid")
         parts.append("\n")
         parts.append(child.tail or "")
-    return "".join(parts).strip()
+    return _normalize_connector_autolinks("".join(parts).strip())
+
+
+def _normalize_connector_autolinks(value: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        label, target = match.groups()
+        if target in {f"http://{label}", f"https://{label}"}:
+            return label
+        return match.group(0)
+
+    normalized = _CONNECTOR_AUTOLINK.sub(replace, value)
+    escapes = ((r"\[", "["), (r"\]", "]"), (r"\{", "{"), (r"\}", "}"))
+    for escaped, literal in escapes:
+        normalized = normalized.replace(escaped, literal)
+    return normalized
 
 
 def _render_xml_table(

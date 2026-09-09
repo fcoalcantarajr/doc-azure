@@ -71,6 +71,16 @@ def test_fetch_result_rejects_receipt_identity_not_present_in_raw_result() -> No
         parse_notion_fetch_result(_tool_result(_fetch_payload(parent_id="wrong")))
 
 
+def test_fetch_result_accepts_title_prefixed_by_verified_page_emoji() -> None:
+    payload = _fetch_payload()
+    payload["title"] = f"⛵ {TITLE}"
+    payload["icon"] = {"type": "emoji", "emoji": "⛵"}
+
+    evidence = parse_notion_fetch_result(_tool_result(payload))
+
+    assert evidence.title == f"⛵ {TITLE}"
+
+
 def test_update_result_requires_success_and_exact_page_identity() -> None:
     evidence = parse_notion_update_result(
         _tool_result({"page_id": PAGE_ID, "url": PAGE_URL, "status": "updated"})
@@ -88,6 +98,13 @@ def test_update_result_requires_success_and_exact_page_identity() -> None:
                 }
             ).encode()
         )
+
+
+def test_update_result_accepts_native_page_id_only_success() -> None:
+    evidence = parse_notion_update_result(_tool_result({"page_id": PAGE_ID}))
+
+    assert evidence.page_id == PAGE_ID
+    assert evidence.url == PAGE_URL
 
 
 def test_search_result_returns_only_raw_exact_matches() -> None:
@@ -110,6 +127,29 @@ def test_search_result_returns_only_raw_exact_matches() -> None:
     assert evidence.exact_page_ids("title", TITLE) == (PAGE_ID,)
     assert evidence.exact_page_ids("marker", "DELTA-AUDIT-MARKER-leiame") == (PAGE_ID,)
     assert evidence.exact_page_ids("page_id", PAGE_ID) == (PAGE_ID,)
+
+
+def test_search_result_normalizes_connector_highlight_emphasis() -> None:
+    raw = _tool_result(
+        {
+            "results": [
+                {
+                    "id": PAGE_ID,
+                    "title": TITLE,
+                    "url": PAGE_URL,
+                    "highlight": "**DELTA-AUDIT-MARKER-leiame**",
+                    "type": "page",
+                }
+            ],
+            "type": "workspace_search",
+        }
+    )
+
+    evidence = parse_notion_search_result(raw)
+
+    assert evidence.exact_page_ids(
+        "marker", "DELTA-AUDIT-MARKER-leiame"
+    ) == (PAGE_ID,)
 
 
 def test_browser_review_result_binds_ui_facts_and_response() -> None:

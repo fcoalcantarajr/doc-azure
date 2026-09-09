@@ -527,7 +527,8 @@ def _verify_publication_receipt(
     }
     if any(getattr(fetched, field) != value for field, value in expected_fetch.items()):
         raise error_type(f"{entry.slug}: raw fetch disagrees with publication receipt")
-    if fetched.body.encode("utf-8") != fetched_body:
+    raw_body = fetched.body.encode("utf-8")
+    if fetched_body not in {raw_body, raw_body + b"\n"}:
         raise error_type(f"{entry.slug}: raw fetch body differs from saved read-back")
     if fetched.page_id != update.page_id or fetched.url != update.url:
         raise error_type(f"{entry.slug}: raw update identity differs")

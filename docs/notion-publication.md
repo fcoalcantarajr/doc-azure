@@ -65,32 +65,28 @@ hash. `out/notion/review/reconciliation.json` must bind both responses and
 record a decision for every finding. A PASS is process evidence, not proof that
 the source claims are true.
 
-## External capability receipt — 2026-09-09
+## External review receipt — 2026-09-09
 
-The required gate is intentionally still closed. Exact searches for `Kimi K3`
-and `Opus 5` returned no published agents. Searching existing Notion agent
-sessions returned HTTP 403 `restricted_resource` with the message that this
-connection lacks the `interact with agents` capability and must be disconnected
-and reconnected/re-authorized. The current Codex tool inventory also has no
-interactive browser/Computer Use surface; `open_in_codex` can display a tab but
-cannot operate the Notion AI UI.
+The browser gate completed in two distinct Notion AI chats with the exact model
+and effort visible before submission:
 
-This is not permission to substitute another model, a connector session, the
-Notion desktop app, or a different browser. To resume, reconnect the Notion
-integration with agent interaction enabled and make the ChatGPT-integrated
-browser available. Then re-run the exact searches, create two independent
-maximum-effort reviews, preserve their receipts, and only after reconciliation
-continue to the fixed-page updates below. No Notion page was modified while
-this prerequisite was missing.
+- Opus 5, maximum, chat `3d6412e08c268085876700a963b885ac`, completed at
+  `2026-09-09T13:25:16.766Z`;
+- Kimi K3, maximum, chat `3d6412e08c2680df8dce00a93c3be004`, completed at
+  `2026-09-09T13:43:30Z`.
 
-On the resumed attempt, the user authorized the browser plugin and
-`open_in_codex` queued the canonical page in the integrated panel, but the
-session still exposed no browser interaction tool (typing, clicking, or form
-submission). Therefore no review prompt was sent and no Notion content changed.
-The plugin-management read-back is more specific: app `browser` is
-`not_installed`, and `browser@openai-bundled` resolves as `plugin_not_found` for
-this user. Authorization alone therefore did not make the requested plugin
-available to the session.
+Both returned `NEEDS_FIXES` with 15 findings. Their response bodies were
+identical and included a self-description inconsistent with the model shown in
+the UI, so agreement was not treated as independent corroboration. The raw UI
+receipts remain the model evidence. Reconciliation covers all 30 model/finding
+pairs. F1-F3 correctly identified the then-stale external pages; F9 exposed a
+reproducible provenance-authentication gap and was fixed test-first. The other
+findings were rejected because they supplied no causal counterexample or
+contradicted an already-enforced contract. No report semantic hash changed.
+
+The four fixed page IDs were then updated in place through the Notion connector.
+A connector read-back, common-parent/hub fetch and twelve parent-scoped searches
+now satisfy `NOTION_PUBLICATION_OK` and the unified publication gate.
 
 ## Update and proof
 

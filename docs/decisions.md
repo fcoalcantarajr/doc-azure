@@ -900,3 +900,32 @@ RED: `test_verify_reports_rejects_unverifiable_versioned_provenance` failed with
 and manifest hash with well-formed zero values. GREEN: the new case, the fresh
 equivalent-generation case, and the exact-unmodified-output case all passed
 (`3 passed in 3.01s`). No delta report or publication semantic hash changed.
+
+## 2026-09-09 — native Notion connector serialization
+
+The live connector read-back exposed two equivalent representations that the
+local parser had not modeled: HTML-style `<br>` elements and Notion-generated
+Markdown links whose target is exactly the visible hostname token. The parser
+now normalizes only those two cases. A link whose target differs from its visible
+label remains material and fails the semantic hash check. The connector's native
+successful update receipt contains only `page_id`; its canonical Notion URL is
+derived only for that exact one-field schema, while the prior expanded schema
+retains its strict URL and status checks.
+
+RED: the two live-format regressions failed with `Notion table XML is invalid`
+and `update URL is invalid`. GREEN: four focused acceptance and adversarial cases
+passed (`4 passed in 0.34s`), including rejection of a link to another target.
+
+The same live read-back then exposed three additional connector conventions:
+JSON brackets/braces are backslash-escaped in cells, a page emoji prefixes the
+top-level title while the properties title remains plain, and the extracted
+body omits the conventional final newline kept by the local receipt file. Each
+normalization is narrow: the emoji must be the exact structured page icon, only
+one optional final newline is tolerated, and non-equivalent links still fail.
+
+RED: the live publication gate first rejected `raw fetch body differs`, then
+rejected the escaped JSON semantic content; the focused emoji fixture also
+failed with `fetch title is not present in page properties`. GREEN: the focused
+connector serialization and adversarial-link cases passed, both hierarchy
+fetches parsed, and the complete external-evidence gate returned
+`NOTION_PUBLICATION_OK`.

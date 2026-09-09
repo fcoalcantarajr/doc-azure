@@ -139,7 +139,20 @@ def parse_notion_fetch_result(raw: bytes) -> NotionFetchEvidence:
         properties = json.loads(properties_match.group(1))
     except json.JSONDecodeError:
         raise ExternalEvidenceError("fetch page properties are invalid") from None
-    if not isinstance(properties, dict) or properties.get("title") != title:
+    if not isinstance(properties, dict):
+        raise ExternalEvidenceError("fetch title is not present in page properties")
+    property_title = properties.get("title")
+    icon = payload.get("icon")
+    emoji = (
+        icon.get("emoji")
+        if isinstance(icon, dict) and icon.get("type") == "emoji"
+        else None
+    )
+    if property_title != title and (
+        not isinstance(property_title, str)
+        or not isinstance(emoji, str)
+        or title != f"{emoji} {property_title}"
+    ):
         raise ExternalEvidenceError("fetch title is not present in page properties")
     connector_as_of = _parse_time(as_of_match.group(1), "connector as-of")
     last_edited_raw = payload.get("page_last_edited_at")
@@ -164,6 +177,11 @@ def parse_notion_update_result(raw: bytes) -> NotionUpdateEvidence:
 
     payload = _tool_payload(raw, "update")
     page_id = _normalize_notion_id(payload.get("page_id"), "update page")
+    if set(payload) == {"page_id"}:
+        return NotionUpdateEvidence(
+            page_id=page_id,
+            url=f"https://app.notion.com/p/{page_id.replace('-', '')}",
+        )
     url = _required_text(payload.get("url"), "update URL")
     status = payload.get("status")
     if status not in {"updated", "succeeded", "success"}:

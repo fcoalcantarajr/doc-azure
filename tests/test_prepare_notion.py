@@ -52,7 +52,7 @@ Comparação verificável.
 
 | ID | Achado | Status | Documentado | Implementado | Evidência documental | Evidência Azure | Impacto ou limite |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| {index}-CLAIM-001 | Achado {slug} | CONFIRMADO | esperado | observado | out/wiki/{slug}.md#L1 | out/process/process.json#/name | limite |
+| {index}-CLAIM-001 | Achado {slug} | CONFIRMADO | esperado | [{{"observado": true}}] | out/wiki/{slug}.md#L1<br>out/wiki/{slug}.md#L2 | out/process/process.json#/name | limite |
 """
 
 
@@ -134,6 +134,49 @@ def test_verify_fetched_notion_accepts_matching_receipts(tmp_path: Path) -> None
         write_fetched_snapshot(fetched_root, entry, body)
 
     verify_fetched_notion(manifest, fetched_root)
+
+
+def test_verify_fetched_notion_accepts_safe_connector_serialization(
+    tmp_path: Path,
+) -> None:
+    write_delta_files(tmp_path)
+    manifest = prepare_notion(tmp_path)
+    fetched_root = tmp_path / "fetched"
+    fetched_root.mkdir()
+    for entry in manifest.entries:
+        body = (tmp_path / entry.prepared_path).read_text(encoding="utf-8")
+        body = body.replace("<br />", "<br>")
+        body = body.replace(
+            '[{"observado": true}]',
+            '\\[\\{"observado": true\\}\\]',
+        )
+        body = body.replace(
+            f"out/wiki/{entry.slug}.md",
+            f"out/wiki/[{entry.slug}.md](http://{entry.slug}.md)",
+        )
+        write_fetched_snapshot(fetched_root, entry, body)
+
+    verify_fetched_notion(manifest, fetched_root)
+
+
+def test_verify_fetched_notion_rejects_connector_link_with_other_target(
+    tmp_path: Path,
+) -> None:
+    write_delta_files(tmp_path)
+    manifest = prepare_notion(tmp_path)
+    fetched_root = tmp_path / "fetched"
+    fetched_root.mkdir()
+    for entry in manifest.entries:
+        body = (tmp_path / entry.prepared_path).read_text(encoding="utf-8")
+        if entry.slug == "leiame":
+            body = body.replace(
+                "out/wiki/leiame.md",
+                "out/wiki/[leiame.md](https://example.invalid/altered)",
+            )
+        write_fetched_snapshot(fetched_root, entry, body)
+
+    with pytest.raises(NotionPublicationError, match="semantic hash"):
+        verify_fetched_notion(manifest, fetched_root)
 
 
 def test_verify_fetched_notion_rejects_body_hash_mismatch(tmp_path: Path) -> None:
