@@ -83,6 +83,11 @@ maximum-effort reviews, preserve their receipts, and only after reconciliation
 continue to the fixed-page updates below. No Notion page was modified while
 this prerequisite was missing.
 
+On the resumed attempt, the user authorized the browser plugin and
+`open_in_codex` queued the canonical page in the integrated panel, but the
+session still exposed no browser interaction tool (typing, clicking, or form
+submission). Therefore no review prompt was sent and no Notion content changed.
+
 ## Update and proof
 
 After the review gate passes, use the Notion connector to update the four fixed
