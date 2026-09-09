@@ -20,7 +20,7 @@ local proof from the remaining external Notion gate.
 | Fresh real end-to-end run | `--refresh`: code 1 `DELTAS`, zero gaps, 222 findings | `PROVEN` |
 | Idempotent setup | Two `scripts/setup.py` runs; unchanged Git state | `PROVEN` |
 | No tracked secrets | 285 reachable blobs scanned; no `.env`, known values or token/key patterns | `PROVEN` (bounded scan) |
-| Private GitHub final state | `PRIVATE`; branch read-back `061ecf1e4e4d60c385c45c44f91b7da9ce3c6201` | `PROVEN` |
+| Private GitHub branch at revalidation | `PRIVATE`; branch read-back `96ca6f9ca8967ff6bfd092c58717f40b89384abe` | `PROVEN` |
 | Kimi K3 review | No exact model/browser tool available in this session | `PENDING_EXTERNAL` |
 | Opus 5 review | No exact model/browser tool available in this session | `PENDING_EXTERNAL` |
 | Valid findings reconciled | Cannot reconcile reviews that have not run | `PENDING_EXTERNAL` |
