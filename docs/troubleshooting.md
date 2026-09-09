@@ -115,7 +115,8 @@ Do not delete or chmod the whole project as a generic workaround.
 ## Gate cannot rebuild reports or says provenance is unverifiable
 
 Typical text includes `verified report rebuild failed`, `provenance is
-unverifiable`, or `snapshot root has no complete CURRENT`.
+unverifiable`, `snapshot root has no complete CURRENT`, or
+`SnapshotError: snapshot root is missing` at the end of a traceback.
 
 Cause: `verify.py` is a maintainer provenance gate. It requires the exact
 ignored Wiki and process generations named inside the current versioned
