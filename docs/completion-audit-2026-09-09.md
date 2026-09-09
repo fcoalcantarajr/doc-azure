@@ -15,7 +15,7 @@ local proof from the remaining external Notion gate.
 | Unknown documentation changes visible | `UNMAPPED_DOC_CHANGE`, exact spans, fail-closed tests | `PROVEN` |
 | Coverage gaps fail closed | Documentary and 40,559-node process baselines; code 2 and drift tests | `PROVEN` |
 | Structured and human outputs | `out/audit/run.json`, `global.md`, four page reports | `PROVEN` |
-| Full test suite | `373 passed` | `PROVEN` |
+| Full test suite | `374 passed` | `PROVEN` |
 | Repository gate | `uv run python verify.py`: `GATE_OK` | `PROVEN` |
 | Fresh real end-to-end run | `--refresh`: code 1 `DELTAS`, zero gaps, 222 findings | `PROVEN` |
 | Idempotent setup | Two `scripts/setup.py` runs; unchanged Git state | `PROVEN` |
@@ -48,6 +48,14 @@ the four Notion pages prematurely.
 - No Notion page was updated in this revalidation. Publication remains
   fail-closed until the exact integrated-browser reviews and their raw
   receipts exist.
+- A fresh equivalent Azure collection changed only snapshot provenance
+  (`collected_at`, generation IDs and manifest hashes), so the report verifier
+  now canonicalizes those explicitly volatile fields while retaining byte-level
+  comparison for all logical report content. The regression is covered by
+  `test_verify_reports_ignores_run_specific_snapshot_provenance`.
+- After that correction, `uv run python verify.py --require-publication` fails
+  at the intended external gate (`cannot read Kimi K3 review receipt`), rather
+  than falsely reporting report drift.
 
 ## Fresh hashes
 

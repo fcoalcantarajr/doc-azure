@@ -8,6 +8,7 @@ import ast
 import hashlib
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -36,6 +37,52 @@ from doc_azure.azure_client import ALLOWED_OPERATIONS, is_allowlisted_read
 
 class VerificationError(RuntimeError):
     """Raised when a repository invariant cannot be proved."""
+
+
+_VOLATILE_PROVENANCE_LINES = (
+    (
+        re.compile(
+            r"^- Wiki: coletada em `[^`]+`; geração `[^`]+`; "
+            r"SHA-256 do manifesto `[^`]+`\.$"
+        ),
+        "- Wiki: coletada em `<volatile>`; geração `<volatile>`; "
+        "SHA-256 do manifesto `<volatile>`.\n",
+    ),
+    (
+        re.compile(
+            r"^- Processo: coletado em `[^`]+`; geração `[^`]+`; "
+            r"SHA-256 do manifesto `[^`]+`\.$"
+        ),
+        "- Processo: coletado em `<volatile>`; geração `<volatile>`; "
+        "SHA-256 do manifesto `<volatile>`.\n",
+    ),
+)
+
+
+def _canonical_report_bytes(payload: bytes, label: str) -> bytes:
+    """Normalize only run-specific provenance before stable report comparison."""
+
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        raise VerificationError(f"{label} is not valid UTF-8") from None
+    canonical_lines: list[str] = []
+    for raw_line in text.splitlines(keepends=True):
+        line = raw_line.rstrip("\r\n")
+        newline = raw_line[len(line):]
+        replacement = next(
+            (
+                replacement
+                for pattern, replacement in _VOLATILE_PROVENANCE_LINES
+                if pattern.fullmatch(line)
+            ),
+            None,
+        )
+        if replacement is None:
+            canonical_lines.append(raw_line)
+        else:
+            canonical_lines.append(replacement[:-1] + newline)
+    return "".join(canonical_lines).encode("utf-8")
 
 
 def run_checked(command: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -86,7 +133,9 @@ def verify_reports(root: Path) -> None:
                     )
                 except VerificationError:
                     raise
-                if actual != expected:
+                if _canonical_report_bytes(actual, "versioned report") != _canonical_report_bytes(
+                    expected, "rebuilt report"
+                ):
                     raise VerificationError(
                         f"deltas/{rebuilt_path.name} differs from verified rebuild"
                     )

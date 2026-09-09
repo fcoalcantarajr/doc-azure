@@ -11,7 +11,7 @@ from subprocess import CompletedProcess
 import pytest
 
 from delta.build import build_all_reports
-from doc_azure.snapshot import SnapshotWriter
+from doc_azure.snapshot import SnapshotWriter, read_snapshot_artifact, resolve_snapshot_root
 from verify import (
     VerificationError,
     run_checked,
@@ -107,6 +107,38 @@ def test_verify_reports_accepts_exact_unmodified_outputs_without_mutation(
         for path in (tmp_path / "deltas").iterdir()
     }
     assert after == before
+
+
+def test_verify_reports_ignores_run_specific_snapshot_provenance(
+    tmp_path: Path,
+) -> None:
+    """A fresh equivalent collection must not invalidate stable reports."""
+
+    seed_verified_repository(tmp_path)
+    wiki_root = tmp_path / "out" / "wiki"
+    process_root = tmp_path / "out" / "process"
+    process_source = resolve_snapshot_root(process_root)
+
+    wiki_writer = SnapshotWriter(wiki_root)
+    for _, slug in PAGES:
+        wiki_writer.write_text(
+            f"{slug}.md",
+            read_snapshot_artifact(wiki_root, f"{slug}.md").decode("utf-8"),
+        )
+    wiki_writer.commit_manifest(
+        collected_at=COLLECTED_AT.replace(day=25), requests=()
+    )
+
+    process_writer = SnapshotWriter(process_root)
+    process_writer.write_text(
+        "process.json",
+        read_snapshot_artifact(process_source, "process.json").decode("utf-8"),
+    )
+    process_writer.commit_manifest(
+        collected_at=COLLECTED_AT.replace(day=25), requests=()
+    )
+
+    verify_reports(tmp_path)
 
 
 def test_verify_reports_rejects_resolvable_but_wrong_json_pointer(
