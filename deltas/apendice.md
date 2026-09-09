@@ -13,8 +13,8 @@ Este relatório compara afirmações documentais explícitas com a configuraçã
 
 ## Proveniência dos snapshots
 
-- Wiki: coletada em `2026-08-26T13:59:02.220887+00:00`; geração `3da21e0bad63483fab84d4c997b64040`; SHA-256 do manifesto `605bab1ff322089fa1f9836afe2309eb261fa9a0bdf72e12a10882817b8ef5e8`.
-- Processo: coletado em `2026-08-26T13:59:14.472156+00:00`; geração `86456cdbde1c47f5bb579e9f0dbcfbe4`; SHA-256 do manifesto `88d5d87496673db4c10f68b8c525a3136b69ec46512a6644d157e2d426264357`.
+- Wiki: coletada em `2026-09-09T00:45:26.592156+00:00`; geração `ff1cb7a1bd134787beca2ff3845d75d7`; SHA-256 do manifesto `ff487bfbe089825c9ab5d5ee27179d383538555cdecb256d24291050836c248f`.
+- Processo: coletado em `2026-09-09T00:45:28.686774+00:00`; geração `77c885866a5444a0a341acf8116dd38e`; SHA-256 do manifesto `085d03641745b9cd830fcaeebda16c254818aebcf2f47ff2248f719090e2fcb7`.
 - Processo avaliado: `Processo-Agil` (ID `9d82e632-9028-4a6b-86f8-3edb3281cb15`).
 - Os caminhos lógicos `out/wiki/...` e `out/process/...` resolvem pelas gerações imutáveis identificadas acima.
 

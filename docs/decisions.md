@@ -736,3 +736,21 @@ hash beyond the expected provenance lines. Decision: supersede the 2026-08-24
 generation for publication because it is fresher and equally read-only, while
 recording that stability is evidence of no observed process delta, not proof
 that the documentation is complete or historically accurate.
+
+## 2026-09-08 — moved repository and fresh live evidence
+
+The repository moved to `/Volumes/SSD/codigo-trabalho/doc-azure`. The registered
+linked worktree pointed to a missing gitdir, while the moved residual directory
+contained only ignored `.venv` and `.env` entries. We pruned only the stale Git
+registration and recreated `fix/adversarial-delta-audit` below the ignored
+`.worktrees/` directory; both the residual directory and dirty `main` checkout
+were preserved.
+
+The ignored Azure snapshots did not move with the branch, so treating the
+August reports as current would have left a provenance gap. Both collectors
+were therefore rerun. The new generation has four Wiki GET receipts and 109
+process GET receipts. Three reports changed only in provenance. `leiame` also
+changed the observed technical custom-field union from 209 to 214; its status
+remains `CONFIRMADO` because the documentary claim is the lower bound `50+`.
+This is a current implementation change, not evidence about authorship, cause,
+or the historical sequence of the five additional fields.

@@ -27,17 +27,17 @@ uv run python scripts/04_prepare_notion.py \
   --repository-url https://github.com/fcoalcantarajr/doc-azure
 ```
 
-The 2026-08-26 handoff uses the hashes below. Source hashes bind the versioned
+The 2026-09-08 handoff uses the hashes below. Source hashes bind the versioned
 reports; body hashes bind the enhanced-Markdown payload; semantic hashes bind
 the title, marker, methodology, status definitions, provenance, summary, and
 every ordered finding field. They prove local identity only.
 
 | Slug | Source SHA-256 | Prepared body SHA-256 | Semantic SHA-256 |
 | --- | --- | --- | --- |
-| `leiame` | `029f0692fe361e86b78ca2fa64f4287a8f657d242defb328f80cfa0bd281f0c0` | `3ed3730dabc383357be1ab87eec19ceb2df4b36a25dcc68debd2c86eb65a3480` | `91d53b7f4c159d5f356a44b2ff8f2822237765264934c60f1031ccedbe64a4ee` |
-| `politicas` | `408132c52da0e2cca534d00fc2055d96ac456f83c0863b15ab419e5037aa56f7` | `9377ebbcb6d2f51e495c4d2d4842e2a13c0b25ee10bfe7c9f6d5f8e37c5d16f4` | `05a4e9d316ea7d45a67f0d6886519b6e0296da82f1c65265d1a54af81ba3c0b3` |
-| `changelog` | `cb26377a16a014c8480bf5253158002b201688c833cf8e896d0d816a99bb2387` | `5b8dad454344f38fa1114dd75ce530909c4b00d1259b78fa2f5ccefbc21395c5` | `216880addc240de022ecd5c5262b33d7030a8ad0f6c93912dc58212c73337db4` |
-| `apendice` | `b52fbf654da2a2c4b721153354ea02c5e3195210644adfc5205066babfaeab8d` | `01b41c9296c10aabac0618c8bc530011fb7709316cb0c176ac17e1554f43dfb5` | `d1f21cac9ba5f9ced527139475048d714d282ef4632f008bdaddb4754c50cfa0` |
+| `leiame` | `d3bf8ab6d35ae967c72bc46424e30031fc8ae67339271cd3df344ffb126f33fb` | `450597f22a1f3e4736931a284770f6fcdc1ac01badf650ee92376cf31742c70a` | `aac05ae06f232b70ff7eac69eeb1d5cd80432291578ea06ab76c374294157de9` |
+| `politicas` | `1732f271039b56d072ee0b65019d2437df44519869152cb469840f9ea2fcb570` | `ca93bf9a8b174a4ca283e43daa877cf67c475eac6658617ea6253e4a6644b54b` | `ec5cbace77da6c3e7a615577e81f9537c8372a137553f6b9e010209c6b5ea16b` |
+| `changelog` | `d3936680d5d2488095620d0f7e75374fe52dbc105eb1697677f09579f4206d02` | `bd62dec86a20862fb13906592692b86d57dc0d6536da44fcaaff7362e50b6a9d` | `a1dfbca9fd1d56dea616bf2f649610f92c8fa49e72a40ec4a51678032d77f694` |
+| `apendice` | `9eed58805a7e66fd05c068220a21afd03cf6996c0945e96d605504b1278e9d3b` | `2c071d41d753f816b8e0e9ca1e77123d37d6ab0cd5527b405ed232bb23a85292` | `305adf732124deed523fecce547bdebf1101707ed7b8fc7f266ca49935205594` |
 
 ## Mandatory adversarial review gate
 

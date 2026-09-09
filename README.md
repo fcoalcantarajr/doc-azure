@@ -61,4 +61,4 @@ run `uv run python verify.py --require-publication`. Local preparation, a model
 verdict, or a marker alone is not proof of external publication.
 
 See `docs/delta-method.md` for the evidence model and
-`docs/session-2026-08-26.md` for the current audit receipt.
+`docs/session-2026-09-08.md` for the current audit receipt.
