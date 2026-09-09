@@ -280,9 +280,11 @@ def _render_packet(manifest: object, semantics: tuple[ReportSemantic, ...]) -> s
 def _render_prompt(repository_url: str) -> str:
     return f"""Faça uma revisão adversarial e independente do delta entre as quatro páginas da Wiki e o Processo-Agil implementado no Azure DevOps.
 
-Você está no Notion AI e tem acesso ao GitHub. Use esse acesso para ler o repositório privado {repository_url} e conferir código, testes, documentação, relatórios e apontadores do pacote CSV anexado. Não presuma que a conclusão local está correta.
+Você está no Notion AI e tem acesso ao GitHub. Use esse acesso para ler diretamente o repositório privado {repository_url} e conferir código, testes, documentação, relatórios e apontadores do pacote CSV anexado. Não presuma que a conclusão local está correta: tente falsificar a conclusão.
 
-Verifique, no mínimo: cobertura das afirmações documentais; correspondência entre status, conteúdo e evidências; omissões ou extrapolações; escopo dos WITs ativos/desabilitados; proveniência; reprodutibilidade; e equivalência semântica dos quatro corpos preparados para o Notion. Não solicite nem reproduza segredos, o arquivo .env ou dados pessoais brutos.
+Procure, no mínimo: falsos MATCH e falsos deltas; gaps de cobertura; claims ou WITs novos/removidos; seletores que deixam de resolver; respostas parciais; heurísticas frágeis; dependências ocultas de IA; falhas fail-open; problemas de segurança; não determinismo; proveniência fraca; e qualquer classificação sem evidência. Verifique cobertura das afirmações documentais, correspondência entre status, conteúdo e evidências, omissões ou extrapolações, escopo dos WITs ativos/desabilitados, reprodutibilidade e equivalência semântica dos quatro corpos preparados para o Notion. O runtime obrigatoriamente deve funcionar sem IA, LLM, embeddings, prompts ou agentes. Não solicite nem reproduza segredos, o arquivo .env ou dados pessoais brutos.
+
+Os revisores designados são Kimi K3 e Opus 5, cada um com esforço máximo, em chats independentes no navegador integrado ao ChatGPT. Não substitua esses modelos, não trate concordância como prova e declare explicitamente se consultou o repositório privado e o CSV.
 
 Responda em português com: (1) veredito PASS ou NEEDS_FIXES; (2) achados numerados, cada um com severidade, claim/page, evidência concreta e correção proposta; (3) lacunas não verificáveis; e (4) declaração explícita de que consultou ou não o repositório privado e o CSV.
 """

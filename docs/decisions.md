@@ -863,6 +863,13 @@ and the repository gate returned `GATE_OK`.
 Adversarial RED: three process fixtures with duplicate field/state/rule
 identifiers were accepted. GREEN: the collector now rejects duplicate normalized
 identities before snapshot publication; full suite then returned 367 tests, and
-the final runtime/clean/internal exit-code additions returned 370 tests. The
+the final runtime/clean/internal/no-network/process-drift additions returned 373 tests. The
 coverage gate also became part of `verify.py`; a report cannot pass the gate by
 omitting the reviewed documentary baseline.
+
+The review prompt was expanded to require explicit falsification of false MATCHes
+and deltas, coverage gaps, fragile heuristics, hidden AI dependencies, fail-open
+paths, security defects and nondeterminism, and to require that reviewers verify
+the runtime works without AI. It names Kimi K3 and Opus 5 at maximum effort and
+the integrated ChatGPT browser as hard constraints. Focused prompt tests passed;
+the regenerated prompt hash is recorded in `docs/notion-publication.md`.

@@ -12,7 +12,7 @@ from doc_azure import audit
 from doc_azure import baselines
 from delta.process_coverage import fingerprint_json
 from doc_azure.snapshot import read_snapshot_artifact, read_snapshot_manifest
-from tests.test_process_collector import seed_process_snapshot
+from tests.test_process_collector import expected_artifacts, seed_process_snapshot
 from tests.test_process_collector import fixture_payloads
 from tests.test_wiki_collector import seed_complete_wiki_snapshot, load_page_payloads
 from tests.test_document_coverage import seed_baseline
@@ -59,6 +59,12 @@ def test_offline_run_publishes_complete_bundle_without_credentials(tmp_path, mon
     assert summary["findings"]
     for name in ("global", "leiame", "politicas", "changelog", "apendice"):
         assert read_snapshot_artifact(tmp_path / "out/audit", name + ".md")
+
+
+def test_offline_run_never_constructs_http_transport(tmp_path, monkeypatch):
+    inputs = seed_run(tmp_path)
+    monkeypatch.setattr(audit.httpx, "AsyncClient", lambda **kwargs: (_ for _ in ()).throw(AssertionError("network")))
+    assert run(tmp_path, inputs).exit_code == 1
 
 
 def test_run_unknown_document_prose_is_explicit_gap(tmp_path):
@@ -113,6 +119,17 @@ def test_unexpected_runtime_failure_has_internal_exit_code(tmp_path, monkeypatch
     monkeypatch.setattr(audit, "assess_documents", lambda *args: (_ for _ in ()).throw(RuntimeError("boom")))
     result = run(tmp_path, inputs)
     assert result.exit_code == 4
+
+
+def test_new_valid_process_property_is_a_coverage_gap(tmp_path):
+    inputs = seed_run(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process["unmappedProperty"] = "new"
+    seed_process_snapshot(tmp_path, custom_text={"process.json": json.dumps(process) + "\n"})
+    result = run(tmp_path, inputs)
+    assert result.exit_code == 2
+    summary = json.loads(read_snapshot_artifact(tmp_path / "out/audit", "run.json"))
+    assert any(gap["pointer"].endswith("/unmappedProperty") for gap in summary["gaps"])
 
 
 def test_refresh_executes_real_collectors_through_read_only_http(tmp_path, monkeypatch):

@@ -189,6 +189,19 @@ def test_prepare_review_packet_is_deterministic_and_mentions_private_github(
     prompt = (review_root / "prompt.txt").read_text(encoding="utf-8")
     assert "https://github.com/example/doc-azure" in prompt
     assert "acesso ao GitHub" in prompt
+    for required in (
+        "tente falsificar",
+        "falsos MATCH",
+        "gaps de cobertura",
+        "dependências ocultas de IA",
+        "fail-open",
+        "não determinismo",
+        "sem IA",
+        "Kimi K3",
+        "Opus 5",
+        "esforço máximo",
+    ):
+        assert required in prompt
     with (review_root / "packet.csv").open(newline="", encoding="utf-8") as stream:
         rows = list(csv.DictReader(stream))
     assert len(rows) == 4

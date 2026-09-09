@@ -81,6 +81,7 @@ and partial-response regressions, documentation reconciliation, private GitHub
 sync of the final commits, final Notion AI reviews and canonical Notion
 publication/read-back.
 
-Validation for this increment: duplicate-identifier RED/GREEN regression and
-baseline preparation tests pass; full suite currently has 367 tests. The fresh
+Validation for this increment: duplicate-identifier RED/GREEN regression,
+offline no-network, clean/internal exit and process-drift regressions pass; full
+suite currently has 373 tests. The fresh
 live run is evidence of the application path, not completion of the Notion gates.

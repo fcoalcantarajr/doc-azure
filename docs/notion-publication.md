@@ -27,17 +27,20 @@ uv run python scripts/04_prepare_notion.py \
   --repository-url https://github.com/fcoalcantarajr/doc-azure
 ```
 
-The 2026-09-08 handoff uses the hashes below. Source hashes bind the versioned
+The 2026-09-09 handoff uses the hashes below. Source hashes bind the versioned
 reports; body hashes bind the enhanced-Markdown payload; semantic hashes bind
 the title, marker, methodology, status definitions, provenance, summary, and
 every ordered finding field. They prove local identity only.
 
 | Slug | Source SHA-256 | Prepared body SHA-256 | Semantic SHA-256 |
 | --- | --- | --- | --- |
-| `leiame` | `d3bf8ab6d35ae967c72bc46424e30031fc8ae67339271cd3df344ffb126f33fb` | `450597f22a1f3e4736931a284770f6fcdc1ac01badf650ee92376cf31742c70a` | `aac05ae06f232b70ff7eac69eeb1d5cd80432291578ea06ab76c374294157de9` |
-| `politicas` | `1732f271039b56d072ee0b65019d2437df44519869152cb469840f9ea2fcb570` | `ca93bf9a8b174a4ca283e43daa877cf67c475eac6658617ea6253e4a6644b54b` | `ec5cbace77da6c3e7a615577e81f9537c8372a137553f6b9e010209c6b5ea16b` |
-| `changelog` | `d3936680d5d2488095620d0f7e75374fe52dbc105eb1697677f09579f4206d02` | `bd62dec86a20862fb13906592692b86d57dc0d6536da44fcaaff7362e50b6a9d` | `a1dfbca9fd1d56dea616bf2f649610f92c8fa49e72a40ec4a51678032d77f694` |
-| `apendice` | `9eed58805a7e66fd05c068220a21afd03cf6996c0945e96d605504b1278e9d3b` | `2c071d41d753f816b8e0e9ca1e77123d37d6ab0cd5527b405ed232bb23a85292` | `305adf732124deed523fecce547bdebf1101707ed7b8fc7f266ca49935205594` |
+| `leiame` | `6c31f5f4f9eafc7be4113b7f47cdfbc1bd7071beb6dfe4f16e9922af784fe9cd` | `a3c39fdf14630abfe19cb3a4f327a80f9dee3124f932d5c9847190f62f1c4b8b` | `65805cf7ceec02e130cd71a18392214a915230a91c8e3abb490f0239bf75e3e8` |
+| `politicas` | `8153ddb60686e9dd0e11ef5153af734e1996d534e2e12d91340e2273676dc1e7` | `9bb955668612b94e0ecc60f12e86d7fc7652259c343213609521c3088c28e438` | `f5722959e969e703fc2f861d8eba7c61fbf67487f4eb29be75aaa7d23d1cc200` |
+| `changelog` | `a6b6baa9bf333d34ab7a47b54652f61c16b8a5b4e2e331159ff33d6e663e0c2d` | `7e91fe550387e579ebfe57919a0bb4b941fafb42613ae107ec8b00e006b7e9af` | `02e60d1a5df8b0dcafb0ab0901829fd79879ff3b0cb0c4dc23cf263c357d5fa8` |
+| `apendice` | `e5099008ab565ef6ef5e625fbc749391df34771b8685defeec61ee7946ac9bae` | `17851534d1efbaa4c5654f4884b24824603f66925da069c3c9c71fe960ea00d2` | `96b0326091548d2c6a47313a32c4b93aad84c0d33329161dca12dc75d332b17c` |
+
+Current review packet SHA-256: `0bbf6aabebf57703b60ea619e36ade4ff8023cd14256cd7b8a3103cc32cd282f`.
+Current review prompt SHA-256: `9921af82e43b24bb5a01069d2c251e8dc813f90199b606bb49740fbe475a73a3`.
 
 ## Mandatory adversarial review gate
 

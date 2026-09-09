@@ -569,13 +569,17 @@ def test_malformed_family_aborts_instead_of_becoming_an_empty_list(
 
 @pytest.mark.parametrize(
     ("family", "identity_path"),
-    (("fields", ("referenceName",)), ("states", ("id",)), ("rules", ("id",))),
+    (("fields", ("referenceName",)), ("states", ("id",)), ("rules", ("id",)),
+     ("behaviors", ("behavior", "id"))),
 )
 def test_collection_rejects_duplicate_family_identifiers(
     tmp_path: Path, family: str, identity_path: tuple[str, ...]
 ) -> None:
     payloads = fixture_payloads()
-    route = next(path for path in payloads if path.endswith(f"/{family}"))
+    if family == "behaviors":
+        route = next(path for path in payloads if "workitemtypesbehaviors" in path)
+    else:
+        route = next(path for path in payloads if path.endswith(f"/{family}"))
     entries = payloads[route]["value"]
     entries.append(copy.deepcopy(entries[0]))
     payloads[route]["count"] = len(entries)
