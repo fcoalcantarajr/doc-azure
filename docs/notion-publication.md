@@ -87,6 +87,10 @@ On the resumed attempt, the user authorized the browser plugin and
 `open_in_codex` queued the canonical page in the integrated panel, but the
 session still exposed no browser interaction tool (typing, clicking, or form
 submission). Therefore no review prompt was sent and no Notion content changed.
+The plugin-management read-back is more specific: app `browser` is
+`not_installed`, and `browser@openai-bundled` resolves as `plugin_not_found` for
+this user. Authorization alone therefore did not make the requested plugin
+available to the session.
 
 ## Update and proof
 
