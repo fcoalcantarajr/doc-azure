@@ -70,11 +70,14 @@ Baseline SHA-256 values:
 - `config/document-coverage.json`: `2e0d956a8f74f3933779d297adfff1328267de1ccd8a04e555228b7edbf2990e`
 - `config/process-coverage.json`: `4fe95039f993a9473677b98e4a652bc4d0d79c1ad1a6658d6598bdfce9cd2418`
 
-A fresh `--refresh` run on 2026-09-09 collected four Wiki pages with four GETs
-and 109 process artifacts with 109 GETs. It returned code 1 (`DELTAS`), coverage
-complete, zero gaps and 222 classified findings: 123 `CONFIRMADO`, 59
-`DIVERGENTE`, 31 `NAO_VERIFICAVEL_API_PROCESSO` and 9 `AMBIGUO`. Its logical
-hash was `3ea48dc27b83ba7ba1491f56538e893433f52eaf9df063affe099dbca0166369`.
+The latest fresh `--refresh` run on 2026-09-09 at 11:35:12–11:35:14 UTC
+collected four Wiki pages with four GETs and 109 process artifacts with 109
+GETs. Wiki generation was `a4ae120c5e9d45c9839bd6323c30d719`; process
+generation was `75963a4853a543f68cb49d5bcb97589f`. It returned code 1
+(`DELTAS`), coverage complete, zero gaps and 222 classified findings: 123
+`CONFIRMADO`, 59 `DIVERGENTE`, 31 `NAO_VERIFICAVEL_API_PROCESSO` and 9
+`AMBIGUO`. Its logical hash was
+`3ea48dc27b83ba7ba1491f56538e893433f52eaf9df063affe099dbca0166369`.
 
 The report verifier intentionally canonicalizes only collection timestamp,
 snapshot-generation ID and manifest-hash fields in the provenance section. All
