@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Audit project comparing Azure DevOps wiki pages against Processo-Agil implementation"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["httpx>=0.25.0", "pytest>=8.0.0"]
+dependencies = ["httpx>=0.25.0"]
+
+[dependency-groups]
+dev = ["pytest>=8.0.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
