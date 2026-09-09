@@ -35,7 +35,7 @@ the four Notion pages prematurely.
 ## Revalidation on 2026-09-09
 
 - The active worktree is clean on `fix/adversarial-delta-audit` at
-  `061ecf1e4e4d60c385c45c44f91b7da9ce3c6201`.
+  `96ca6f9ca8967ff6bfd092c58717f40b89384abe`.
 - The local `origin` configuration was restored to the authorized private
   repository and a normal, non-force push reported `Everything up-to-date`.
   Read-back still reports the private repository, `main` at

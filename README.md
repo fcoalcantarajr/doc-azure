@@ -55,9 +55,11 @@ manifest hashes, process name, and process UUID used for evaluation.
 
 ## Safety boundary
 
-Azure DevOps collection uses allowlisted GET requests only for this workflow.
-No collector creates, updates, or deletes process/wiki data. Raw evidence may
-contain employee data and must not be committed. Never stage `.env` or `out/`.
+Azure DevOps collection uses an explicit allowlist of read-only routes. It is
+GET-only for Wiki/process reads; the allowlist permits only the two documented
+query-only POST routes when a collector needs them. No collector creates,
+updates, or deletes process/wiki data. Raw evidence may contain employee data
+and must not be committed. Never stage `.env` or `out/`.
 
 Notion publication is a separate gated step. Two independent reviews must use
 Kimi K3 and Opus 5 at maximum effort in the ChatGPT-integrated browser, with

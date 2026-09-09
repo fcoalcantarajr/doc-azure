@@ -76,12 +76,16 @@ complete, zero gaps and 222 classified findings: 123 `CONFIRMADO`, 59
 `DIVERGENTE`, 31 `NAO_VERIFICAVEL_API_PROCESSO` and 9 `AMBIGUO`. Its logical
 hash was `3ea48dc27b83ba7ba1491f56538e893433f52eaf9df063affe099dbca0166369`.
 
-Remaining work includes finer mapped-change coverage policy, additional selector
-and partial-response regressions, documentation reconciliation, private GitHub
-sync of the final commits, final Notion AI reviews and canonical Notion
-publication/read-back.
+The report verifier intentionally canonicalizes only collection timestamp,
+snapshot-generation ID and manifest-hash fields in the provenance section. All
+logical findings and stable report text remain byte-compared, so a fresh
+equivalent collection cannot create a false drift while a real report mutation
+still fails the gate.
+
+Remaining work is external to the deterministic runtime: the exact Notion AI
+reviews and the gated canonical Notion publication/read-back.
 
 Validation for this increment: duplicate-identifier RED/GREEN regression,
 offline no-network, clean/internal exit and process-drift regressions pass; full
-suite currently has 373 tests. The fresh
+suite currently has 374 tests. The fresh
 live run is evidence of the application path, not completion of the Notion gates.

@@ -16,6 +16,17 @@ LLM-based classification — rejected because AGENTS.md requires deterministic, 
 
 webfetch on notion.so — rejected because Notion MCP must be used per mission spec.
 
+## Decision — 2026-09-09: stable report verification across equivalent refreshes
+
+The versioned Markdown reports retain collection provenance for auditability, but
+`collected_at`, immutable snapshot generation IDs and manifest hashes are
+run-specific. Comparing those fields literally made `verify.py` reject a fresh
+equivalent collection even when every evaluated finding was unchanged. The gate
+now canonicalizes only those two provenance lines before comparison; all other
+report bytes, including process identity, findings, evidence pointers and
+status, remain exact. A regression test recreates both snapshot generations
+with identical artifacts and a different collection date.
+
 ## Task 1 — RED evidence
 
 Command: `uv run pytest tests/test_delta_models.py tests/test_delta_evidence.py -q`
