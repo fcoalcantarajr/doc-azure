@@ -65,6 +65,24 @@ hash. `out/notion/review/reconciliation.json` must bind both responses and
 record a decision for every finding. A PASS is process evidence, not proof that
 the source claims are true.
 
+## External capability receipt — 2026-09-09
+
+The required gate is intentionally still closed. Exact searches for `Kimi K3`
+and `Opus 5` returned no published agents. Searching existing Notion agent
+sessions returned HTTP 403 `restricted_resource` with the message that this
+connection lacks the `interact with agents` capability and must be disconnected
+and reconnected/re-authorized. The current Codex tool inventory also has no
+interactive browser/Computer Use surface; `open_in_codex` can display a tab but
+cannot operate the Notion AI UI.
+
+This is not permission to substitute another model, a connector session, the
+Notion desktop app, or a different browser. To resume, reconnect the Notion
+integration with agent interaction enabled and make the ChatGPT-integrated
+browser available. Then re-run the exact searches, create two independent
+maximum-effort reviews, preserve their receipts, and only after reconciliation
+continue to the fixed-page updates below. No Notion page was modified while
+this prerequisite was missing.
+
 ## Update and proof
 
 After the review gate passes, use the Notion connector to update the four fixed
