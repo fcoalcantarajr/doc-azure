@@ -380,6 +380,42 @@ def test_corrupt_authoritative_cache_fails_closed_without_client(
         )
 
 
+def test_cache_reader_does_not_follow_artifact_swapped_after_resolution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_complete_wiki_snapshot(tmp_path)
+    logical_root = tmp_path / "out" / "wiki"
+    outside = tmp_path / "outside-leiame.md"
+    outside.write_text(
+        str(load_page_payloads()[35]["content"]),
+        encoding="utf-8",
+    )
+    original_resolve = wiki_collector_module.resolve_snapshot_root
+    swapped = False
+
+    def resolve_then_swap(root: Path) -> Path:
+        nonlocal swapped
+        resolved = original_resolve(root)
+        if not swapped:
+            target = resolved / "leiame.md"
+            target.unlink()
+            target.symlink_to(outside)
+            swapped = True
+        return resolved
+
+    monkeypatch.setattr(
+        wiki_collector_module,
+        "resolve_snapshot_root",
+        resolve_then_swap,
+    )
+
+    with pytest.raises(SnapshotError, match="symlink|hash"):
+        asyncio.run(
+            collect_wiki_pages(tmp_path, None, refresh=False, now=fail_if_called)
+        )
+
+
 def test_entry_point_fetches_once_then_skips_before_settings_and_asyncio(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

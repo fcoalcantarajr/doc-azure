@@ -244,6 +244,14 @@ def read_snapshot_artifact(root: Path, relative_path: str | Path) -> bytes:
     return payload
 
 
+def read_snapshot_manifest(root: Path) -> SnapshotManifest:
+    """Read and parse the selected manifest without following its final path."""
+
+    resolved_root = resolve_snapshot_root(root)
+    manifest_bytes = _read_regular_file(resolved_root / _MANIFEST, "manifest")
+    return _parse_snapshot_manifest(manifest_bytes)
+
+
 def _publication_token(root: Path) -> str:
     current_path = root / _CURRENT
     if _lexists(current_path):
@@ -446,45 +454,15 @@ def _read_current_generation(root: Path) -> str:
 def _validate_complete_snapshot(root: Path, *, legacy: bool) -> None:
     manifest_path = root / _MANIFEST
     manifest_bytes = _read_regular_file(manifest_path, "manifest")
-    try:
-        manifest = json.loads(manifest_bytes)
-    except (UnicodeError, ValueError):
-        raise SnapshotError("snapshot manifest is malformed") from None
-    if (
-        not isinstance(manifest, dict)
-        or manifest.get("schema_version") != 1
-        or manifest.get("complete") is not True
-        or not isinstance(manifest.get("collected_at"), str)
-        or not manifest["collected_at"].strip()
-        or not isinstance(manifest.get("requests"), list)
-        or not isinstance(manifest.get("artifacts"), list)
-        or not manifest["artifacts"]
-    ):
+    manifest = _parse_snapshot_manifest(manifest_bytes)
+    if not manifest.artifacts:
         raise SnapshotError("snapshot manifest is incomplete")
 
-    for request in manifest["requests"]:
-        if not isinstance(request, dict) or set(request) != {"method", "path"}:
-            raise SnapshotError("snapshot manifest request is malformed")
-        try:
-            RequestRecord(request["method"], request["path"])
-        except (TypeError, ValueError):
-            raise SnapshotError("snapshot manifest request is malformed") from None
-
-    expected_hashes: dict[str, str] = {}
-    for artifact in manifest["artifacts"]:
-        if not isinstance(artifact, dict):
-            raise SnapshotError("snapshot manifest artifact is malformed")
-        try:
-            path = _validate_relative_path(artifact.get("path"))
-        except SnapshotError:
-            raise SnapshotError("snapshot manifest artifact is malformed") from None
-        digest = artifact.get("sha256")
-        if not isinstance(digest, str) or not _HASH_PATTERN.fullmatch(digest):
-            raise SnapshotError("snapshot manifest artifact is malformed")
-        path_text = path.as_posix()
-        if path_text in expected_hashes:
-            raise SnapshotError("snapshot manifest artifact is duplicated")
-        expected_hashes[path_text] = digest
+    expected_hashes = {
+        artifact.path: artifact.sha256 for artifact in manifest.artifacts
+    }
+    if len(expected_hashes) != len(manifest.artifacts):
+        raise SnapshotError("snapshot manifest artifact is duplicated")
 
     observed_files = _snapshot_files(root, legacy=legacy)
     expected_files = set(expected_hashes) | {_MANIFEST}
@@ -496,6 +474,68 @@ def _validate_complete_snapshot(root: Path, *, legacy: bool) -> None:
             raise SnapshotError("snapshot artifact is empty")
         if hashlib.sha256(payload).hexdigest() != expected_hash:
             raise SnapshotError("snapshot artifact hash does not match manifest")
+
+
+def _parse_snapshot_manifest(manifest_bytes: bytes) -> SnapshotManifest:
+    """Parse the strict manifest schema shared by validation and consumers."""
+
+    try:
+        payload = json.loads(manifest_bytes)
+    except (UnicodeError, ValueError):
+        raise SnapshotError("snapshot manifest is malformed") from None
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != {
+            "schema_version",
+            "complete",
+            "collected_at",
+            "requests",
+            "artifacts",
+        }
+        or payload.get("schema_version") != 1
+        or payload.get("complete") is not True
+        or not isinstance(payload.get("collected_at"), str)
+        or not payload["collected_at"].strip()
+        or not isinstance(payload.get("requests"), list)
+        or not isinstance(payload.get("artifacts"), list)
+    ):
+        raise SnapshotError("snapshot manifest is incomplete")
+
+    requests: list[RequestRecord] = []
+    for request in payload["requests"]:
+        if not isinstance(request, dict) or set(request) != {"method", "path"}:
+            raise SnapshotError("snapshot manifest request is malformed")
+        try:
+            requests.append(RequestRecord(request["method"], request["path"]))
+        except (TypeError, ValueError):
+            raise SnapshotError("snapshot manifest request is malformed") from None
+
+    artifacts: list[SnapshotArtifact] = []
+    paths: set[str] = set()
+    for artifact in payload["artifacts"]:
+        if not isinstance(artifact, dict):
+            raise SnapshotError("snapshot manifest artifact is malformed")
+        if set(artifact) != {"path", "sha256"}:
+            raise SnapshotError("snapshot manifest artifact is malformed")
+        try:
+            path = _validate_relative_path(artifact.get("path"))
+        except SnapshotError:
+            raise SnapshotError("snapshot manifest artifact is malformed") from None
+        digest = artifact.get("sha256")
+        if not isinstance(digest, str) or not _HASH_PATTERN.fullmatch(digest):
+            raise SnapshotError("snapshot manifest artifact is malformed")
+        path_text = path.as_posix()
+        if path_text in paths:
+            raise SnapshotError("snapshot manifest artifact is duplicated")
+        paths.add(path_text)
+        artifacts.append(SnapshotArtifact(path_text, digest))
+    return SnapshotManifest(
+        schema_version=payload["schema_version"],
+        complete=payload["complete"],
+        collected_at=payload["collected_at"],
+        requests=tuple(requests),
+        artifacts=tuple(artifacts),
+    )
 
 
 def _snapshot_files(root: Path, *, legacy: bool) -> dict[str, bytes]:

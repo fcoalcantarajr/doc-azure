@@ -14,9 +14,10 @@ from uuid import UUID
 
 from doc_azure.azure_client import AzureReadClient, AzureReadError, RequestRecord
 from doc_azure.snapshot import (
-    SnapshotArtifact,
     SnapshotManifest,
     SnapshotWriter,
+    read_snapshot_artifact,
+    read_snapshot_manifest,
     resolve_snapshot_root,
 )
 
@@ -183,7 +184,10 @@ class _SnapshotState:
 
     def read_text(self, relative_path: str) -> str:
         try:
-            return (self.resolved_root / relative_path).read_text(encoding="utf-8")
+            return read_snapshot_artifact(
+                self.resolved_root,
+                relative_path,
+            ).decode("utf-8")
         except (OSError, UnicodeError):
             raise ProcessCollectionError(
                 f"cached process artifact {relative_path} is unreadable"
@@ -468,36 +472,12 @@ def _load_snapshot_state(logical_root: Path) -> _SnapshotState | None:
     ):
         return None
     resolved_root = resolve_snapshot_root(logical_root)
-    manifest = _read_manifest(resolved_root)
+    manifest = read_snapshot_manifest(resolved_root)
     return _SnapshotState(
         resolved_root=resolved_root,
         manifest=manifest,
         artifact_paths=frozenset(artifact.path for artifact in manifest.artifacts),
     )
-
-
-def _read_manifest(resolved_root: Path) -> SnapshotManifest:
-    try:
-        payload = json.loads(
-            (resolved_root / "manifest.json").read_text(encoding="utf-8")
-        )
-        return SnapshotManifest(
-            schema_version=payload["schema_version"],
-            complete=payload["complete"],
-            collected_at=payload["collected_at"],
-            requests=tuple(
-                RequestRecord(request["method"], request["path"])
-                for request in payload["requests"]
-            ),
-            artifacts=tuple(
-                SnapshotArtifact(artifact["path"], artifact["sha256"])
-                for artifact in payload["artifacts"]
-            ),
-        )
-    except (KeyError, OSError, TypeError, UnicodeError, ValueError):
-        raise ProcessCollectionError(
-            "process snapshot manifest is malformed"
-        ) from None
 
 
 def _required_json(state: _SnapshotState, relative_path: str) -> dict[str, object]:

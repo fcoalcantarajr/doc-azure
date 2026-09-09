@@ -29,7 +29,7 @@ from doc_azure.process_collector import (
     select_process_id,
 )
 from doc_azure.settings import Settings
-from doc_azure.snapshot import SnapshotWriter, resolve_snapshot_root
+from doc_azure.snapshot import SnapshotError, SnapshotWriter, resolve_snapshot_root
 
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "audit"
@@ -812,6 +812,40 @@ def test_entry_point_cache_hit_precedes_settings_client_and_asyncio(
     assert PROCESS_ID not in output.out + output.err
     assert EPIC_REFERENCE not in output.out + output.err
     assert read_cached_process_manifest(tmp_path) is not None
+
+
+def test_cache_reader_does_not_follow_artifact_swapped_after_resolution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_process_snapshot(tmp_path)
+    outside = tmp_path / "outside-process.json"
+    outside.write_text(
+        json.dumps(expected_artifacts()["process.json"], indent=2, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+    )
+    original_resolve = process_collector_module.resolve_snapshot_root
+    swapped = False
+
+    def resolve_then_swap(root: Path) -> Path:
+        nonlocal swapped
+        resolved = original_resolve(root)
+        if not swapped:
+            target = resolved / "process.json"
+            target.unlink()
+            target.symlink_to(outside)
+            swapped = True
+        return resolved
+
+    monkeypatch.setattr(
+        process_collector_module,
+        "resolve_snapshot_root",
+        resolve_then_swap,
+    )
+
+    with pytest.raises(SnapshotError, match="symlink|hash"):
+        read_cached_process_manifest(tmp_path)
 
 
 def test_refresh_requests_every_global_and_per_wit_artifact(tmp_path: Path) -> None:

@@ -12,9 +12,10 @@ from pathlib import Path
 
 from doc_azure.azure_client import AzureReadClient, RequestRecord
 from doc_azure.snapshot import (
-    SnapshotArtifact,
     SnapshotManifest,
     SnapshotWriter,
+    read_snapshot_artifact,
+    read_snapshot_manifest,
     resolve_snapshot_root,
 )
 
@@ -115,7 +116,7 @@ def read_cached_wiki_manifest(root: Path) -> SnapshotManifest | None:
         return None
 
     resolved_root = resolve_snapshot_root(logical_root)
-    manifest = _read_manifest(resolved_root)
+    manifest = read_snapshot_manifest(resolved_root)
     _validate_wiki_artifacts(resolved_root, manifest)
     return manifest
 
@@ -173,28 +174,6 @@ def _has_publication(logical_root: Path) -> bool:
     )
 
 
-def _read_manifest(resolved_root: Path) -> SnapshotManifest:
-    try:
-        payload = json.loads(
-            (resolved_root / "manifest.json").read_text(encoding="utf-8")
-        )
-        return SnapshotManifest(
-            schema_version=payload["schema_version"],
-            complete=payload["complete"],
-            collected_at=payload["collected_at"],
-            requests=tuple(
-                RequestRecord(request["method"], request["path"])
-                for request in payload["requests"]
-            ),
-            artifacts=tuple(
-                SnapshotArtifact(artifact["path"], artifact["sha256"])
-                for artifact in payload["artifacts"]
-            ),
-        )
-    except (KeyError, TypeError, ValueError):
-        raise WikiCollectionError("wiki snapshot manifest is malformed") from None
-
-
 def _validate_wiki_artifacts(
     resolved_root: Path, manifest: SnapshotManifest
 ) -> None:
@@ -204,12 +183,14 @@ def _validate_wiki_artifacts(
 
     for spec in PAGE_SPECS:
         try:
-            content = (resolved_root / f"{spec.slug}.md").read_text(
-                encoding="utf-8"
-            )
+            content = read_snapshot_artifact(
+                resolved_root,
+                f"{spec.slug}.md",
+            ).decode("utf-8")
             metadata = json.loads(
-                (resolved_root / f"{spec.slug}.metadata.json").read_text(
-                    encoding="utf-8"
+                read_snapshot_artifact(
+                    resolved_root,
+                    f"{spec.slug}.metadata.json",
                 )
             )
         except (OSError, UnicodeError, ValueError):
