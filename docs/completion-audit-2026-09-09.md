@@ -19,8 +19,8 @@ local proof from the remaining external Notion gate.
 | Repository gate | `uv run python verify.py`: `GATE_OK` | `PROVEN` |
 | Fresh real end-to-end run | `--refresh`: code 1 `DELTAS`, zero gaps, 222 findings | `PROVEN` |
 | Idempotent setup | Two `scripts/setup.py` runs; unchanged Git state | `PROVEN` |
-| No tracked secrets | 285 reachable blobs scanned; no `.env`, known values or token/key patterns | `PROVEN` (bounded scan) |
-| Private GitHub branch at revalidation | `PRIVATE`; branch read-back `96ca6f9ca8967ff6bfd092c58717f40b89384abe` | `PROVEN` |
+| No tracked secrets | Bounded reachable-blob history scan; no `.env`, known values or token/key patterns | `PROVEN` (bounded scan) |
+| Private GitHub branch at revalidation | `PRIVATE`; normal non-force branch read-back succeeded | `PROVEN` |
 | Kimi K3 review | No exact model/browser tool available in this session | `PENDING_EXTERNAL` |
 | Opus 5 review | No exact model/browser tool available in this session | `PENDING_EXTERNAL` |
 | Valid findings reconciled | Cannot reconcile reviews that have not run | `PENDING_EXTERNAL` |
@@ -34,8 +34,10 @@ the four Notion pages prematurely.
 
 ## Revalidation on 2026-09-09
 
-- The active worktree is clean on `fix/adversarial-delta-audit` at
-  `96ca6f9ca8967ff6bfd092c58717f40b89384abe`.
+- The code-regression revalidation was performed with a clean
+  `fix/adversarial-delta-audit` worktree at implementation commit
+  `96ca6f9ca8967ff6bfd092c58717f40b89384abe`; subsequent commits in this
+  section are documentation-only.
 - The local `origin` configuration was restored to the authorized private
   repository and a normal, non-force push reported `Everything up-to-date`.
   Read-back still reports the private repository, `main` at
