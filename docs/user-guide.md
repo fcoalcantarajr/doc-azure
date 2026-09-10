@@ -1,367 +1,285 @@
-# Complete user guide
+# Guia completo do usuário
 
-This guide assumes no Python experience. Follow the sections in order for a
-first run. Commands are safe to copy exactly unless a step explicitly tells you
-to replace a value.
+Este guia pressupõe nenhuma experiência em Python. Siga as seções em ordem para uma primeira execução. Os comandos são seguros para copiar exatamente, a menos que um passo diga explicitamente para substituir um valor.
 
-## What this application does
+## O que este aplicativo faz
 
-`doc-azure` answers one fixed question: where do four approved Azure DevOps
-Wiki pages agree with, differ from, or go beyond what the current inherited
-`Processo-Agil` configuration can prove?
+`doc-azure` responde uma pergunta fixa: onde as quatro páginas aprovadas da Wiki do Azure DevOps concordam com, diferem de, ou vão além do que a configuração herdada do `Processo-Agil` pode comprovar?
 
-It is a command-line application, not a website. You run commands in a
-terminal. A fresh run reads a fixed Azure DevOps organization and project,
-saves private evidence locally, evaluates 222 reviewed claims, and writes
-reports. It never edits Azure DevOps.
+É um aplicativo de linha de comando, não um site. Você executa comandos em um terminal. Uma execução nova lê uma organização e projeto fixos no Azure DevOps, salva evidências locais privadas, avalia 222 reivindicações revisadas e escreve relatórios. Nunca edita o Azure DevOps.
 
-## Access checklist
+## Lista de verificação de acesso
 
-You need all items in this list before a fresh network run:
+Você precisa de todos estes itens antes de uma execução de rede nova:
 
-- access to the private `fcoalcantarajr/doc-azure` GitHub repository;
-- membership in the `bancodonordeste` Azure DevOps organization;
-- read access to project `Torre CCR - Concessão de Crédito`;
-- read access to its approved Wiki pages and the `Processo-Agil` process;
-- permission to create an Azure DevOps PAT;
-- a PAT limited to the organization, with an expiration date, **Wiki: Read**,
-  and **Work Items: Read** scopes.
+- Acesso ao repositório privado `fcoalcantarajr/doc-azure` no GitHub;
+- Membro da organização `bancodonordeste` no Azure DevOps;
+- Acesso de leitura ao projeto `Torre CCR - Concessão de Crédito`;
+- Acesso de leitura às páginas de Wiki aprovadas e ao processo `Processo-Agil`;
+- Permissão para criar um PAT no Azure DevOps;
+- Um PAT limitado à organização, com data de expiração, escopos **Wiki: Read** e **Work Items: Read**.
 
-If an item is missing, send this request to the responsible administrator:
+Se algum item estiver faltando, envie este pedido ao administrador responsável:
 
-> I need read-only access to the Azure DevOps organization `bancodonordeste`,
-> project `Torre CCR - Concessão de Crédito`, its project Wiki, and inherited
-> process metadata for `Processo-Agil`. I also need permission to create a
-> short-lived PAT with only Wiki: Read and Work Items: Read scopes. I do not
-> need permission to create, update, or delete Azure DevOps content.
+> Preciso de acesso somente leitura à organização `bancodonordeste` no Azure DevOps, projeto `Torre CCR - Concessão de Crédito`, à Wiki do projeto e aos metadados do processo herdado `Processo-Agil`. Também preciso de permissão para criar um PAT de curta duração com apenas os escopos Wiki: Read e Work Items: Read. Não preciso de permissão para criar, atualizar ou deletar conteúdo no Azure DevOps.
 
-Notion publication has extra prerequisites. Read [Publish to Notion](#publish-to-notion)
-only if publication is part of your task.
+A publicação no Notion tem pré-requisitos adicionais. Leia [Publicar no Notion](#publicar-no-notion) somente se a publicação fizer parte da sua tarefa.
 
-## Install the tools
+## Instalar as ferramentas
 
-The application runs natively on macOS and Linux. On Windows, first install
-[WSL with Ubuntu](https://learn.microsoft.com/en-us/windows/wsl/install), open
-the Ubuntu terminal, and perform every project step there. Native PowerShell
-and Command Prompt are not supported because snapshot locking uses the Unix
-`fcntl` interface.
+O aplicativo roda nativamente no macOS e Linux. No Windows, primeiro instale o [WSL com Ubuntu](https://learn.microsoft.com/en-us/windows/wsl/install), abra o terminal Ubuntu e execute todas as etapas do projeto lá. O PowerShell e o Command Prompt nativos do Windows não são suportados porque o bloqueio de snapshots usa a interface Unix `fcntl`.
 
-### 1. Install Git
+### 1. Instalar Git
 
-Run `git --version`. If it prints a version, continue.
+Execute `git --version`. Se imprimir uma versão, continue.
 
-- macOS: running `git --version` opens the Command Line Tools installer when
-  Git is absent.
-- Windows with WSL: open Ubuntu and run `sudo apt update && sudo apt install git`.
-- Debian or Ubuntu: run `sudo apt install git`.
-- Other systems: use the [official Git installation guide](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+- **macOS:** executar `git --version` abre o instalador do Command Line Tools quando o Git está ausente.
+- **Windows com WSL:** abra o Ubuntu e execute `sudo apt update && sudo apt install git`.
+- **Debian ou Ubuntu:** execute `sudo apt install git`.
+- **Outros sistemas:** use o [guia oficial de instalação do Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
 
-### 2. Install uv
+### 2. Instalar uv
 
-Use one official option:
+Use uma opção oficial:
 
 ```sh
-# macOS or Linux
+# macOS ou Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Close and reopen the terminal. Run `uv --version`. If the command is still not
-found, follow the [official uv installation guide](https://docs.astral.sh/uv/getting-started/installation/).
+Feche e reabra o terminal. Execute `uv --version`. Se o comando ainda não for encontrado, siga o [guia oficial de instalação do uv](https://docs.astral.sh/uv/getting-started/installation/).
 
-You do not need to install Python separately. The project requests Python 3.13
-through `.python-version`; its supported minimum is Python 3.11. `uv` downloads
-a compatible Python when needed.
+Você não precisa instalar o Python separadamente. O projeto solicita Python 3.13 em `.python-version`; a versão mínima suportada é Python 3.11. O `uv` baixa um Python compatível quando necessário.
 
-## Download and prepare the project
+## Baixar e preparar o projeto
 
-### 1. Clone the private repository
+### 1. Clonar o repositório privado
 
-The recommended authentication path is GitHub CLI. Install it from the
-[official instructions](https://cli.github.com/), then run:
+O caminho recomendado é o GitHub CLI. Instale-o a partir das [instruções oficiais](https://cli.github.com/), depois execute:
 
 ```sh
 gh auth login
 ```
 
-Choose GitHub.com, HTTPS, browser authentication, and allow GitHub CLI to
-configure Git credentials. Confirm that the signed-in account has access to
-the private repository, then clone it:
+Escolha GitHub.com, HTTPS, autenticação no navegador e permita que o GitHub CLI configure as credenciais do Git. Confirme que a conta tem acesso ao repositório privado, depois clone:
 
 ```sh
 gh repo clone fcoalcantarajr/doc-azure
 cd doc-azure
 ```
 
-If your organization forbids GitHub CLI, use its approved HTTPS token or SSH
-method from [GitHub's authentication guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github).
-An account password is not accepted for Git operations over HTTPS. Never put a
-GitHub token in the clone URL.
+Se sua organização proíbe o GitHub CLI, use o token HTTPS aprovado ou o método SSH do [guia de autenticação do GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github). Uma senha de conta não é aceita para operações Git via HTTPS. Nunca coloque um token do GitHub na URL de clone.
 
-Already have the folder? Open a terminal in it and confirm:
+Já tem a pasta? Abra um terminal nela e confirme:
 
 ```sh
 git rev-parse --show-toplevel
 ```
 
-The printed path must end in `doc-azure`.
+O caminho impresso deve terminar em `doc-azure`.
 
-### 2. Install the locked dependencies
+### 2. Instalar as dependências bloqueadas
 
 ```sh
 uv sync --locked
 ```
 
-Expected result: `uv` creates or updates `.venv` and completes without an error.
-You do not need to activate this environment; every project command begins with
-`uv run`.
+Resultado esperado: o `uv` cria ou atualiza `.venv` e completa sem erro. Você não precisa ativar este ambiente; todo comando do projeto começa com `uv run`.
 
-### 3. Create the private configuration file
+### 3. Criar o arquivo de configuração privado
 
 ```sh
 cp .env.example .env
 ```
 
-Open `.env` in a text editor. Replace the placeholder after `AZDO_PAT=` with
-your PAT. Keep the setting on one line:
+Abra `.env` em um editor de texto. Substitua o placeholder após `AZDO_PAT=` pelo seu PAT. Mantenha a configuração em uma linha:
 
 ```dotenv
-AZDO_PAT=your_actual_token_goes_here
+AZDO_PAT=seu_token_real_aqui
 ```
 
-Do not add quotes unless the token itself requires them. Never share the file
-or its contents. The application accepts `AZDO_PAT` from the process environment
-instead, but `.env` is easier for a first run.
+Não adicione aspas, a menos que o token as exija. Nunca compartilhe o arquivo ou seu conteúdo. O aplicativo aceita `AZDO_PAT` do ambiente do processo, mas o `.env` é mais fácil para uma primeira execução.
 
-To open the file from the terminal, use `open -e .env` on macOS or `nano .env`
-on Linux and WSL. Save and close the editor before continuing.
+Para abrir o arquivo pelo terminal, use `open -e .env` no macOS ou `nano .env` no Linux e WSL. Salve e feche o editor antes de continuar.
 
-If you will operate only offline with approved snapshots, you do not need a PAT
-and may skip this configuration step and the next validation step.
+Se você operará apenas offline com snapshots aprovados, não precisa de um PAT. Pule esta etapa de configuração e a validação abaixo.
 
-### 4. Validate the configuration
+### 4. Validar a configuração
 
 ```sh
 uv run --no-sync python scripts/setup.py
 ```
 
-Expected final line:
+Linha final esperada:
 
 ```text
 CONFIGURATION_OK
 ```
 
-This step checks only the local format and creates ignored output directories.
-It does not prove that the PAT is current or has remote permission.
+Esta etapa verifica apenas o formato local e cria diretórios de saída ignorados. Não prova que o PAT está atual ou tem permissão remota.
 
-## Run the audit
+## Executar a auditoria
 
-### Fresh read-only audit
+### Auditoria atualizada
 
 ```sh
 uv run python scripts/run_audit.py --refresh
 ```
 
-`--refresh` requests all four Wiki pages and the complete current process model.
-The application records sanitized request paths, validates every response, and
-publishes a new local run only after the evidence is complete.
+`--refresh` busca as quatro páginas de Wiki e o modelo completo de processo atual. O aplicativo registra caminhos de requisição sanitizados, valida cada resposta e publica uma nova execução local somente após a evidência estar completa.
 
-The final output has a status, a logical SHA-256, and the path to
-`out/audit/CURRENT`. Example:
+A saída final tem um status, um hash SHA-256 lógico e o caminho para `out/audit/CURRENT`. Exemplo:
 
 ```text
-DELTAS: <64-character logical hash>
+DELTAS: <hash de 64 caracteres>
 .../doc-azure/out/audit/CURRENT
 ```
 
-Do not assume that any nonzero exit code means a crash. Interpret the status
-using the next section.
+Não assuma que algum código de saída diferente de zero significa uma falha. Interprete o status usando a próxima seção.
 
-### Offline audit
+### Auditoria offline
 
-Use existing complete snapshots without network access:
+Execute com snapshots completos existentes sem acesso à rede:
 
 ```sh
 uv run python scripts/run_audit.py --offline
 ```
 
-Offline mode never contacts Azure DevOps. It fails if this copy of the project
-does not already contain complete ignored snapshots under `out/wiki` and
-`out/process`. A new Git clone does not contain them.
+O modo offline nunca contata o Azure DevOps. Falha se esta cópia do projeto não contiver snapshots completos ignorados em `out/wiki` e `out/process`. Um clone novo não os contém.
 
-For offline-only operation, obtain an approved private copy of both directories,
-place them at those exact paths, and run the offline command directly. Do not
-create `.env` or run `scripts/setup.py`; neither is required by offline mode.
+Para operação apenas offline, obtenha uma cópia privada aprovada de ambos os diretórios, coloque-os nos caminhos exatos e execute o comando offline diretamente. Não crie `.env` nem execute `scripts/setup.py`; nenhum é necessário no modo offline.
 
-### Cache-first audit
+### Auditoria com cache
 
-Reuse complete cached evidence and fetch only missing pieces:
+Reutilize evidências em cache completas e busque apenas partes faltantes:
 
 ```sh
 uv run python scripts/run_audit.py
 ```
 
-Use `--refresh` when the decision requires current Azure state. Use `--offline`
-when network access is forbidden. Use no mode only for cache-first recovery or
-diagnosis.
+Use `--refresh` quando a decisão requer estado atual do Azure. Use `--offline` quando o acesso à rede é proibido. Use sem modo apenas para recuperação ou diagnóstico com cache.
 
-## Read the results
+## Ler os resultados
 
-### 1. Interpret the terminal status
+### 1. Interpretar o status no terminal
 
-| Exit | Status | Meaning | Next action |
+| Saída | Status | Significado | Próxima ação |
 | ---: | --- | --- | --- |
-| 0 | `CLEAN` | Coverage is complete and every evaluated claim agrees. | Review and retain the reports. |
-| 1 | `DELTAS` | The run completed; at least one finding is divergent, ambiguous, or not verifiable through the process API. | Read `global.md`, then the four page reports. |
-| 2 | `COVERAGE_GAP` | A Wiki or process change is outside the reviewed coverage contract. | Stop publication and ask a maintainer to review the changed source and baseline. |
-| 3 | `ACQUISITION_VALIDATION_FAILED` | Azure access, network, response, or snapshot validation failed. | Use [Troubleshooting](troubleshooting.md). |
-| 4 | `INTERNAL_ERROR` | The application could not complete or publish its local output. | Preserve the terminal message and use [Troubleshooting](troubleshooting.md). |
+| 0 | `CLEAN` | A cobertura está completa e toda reivindicação avaliada concorda. | Revisar e reter os relatórios. |
+| 1 | `DELTAS` | A execução completou; pelo menos um achado é divergente, ambíguo ou não verificável pela API de processo. | Ler `global.md`, depois os quatro relatórios de página. |
+| 2 | `COVERAGE_GAP` | Uma mudança de Wiki ou processo está fora do contrato de cobertura revisado. | Parar a publicação e pedir a um mantenedor para revisar a fonte e a baseline alteradas. |
+| 3 | `ACQUISITION_VALIDATION_FAILED` | O acesso Azure, rede, resposta ou validação de snapshot falhou. | Usar [Solução de problemas](troubleshooting.md). |
+| 4 | `INTERNAL_ERROR` | O aplicativo não pôde completar ou publicar sua saída local. | Preservar a mensagem do terminal e usar [Solução de problemas](troubleshooting.md). |
 
-`DELTAS` is the normal result when the audit finds useful differences. It is
-not a failed execution.
+`DELTAS` é o resultado normal quando a auditoria encontra diferenças úteis. Não é uma falha de execução.
 
-### 2. Find the current run
+### 2. Encontrar a execução atual
 
-`out/audit/CURRENT` contains the identifier of the selected run. To print the
-current report directory on any supported operating system, run:
+`out/audit/CURRENT` contém o identificador da execução selecionada. Para imprimir o diretório do relatório atual em qualquer sistema operacional suportado, execute:
 
 ```sh
 uv run python -c "from pathlib import Path; p=Path('out/audit'); print(p/'snapshots'/(p/'CURRENT').read_text().strip())"
 ```
 
-Open `global.md` in that directory first. It summarizes coverage and all four
-reports. Then open `leiame.md`, `politicas.md`, `changelog.md`, and
-`apendice.md` for finding-level evidence. `run.json` contains the same run in a
-machine-readable form.
+Abra `global.md` nesse diretório primeiro. Ele resume a cobertura e os quatro relatórios. Depois abra `leiame.md`, `politicas.md`, `changelog.md`, e `apendice.md` para evidências detalhadas. `run.json` contém a mesma execução em formato legível por máquina.
 
-### 3. Interpret each finding
+### 3. Interpretar cada achado
 
-| Finding status | What the evidence supports |
+| Status do achado | O que a evidência sustenta |
 | --- | --- |
-| `CONFIRMADO` | The exact documented and implemented values agree. |
-| `DIVERGENTE` | The values are comparable and differ. |
-| `NAO_VERIFICAVEL_API_PROCESSO` | The current process API does not represent the documentary dimension. This is not proof of absence. |
-| `AMBIGUO` | Available evidence supports more than one material interpretation. |
+| `CONFIRMADO` | Os valores documentados e implementados concordam exatamente. |
+| `DIVERGENTE` | Os valores são comparáveis e diferem. |
+| `NAO_VERIFICAVEL_API_PROCESSO` | A API de processo atual não representa a dimensão documental. Isso não é prova de ausência. |
+| `AMBIGUO` | A evidência disponível sustenta mais de uma interpretação material. |
 
-Every finding points to exact local Wiki evidence. Comparable findings also
-point to exact process JSON. Treat employee names and raw evidence as private.
+Todo achado aponta para evidência Wiki local exata. Achados comparáveis também apontam para JSON de processo exato. Trate nomes de funcionários e evidências brutas como privados.
 
-## Build the versioned reports
+## Construir os relatórios versionados
 
-The complete runtime creates an ignored diagnostic bundle. To rebuild the four
-versioned reports in `deltas/` from verified snapshots, run:
+O runtime completo cria um bundle de diagnóstico ignorado. Para reconstruir os quatro relatórios versionados em `deltas/` a partir de snapshots verificados, execute:
 
 ```sh
 uv run python scripts/03_build_delta.py --coverage-baseline config/document-coverage.json
 ```
 
-Expected output: the four paths under `deltas/`. This command performs no
-network request. If it detects unmapped source changes or invalid evidence, it
-stops before replacing the reports. A replacement failure restores verified
-backups for files already touched.
+Resultado esperado: os quatro caminhos sob `deltas/`. Este comando não faz requisição de rede. Se detectar mudanças de fonte não mapeadas ou evidência inválida, para antes de substituir os relatórios. Uma falha de substituição restaura backups verificados para arquivos já tocados.
 
-## Verify the repository
+## Verificar o repositório
 
-This is a maintainer provenance gate, not a clean-clone health check. It can
-return `GATE_OK` only on a machine that retains the exact ignored Wiki and
-process snapshot generations named in the current files under `deltas/`.
-A fresh `--refresh` creates new generations and does not restore that historical
-evidence.
+Esta é uma porta de procedência para mantenedores, não uma verificação de saúde de clone limpo. Só pode retornar `GATE_OK` em uma máquina que retenha as gerações exatas de Wiki e processo ignoradas nomeadas nos arquivos atuais em `deltas/`. Um `--refresh` novo cria novas gerações e não restaura aquela evidência histórica.
 
-If you have the retained generations, run:
+Se você tem as gerações retidas, execute:
 
 ```sh
 uv run python verify.py
 ```
 
-Expected success marker on that evidence-bearing machine:
+Marcador de sucesso esperado nessa máquina com evidência:
 
 ```text
 GATE_OK
 ```
 
-For a clone without the historical snapshots, run `uv run pytest -q` as the
-portable code health check and expect all tests to pass. Do not report that as
-`GATE_OK`; it does not prove report provenance or publication.
+Para um clone sem os snapshots históricos, execute `uv run pytest -q` como verificação de saúde do código portátil e espere que todos os testes passem. Não chame esse resultado de `GATE_OK`; ele não prova procedência de relatório ou publicação.
 
-The full gate runs tests, validates the Azure request boundary, rebuilds and compares
-reports, checks ignored files, and scans for tracked secret values. If a local
-`out/notion` publication manifest exists, the gate also validates it. Therefore
-an obsolete external receipt can fail this command even when the Python tests
-pass; follow the matching message in [Troubleshooting](troubleshooting.md).
+A porta completa executa testes, valida o limite de requisição Azure, reconstrói e compara relatórios, verifica arquivos ignorados e escaneia por valores secretos rastreados. Se existir um manifesto de publicação local `out/notion`, a porta também o valida. Portanto um recibo externo obsoleto pode falhar este comando mesmo quando os testes Python passam; siga a mensagem correspondente em [Solução de problemas](troubleshooting.md).
 
-## Publish to Notion
+## Publicar no Notion
 
-Skip this section if you only need the local audit. Publication changes four
-existing Notion pages, so it requires the separate contract and proof chain.
+Pule esta seção se você só precisa da auditoria local. A publicação altera quatro páginas existentes no Notion, então requer o contrato e a cadeia de provas separados.
 
-Prerequisites:
+Pré-requisitos:
 
-- edit access to the fixed `Azure` hub and its four existing delta pages;
-- the connected Notion MCP workspace;
-- the ChatGPT-integrated browser signed in to Notion AI;
-- Kimi K3 and Opus 5 available at maximum effort;
-- access to the private GitHub repository URL used in the review packet.
+- Acesso de edição ao hub `Azure` fixo e às suas quatro páginas de delta existentes;
+- O workspace Notion conectado via MCP;
+- O navegador integrado ao ChatGPT conectado ao Notion AI;
+- Kimi K3 e Opus 5 disponíveis com esforço máximo;
+- Acesso à URL do repositório privado do GitHub usada no pacote de revisão.
 
-### 1. Prepare local publication files
+### 1. Preparar arquivos locais de publicação
 
 ```sh
 uv run python scripts/04_prepare_notion.py --repository-url https://github.com/fcoalcantarajr/doc-azure
 ```
 
-This command writes only ignored files under `out/notion`. It does not contact
-Notion and does not publish.
+Este comando escreve apenas arquivos ignorados sob `out/notion`. Não contata o Notion e não publica.
 
-### 2. Complete the external gate
+### 2. Completar a porta externa
 
-Follow [Notion publication contract](notion-publication.md) exactly. In summary:
+Siga o [contrato de publicação no Notion](notion-publication.md) exatamente. Resumidamente:
 
-1. Send the identical packet to separate Kimi K3 and Opus 5 chats at maximum
-   effort in the integrated browser.
-2. Preserve the model, effort, chat, packet, prompt, response, and time receipts.
-3. Reconcile every material finding against source evidence; agreement by vote
-   is insufficient.
-4. Update only the four fixed existing page IDs through the Notion connector,
-   then fetch them and check their common parent and duplicates.
+1. Envie o pacote idêntico para dois chats separados de Kimi K3 e Opus 5 com esforço máximo no navegador integrado.
+2. Preserve o modelo, esforço, chat, pacote, prompt, resposta e recibos de tempo.
+3. Reconcilie cada achado material contra a evidência de fonte; acordo por voto é insuficiente.
+4. Atualize apenas os quatro IDs de página fixos pelo conector do Notion, depois busque-os e verifique o pai comum e duplicatas.
 
-Use the exact paths and JSON fields in the
-[Notion evidence file reference](notion-evidence-reference.md); the strict gate
-rejects missing and extra fields.
+Use os caminhos e campos JSON exatos na [referência de evidências do Notion](notion-evidence-reference.md); a porta rigorosa rejeita campos faltantes e extras.
 
-If the exact model, effort, signed-in session, or fixed page identity is not
-available, stop. Do not substitute a model or create replacement pages.
+Se o modelo exato, esforço, sessão conectada ou identidade da página fixa não estiver disponível, pare. Não substitua um modelo nem crie páginas de reposição.
 
-### 3. Prove publication
+### 3. Provar a publicação
 
 ```sh
 uv run python scripts/04_prepare_notion.py --verify-publication
 uv run python verify.py --require-publication
 ```
 
-Required success markers are `NOTION_PUBLICATION_OK` and `GATE_OK`. A prepared
-file, AI verdict, update response, or marker by itself is not proof of current
-publication.
+Os marcadores de sucesso necessários são `NOTION_PUBLICATION_OK` e `GATE_OK`. Um arquivo preparado, veredicto, resposta de atualização ou marcador por si só não é prova de publicação atual.
 
-## Repeat a routine audit
+## Repetir uma auditoria de rotina
 
-1. Open a terminal in `doc-azure`.
-2. Run `git status --short` and do not discard changes you do not recognize.
-3. Run `uv sync --locked` after pulling a new revision.
-4. Run `uv run python scripts/run_audit.py --refresh`.
-5. Read the status and current `global.md`; publish only when the publication
-   contract is part of the task.
+1. Abra um terminal em `doc-azure`.
+2. Execute `git status --short` e não descarte alterações que não reconheça.
+3. Execute `uv sync --locked` após puxar uma nova revisão.
+4. Execute `uv run python scripts/run_audit.py --refresh`.
+5. Leia o status e o `global.md` atual; publique somente quando o contrato de publicação fizer parte da tarefa.
 
-## Protect and remove local data
+## Proteger e remover dados locais
 
-- Revoke or rotate the PAT according to your organization's policy.
-- Delete `.env` when this computer should no longer retain the credential.
-- Treat `out/` as private evidence. Removing it deletes cached snapshots,
-  generated reports, and publication receipts; make an approved backup first
-  if the audit trail must be retained.
-- Do not commit `.env` or `out/`. Run `git status --short` before every commit.
-- Before committing regenerated `deltas/` or sending prepared bodies to Notion,
-  inspect the exact text for employee names, contact details, credentials,
-  personal identifiers, or other material not approved for both destinations.
+- Revogue ou rotacione o PAT conforme a política da sua organização.
+- Delete `.env` quando este computador não deve mais reter a credencial.
+- Trate `out/` como evidência privada. Removê-lo deleta snapshots em cache, relatórios gerados e recibos de publicação; faça um backup aprovado primeiro se a trilha de auditoria precisar ser retida.
+- Não commit `.env` nem `out/`. Execute `git status --short` antes de cada commit.
+- Antes de commitar `deltas/` regenerados ou enviar corpos preparados ao Notion, inspecione o texto exato por nomes de funcionários, detalhes de contato, credenciais, identificadores pessoais ou outro material não aprovado para ambos os destinos.
 
-The application has no remote cleanup operation because it does not create or
-change Azure DevOps data. Notion page changes are external and are governed by
-the fixed-page publication contract.
+O aplicativo não tem operação de limpeza remota porque não cria ou altera dados do Azure DevOps. As alterações de páginas do Notion são externas e são governadas pelo contrato de publicação de páginas fixas.

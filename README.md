@@ -1,52 +1,36 @@
 # doc-azure
 
-Use this command-line application to compare four approved Azure DevOps Wiki
-pages with the current `Processo-Agil` process configuration. The application
-reads Azure DevOps, creates local evidence, and produces four audit reports. It
-does not change Azure DevOps.
+Compare quatro páginas de Wiki aprovadas no Azure DevOps com a configuração atual do Processo-Agil. O aplicativo lê o Azure DevOps, cria evidências locais e produz quatro relatórios de auditoria. Não altera o Azure DevOps.
 
-## Start here
+## Comece aqui
 
-Choose the path that matches what you need:
+Escolha o caminho que corresponde ao que você precisa:
 
-| Goal | Read or run |
+| Objetivo | Ler ou executar |
 | --- | --- |
-| Install and run the audit for the first time | [Complete user guide](docs/user-guide.md) |
-| Reuse the last local evidence without Azure access | `uv run python scripts/run_audit.py --offline` |
-| Run a fresh read-only Azure audit | `uv run python scripts/run_audit.py --refresh` |
-| Understand a result or exit code | [Read the results](docs/user-guide.md#read-the-results) |
-| Fix an error | [Troubleshooting](docs/troubleshooting.md) |
-| Prepare or verify the Notion publication | [Notion publication contract](docs/notion-publication.md) |
-| Maintain the application | [Technical documentation map](docs/README.md) |
+| Instalar e executar a primeira auditoria | [Guia completo do usuário](docs/user-guide.md) |
+| Reusar as evidências locais sem acesso ao Azure | [Modos de operação](docs/configuration.md#modos-de-operação) |
+| Executar uma auditoria Azure atualizada | `uv run python scripts/run_audit.py --refresh` |
+| Entender um resultado ou código de saída | [Ler os resultados](docs/user-guide.md#ler-os-resultados) |
+| Corrigir um erro | [Solução de problemas](docs/troubleshooting.md) |
+| Preparar ou verificar a publicação no Notion | [Contrato de publicação no Notion](docs/notion-publication.md) |
+| Manter o aplicativo | [Mapa da documentação técnica](docs/README.md) |
 
-If this is your first visit, follow the complete user guide in order. Do not
-start with a script under `scripts/` unless that guide tells you to.
+Se for sua primeira visita, siga o guia completo em ordem. Não inicie com um script em `scripts/` a menos que o guia indique.
 
-## What you need
+## O que você precisa
 
-- A macOS or Linux computer with a terminal. On Windows, run the application
-  inside WSL; native Windows is not supported because snapshot locking uses
-  the Unix `fcntl` interface.
-- Git, GitHub CLI, `uv`, and Python 3.11+. `uv` installs and selects the
-  required Python version, so a separate Python installation is optional.
-- Read access to the fixed Azure DevOps organization, project, Wiki, and
-  inherited process.
-- A short-lived, least-privilege Azure DevOps Personal Access Token (PAT) with
-  **Wiki: Read** and **Work Items: Read** scopes for a fresh audit.
-- Access to the private repository. Notion workspace and Notion AI access are
-  needed only for publication.
+- Um computador com macOS ou Linux e um terminal. No Windows, execute o aplicativo dentro do WSL; o Windows nativo não é suportado porque o bloqueio de snapshots usa a interface Unix `fcntl`.
+- Git, GitHub CLI, `uv`, e Python 3.11+. O `uv` instala e seleciona a versão Python necessária, então uma instalação Python separada é opcional.
+- Acesso de leitura à organização, projeto, Wiki e processo herdado do Azure DevOps.
+- Um Personal Access Token (PAT) do Azure DevOps, de curta duração e com permissões mínimas, com escopos **Wiki: Read** e **Work Items: Read**.
+- Acesso ao repositório privado. O Notion workspace e o acesso Notion AI são necessários apenas para publicação.
 
-You cannot solve missing organization or project permission with a command.
-The [access checklist](docs/user-guide.md#access-checklist) tells you exactly
-what to request from an administrator.
+Você não resolve permissões de organização ou projeto faltando com um comando. A [lista de verificação de acesso](docs/user-guide.md#lista-de-verificação-de-acesso) diz exatamente o que pedir a um administrador.
 
-The runtime has one direct dependency, `httpx>=0.25.0`. The development group
-adds `pytest>=8.0.0`. `uv sync --locked` installs both from `uv.lock`.
+## Primeira execução
 
-## First run
-
-Run these commands from a terminal. Replace only the repository clone step if
-you already have this project folder.
+Execute estes comandos no terminal. Substitua apenas o passo de clonagem do repositório se já tiver esta pasta.
 
 ```sh
 gh auth login
@@ -56,47 +40,28 @@ uv sync --locked
 cp .env.example .env
 ```
 
-On Windows, run these Linux commands inside WSL, not PowerShell.
-Open `.env`, replace the placeholder with your PAT, save the file, and then run:
+No Windows, execute esses comandos Linux dentro do WSL, não no PowerShell. Abra `.env`, substitua o placeholder pelo seu PAT, salve o arquivo, e então execute:
 
 ```sh
 uv run --no-sync python scripts/setup.py
 uv run python scripts/run_audit.py --refresh
 ```
 
-`DELTAS` and exit code `1` are a valid audit result: the application completed
-and found differences or evidence limits. They do not mean that the program
-crashed. See [Read the results](docs/user-guide.md#read-the-results) before
-deciding what to do.
+`DELTAS` e código de saída `1` são um resultado de auditoria válido: o aplicativo completou e encontrou diferenças ou limites de evidência. Não significa que o programa falhou. Consulte [Ler os resultados](docs/user-guide.md#ler-os-resultados) antes de decidir o que fazer.
 
-## Safety boundary
+## Limite de segurança
 
-The Azure client fails closed outside its explicit allowlist. Collection uses
-GET requests for Wiki and process reads; only the two documented query-only
-POST routes are permitted by the shared safety contract. Creation, update,
-deletion, redirects, absolute URLs, and method overrides are rejected before
-transport.
+O cliente Azure falha fechado fora da lista de permissões explícita. A coleta usa requisições GET para leituras de Wiki e processo; apenas as duas rotas POST de consulta (WIQL e workitemsbatch) estão permitidas pelo contrato de segurança compartilhado. Criação, atualização, deleção, redirecionamentos, URLs absolutas e overrides de método são rejeitados antes do transporte.
 
-Keep `.env` and everything under `out/` private. They are ignored by Git
-because raw evidence can include employee data and `.env` contains a secret.
-Never paste a PAT into a command, issue, chat, log, report, or Notion page.
-Before committing or publishing regenerated files under `deltas/`, inspect them
-for employee names, contact details, identifiers, credentials, or other content
-that is not approved for the repository and the four destination pages.
+Mantenha `.env` e tudo em `out/` privado. São ignorados pelo Git porque evidências podem incluir dados de funcionários e `.env` contém um segredo. Nunca cole um PAT em um comando, issue, chat, log, relatório ou página do Notion. Antes de commitar ou publicar arquivos regenerados em `deltas/`, inspecione-os por nomes de funcionários, detalhes de contato, identificadores, credenciais ou outro conteúdo não aprovado para o repositório e as quatro páginas de destino.
 
-Notion publication is separate from the core audit. It updates only four fixed
-existing pages after independent Kimi K3 and Opus 5 reviews, reconciliation,
-connector read-back, and the strict publication gate. Preparing local Notion
-files does not publish anything.
+A publicação no Notion é separada da auditoria principal. Ela atualiza apenas quatro páginas fixas existentes após revisões independentes de Kimi K3 e Opus 5, reconciliation, read-back do conector, e a porta de publicação rigorosa. Preparar arquivos locais do Notion não publica nada.
 
-## What the application produces
+## O que o aplicativo produz
 
-- `out/wiki/` and `out/process/`: ignored immutable source snapshots.
-- `out/audit/`: ignored per-run diagnostic and result bundles.
-- `deltas/`: four versioned Brazilian-Portuguese reports.
-- `out/notion/`: ignored publication bodies, review packets, and receipts.
+- `out/wiki/` e `out/process/`: snapshots imutáveis de fontes ignorados.
+- `out/audit/`: bundles de diagnóstico e resultado por execução, ignorados.
+- `deltas/`: quatro relatórios em português brasileiro versionados.
+- `out/notion/`: corpos de publicação, pacotes de revisão e recibos, ignorados.
 
-The audit evaluates 222 explicit claims. Every conclusion has an exact Wiki
-source pointer; comparable findings also have an exact process evidence
-pointer. See [Evidence-backed delta method](docs/delta-method.md) for the
-technical rules.
+A auditoria avalia 222 reivindicações explícitas. Cada conclusão tem um ponteiro de fonte Wiki exato; achados comparáveis também têm um ponteiro de evidência de processo exato. Consulte [Método delta comprovado por evidências](docs/delta-method.md) para as regras técnicas.

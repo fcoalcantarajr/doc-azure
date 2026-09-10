@@ -1,44 +1,33 @@
-# Documentation map
+# Mapa da documentação
 
-Start with the document that matches your task. You do not need to read the
-technical references to operate the application.
+Comece com o documento que corresponde à sua tarefa. Você não precisa ler as referências técnicas para operar o aplicativo.
 
-## Use the application
+## Usar o aplicativo
 
-1. [Complete user guide](user-guide.md) — install, configure, run, interpret,
-   repeat, and remove local secrets.
-2. [Troubleshooting](troubleshooting.md) — identify an error by its exact
-   terminal message and follow one recovery path.
-3. [Notion publication contract](notion-publication.md) — prepare, review,
-   publish, and prove the four fixed external pages.
-4. [Notion evidence file reference](notion-evidence-reference.md) — exact local
-   paths, required JSON fields, and raw connector envelopes for the strict gate.
+1. [Início rápido](quickstart.md) — instalar, configurar e executar em 5 passos.
+2. [Configuração](configuration.md) — variáveis de ambiente, `.env`, lista de acesso, modos de operação.
+3. [Guia completo do usuário](user-guide.md) — instalação detalhada, configuração, execução, interpretação, repetição e proteção de dados.
+4. [Solução de problemas](troubleshooting.md) — identifique um erro pela mensagem exata no terminal e siga um caminho de recuperação.
+5. [Contrato de publicação no Notion](notion-publication.md) — prepare, revise, publique e prove as quatro páginas externas fixas.
+6. [Referência de evidências do Notion](notion-evidence-reference.md) — caminhos locais exatos, campos JSON obrigatórios e envelopes de conector brutos para a porta rigorosa.
 
-## Understand the audit
+## Entender a auditoria
 
-- [Evidence-backed delta method](delta-method.md) explains what is compared and
-  what each status means.
-- [Deterministic runtime](audit-runtime.md) explains the pipeline, outputs, and
-  exit codes.
-- [Application architecture](architecture.md) explains boundaries, data flow,
-  and maintenance rules.
-- [Documentary coverage](document-coverage.md) explains how unmapped Wiki
-  changes stop publication.
-- [Azure DevOps API contract](api-contract.md) lists every approved endpoint
-  and authentication boundary.
+- [Método delta comprovado por evidências](delta-method.md) explica o que é comparado e o que cada status significa.
+- [Runtime determinístico](audit-runtime.md) explica o pipeline, saídas e códigos de saída.
+- [Arquitetura da aplicação](architecture.md) explica limites, fluxo de dados e regras de manutenção.
+- [Cobertura documental](document-coverage.md) explica como mudanças de Wiki não mapeadas bloqueiam a publicação.
+- [Contrato da API Azure DevOps](api-contract.md) lista cada endpoint aprovado e o limite de autenticação.
 
-## Audit trail
+## Trilha de auditoria
 
-These files are historical evidence, not operating instructions:
+Estas são evidências históricas, não instruções de operação:
 
-- [Completion audit — 2026-09-09](completion-audit-2026-09-09.md)
-- [Independent branch review — 2026-09-08](adversarial-review-2026-09-08.md)
-- [Decisions](decisions.md)
-- [Prior work](prior-work.md)
-- Session receipts: [2026-08-24](session-2026-08-24.md),
-  [2026-08-26](session-2026-08-26.md), and
-  [2026-09-08](session-2026-09-08.md)
-- [GitHub branch publication receipt](github-branch-publication-2026-09-09.md)
+- [Auditoria de conclusão — 2026-09-09](completion-audit-2026-09-09.md)
+- [Revisão independente de branch — 2026-09-08](adversarial-review-2026-09-08.md)
+- [Decisões](decisions.md)
+- [Trabalho anterior](prior-work.md)
+- Receitas de sessão: [2026-08-24](session-2026-08-24.md), [2026-08-26](session-2026-08-26.md), e [2026-09-08](session-2026-09-08.md)
+- [Receita de publicação de branch no GitHub](github-branch-publication-2026-09-09.md)
 
-Historical files can describe an earlier incomplete state. For current
-operating instructions, prefer the complete user guide and the current code.
+Arquivos históricos podem descrever um estado anterior incompleto. Para instruções de operação atuais, prefira o guia completo e o código atual.
