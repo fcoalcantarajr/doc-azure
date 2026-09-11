@@ -146,7 +146,7 @@ Cada arquivo deve ter tamanho maior que zero e permissão de leitura.
 
 ### Publicar no Notion
 
-Para publicar os relatórios gerados no Notion, consulte a [preparação para o Notion](prepare-notion.md).
+Para publicar os relatórios gerados no Notion, consulte a [preparação para o Notion](publish-notion.md).
 
 ## Se der errado
 
@@ -204,4 +204,4 @@ Erro genérico de E/S durante a escrita. Verifique espaço em disco e permissõe
 
 ## Próximo passo
 
-Saiba mais sobre a [preparação para o Notion](prepare-notion.md) ou consulte a [visão geral do projeto](../user-guide.md).
+Saiba mais sobre a [preparação para o Notion](publish-notion.md) ou consulte a [visão geral do projeto](../README.md).

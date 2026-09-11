@@ -165,4 +165,4 @@ O script `verify.py` só retorna 0 (sucesso) ou 1 (falha). Se outro código apar
 
 ## Próximo passo
 
-Saiba mais sobre a [visão geral do projeto](../user-guide.md) ou consulte o [guia de saída de códigos](../reference/exit-codes.md).
+Saiba mais sobre a [visão geral do projeto](../README.md) ou consulte o [guia de saída de códigos](../reference/exit-codes.md).

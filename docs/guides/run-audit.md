@@ -179,4 +179,4 @@ uv run python scripts/run_audit.py --help
 
 ## Próximo passo
 
-Saiba mais sobre a [visão geral do projeto](../user-guide.md).
+Saiba mais sobre a [visão geral do projeto](../README.md).

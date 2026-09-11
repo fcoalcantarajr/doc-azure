@@ -104,13 +104,13 @@ DELTAS: <hash de 64 caracteres>
 .../doc-azure/out/audit/CURRENT
 ```
 
-`DELTAS` e código de saída `1` são um resultado válido: a auditoria completou e encontrou diferenças. Consulte [Ler os resultados](user-guide.md#ler-os-resultados) para interpretar.
+`DELTAS` e código de saída `1` são um resultado válido: a auditoria completou e encontrou diferenças. Consulte [Ler os resultados](guides/run-audit.md#como-ler-o-resultados) para interpretar.
 
 ## Próximos passos
 
 | Precisa de... | Consulte |
 | --- | --- |
-| Explicar os códigos de saída | [Ler os resultados](user-guide.md#ler-os-resultados) |
+| Explicar os códigos de saída | [Ler os resultados](guides/run-audit.md#como-ler-o-resultados) |
 | Executar offline | [Modos de operação](configuration.md#modos-de-operação) |
 | Corrigir um erro | [Solução de problemas](troubleshooting.md) |
 | Publicar no Notion | [Contrato de publicação](notion-publication.md) |

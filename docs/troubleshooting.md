@@ -56,7 +56,7 @@ Um operador apenas offline não precisa de `.env` nem de `scripts/setup.py`. Col
 
 Esta é uma auditoria completada, não uma falha. O código de saída `1` significa que a cobertura está completa e pelo menos uma reivindicação avaliada não é `CONFIRMADO`.
 
-Abra o `global.md` atual e os relatórios de página como descrito em [Ler os resultados](user-guide.md#ler-os-resultados).
+Abra o `global.md` atual e os relatórios de página como descrito em [Ler os resultados](guides/run-audit.md#como-ler-o-resultados).
 
 ## Auditoria imprime `COVERAGE_GAP`
 

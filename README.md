@@ -8,10 +8,10 @@ Escolha o caminho que corresponde ao que você precisa:
 
 | Objetivo | Ler ou executar |
 | --- | --- |
-| Instalar e executar a primeira auditoria | [Guia completo do usuário](docs/user-guide.md) |
+| Instalar e executar a primeira auditoria | [Início rápido](docs/quickstart.md) |
 | Reusar as evidências locais sem acesso ao Azure | [Modos de operação](docs/configuration.md#modos-de-operação) |
 | Executar uma auditoria Azure atualizada | `uv run python scripts/run_audit.py --refresh` |
-| Entender um resultado ou código de saída | [Ler os resultados](docs/user-guide.md#ler-os-resultados) |
+| Entender um resultado ou código de saída | [Ler os resultados](docs/guides/run-audit.md#como-ler-o-resultados) |
 | Corrigir um erro | [Solução de problemas](docs/troubleshooting.md) |
 | Preparar ou verificar a publicação no Notion | [Contrato de publicação no Notion](docs/notion-publication.md) |
 | Manter o aplicativo | [Mapa da documentação técnica](docs/README.md) |
@@ -26,7 +26,7 @@ Se for sua primeira visita, siga o guia completo em ordem. Não inicie com um sc
 - Um Personal Access Token (PAT) do Azure DevOps, de curta duração e com permissões mínimas, com escopos **Wiki: Read** e **Work Items: Read**.
 - Acesso ao repositório privado. O Notion workspace e o acesso Notion AI são necessários apenas para publicação.
 
-Você não resolve permissões de organização ou projeto faltando com um comando. A [lista de verificação de acesso](docs/user-guide.md#lista-de-verificação-de-acesso) diz exatamente o que pedir a um administrador.
+Você não resolve permissões de organização ou projeto faltando com um comando. A [lista de verificação de acesso](docs/configuration.md) diz exatamente o que pedir a um administrador.
 
 ## Primeira execução
 
@@ -47,7 +47,7 @@ uv run --no-sync python scripts/setup.py
 uv run python scripts/run_audit.py --refresh
 ```
 
-`DELTAS` e código de saída `1` são um resultado de auditoria válido: o aplicativo completou e encontrou diferenças ou limites de evidência. Não significa que o programa falhou. Consulte [Ler os resultados](docs/user-guide.md#ler-os-resultados) antes de decidir o que fazer.
+`DELTAS` e código de saída `1` são um resultado de auditoria válido: o aplicativo completou e encontrou diferenças ou limites de evidência. Não significa que o programa falhou. Consulte [Ler os resultados](docs/guides/run-audit.md#como-ler-o-resultados) antes de decidir o que fazer.
 
 ## Limite de segurança
 

@@ -6,10 +6,13 @@ Comece com o documento que corresponde à sua tarefa. Você não precisa ler as 
 
 1. [Início rápido](quickstart.md) — instalar, configurar e executar em 5 passos.
 2. [Configuração](configuration.md) — variáveis de ambiente, `.env`, lista de acesso, modos de operação.
-3. [Guia completo do usuário](user-guide.md) — instalação detalhada, configuração, execução, interpretação, repetição e proteção de dados.
-4. [Solução de problemas](troubleshooting.md) — identifique um erro pela mensagem exata no terminal e siga um caminho de recuperação.
-5. [Contrato de publicação no Notion](notion-publication.md) — prepare, revise, publique e prove as quatro páginas externas fixas.
-6. [Referência de evidências do Notion](reference/notion-evidence.md) — caminhos locais exatos, campos JSON obrigatórios e envelopes de conector brutos para a porta rigorosa.
+3. [Executar a auditoria](guides/run-audit.md) — executar, ler os resultados e repetir auditorias.
+4. [Construir relatórios](guides/build-reports.md) — reconstruir os quatro relatórios versionados em `deltas/`.
+5. [Verificar o repositório](guides/verify-repository.md) — porta de procedência para mantenedores e verificação de saúde.
+6. [Publicar no Notion](guides/publish-notion.md) — prepare, revise, publique e prove as quatro páginas externas fixas.
+7. [Solução de problemas](troubleshooting.md) — identifique um erro pela mensagem exata no terminal e siga um caminho de recuperação.
+8. [Contrato de publicação no Notion](notion-publication.md) — referência completa do contrato de publicação.
+9. [Referência de evidências do Notion](reference/notion-evidence.md) — caminhos locais exatos, campos JSON obrigatórios e envelopes de conector brutos para a porta rigorosa.
 
 ## Entender a auditoria
 
