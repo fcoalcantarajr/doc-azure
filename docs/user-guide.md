@@ -253,7 +253,7 @@ Siga o [contrato de publicação no Notion](notion-publication.md) exatamente. R
 3. Reconcilie cada achado material contra a evidência de fonte; acordo por voto é insuficiente.
 4. Atualize apenas os quatro IDs de página fixos pelo conector do Notion, depois busque-os e verifique o pai comum e duplicatas.
 
-Use os caminhos e campos JSON exatos na [referência de evidências do Notion](notion-evidence-reference.md); a porta rigorosa rejeita campos faltantes e extras.
+Use os caminhos e campos JSON exatos na [referência de evidências do Notion](reference/notion-evidence.md); a porta rigorosa rejeita campos faltantes e extras.
 
 Se o modelo exato, esforço, sessão conectada ou identidade da página fixa não estiver disponível, pare. Não substitua um modelo nem crie páginas de reposição.
 

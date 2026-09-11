@@ -60,7 +60,7 @@
 | `tests/test_process_collector.py` | Complete endpoint plan, metadata preservation, failure atomicity. |
 | `tests/test_verify.py` | Gate rejects false evidence, mutation, stale Notion, and subprocess failure. |
 | `tests/test_prepare_notion.py` | Payload hashes and fetched-page equivalence. |
-| `docs/session-2026-08-24.md` | Commands, RED/GREEN evidence, live receipts, uncertainty, and final audit. |
+| `docs/archive/session-2026-08-24.md` | Commands, RED/GREEN evidence, live receipts, uncertainty, and final audit. |
 
 ---
 

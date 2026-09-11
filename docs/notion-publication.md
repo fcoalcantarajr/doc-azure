@@ -104,7 +104,7 @@ connector results, receipts, and complete fetched bodies below ignored
 `out/notion`.
 
 Before the first external update, follow the
-[Notion evidence file reference](notion-evidence-reference.md). It defines the
+[Notion evidence file reference](reference/notion-evidence.md). It defines the
 complete directory tree, exact JSON fields, raw result envelopes, hash command,
 and final checks. Do not invent fields or hand-edit raw connector results.
 

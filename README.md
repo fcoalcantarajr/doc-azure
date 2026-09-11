@@ -64,4 +64,4 @@ A publicação no Notion é separada da auditoria principal. Ela atualiza apenas
 - `deltas/`: quatro relatórios em português brasileiro versionados.
 - `out/notion/`: corpos de publicação, pacotes de revisão e recibos, ignorados.
 
-A auditoria avalia 222 reivindicações explícitas. Cada conclusão tem um ponteiro de fonte Wiki exato; achados comparáveis também têm um ponteiro de evidência de processo exato. Consulte [Método delta comprovado por evidências](docs/delta-method.md) para as regras técnicas.
+A auditoria avalia 222 reivindicações explícitas. Cada conclusão tem um ponteiro de fonte Wiki exato; achados comparáveis também têm um ponteiro de evidência de processo exato. Consulte [Método delta comprovado por evidências](docs/reference/delta-method.md) para as regras técnicas.
