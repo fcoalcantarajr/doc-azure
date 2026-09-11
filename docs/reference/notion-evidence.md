@@ -14,7 +14,7 @@ result to make it pass.
 ## Before any external update
 
 1. Run the one-line preparation command in
-   [Notion publication contract](notion-publication.md#local-preparation).
+   [Notion publication contract](../notion-publication.md#local-preparation).
 2. Open `out/notion/review/review-manifest.json` and record its
    `packet_sha256` and `prompt_sha256`. Do not calculate different hashes from
    copied text.
@@ -238,5 +238,5 @@ uv run python verify.py --require-publication
 ```
 
 Required markers are `NOTION_PUBLICATION_OK` and `GATE_OK`. If either command
-fails, match its exact message in [Troubleshooting](troubleshooting.md), retain
+fails, match its exact message in [Troubleshooting](../troubleshooting.md), retain
 all evidence, and do not claim that the current reports are published.
