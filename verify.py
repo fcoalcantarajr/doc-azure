@@ -401,10 +401,10 @@ def verify_layout(root: Path) -> None:
         "tests/test_notion_publication_gate.py",
         "tests/test_script_entrypoints.py",
         "tests/test_verify.py",
-        "docs/delta-method.md",
+        "docs/reference/delta-method.md",
         "docs/decisions.md",
         "docs/notion-publication.md",
-        "docs/session-2026-08-26.md",
+        "docs/archive/session-2026-08-26.md",
         *(f"deltas/{slug}.md" for slug in FIXED_SLUGS),
     )
     missing = [
@@ -458,7 +458,7 @@ def verify_documented_contract(root: Path) -> None:
     repository_root = Path(root)
     combined = "\n".join(
         (repository_root / relative).read_text(encoding="utf-8")
-        for relative in ("AGENTS.md", "docs/delta-method.md")
+        for relative in ("AGENTS.md", "docs/reference/delta-method.md")
     )
     for status in (
         "CONFIRMADO",
@@ -626,7 +626,7 @@ def main(argv: list[str] | None = None) -> int:
             PROJECT_ROOT,
             require_fetched=arguments.require_publication,
         )
-    except (OSError, UnicodeError, VerificationError) as error:
+    except (OSError, UnicodeError, VerificationError, SnapshotError) as error:
         print(f"GATE_FAIL: {error}", file=sys.stderr)
         return 1
     print("GATE_OK")

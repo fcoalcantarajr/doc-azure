@@ -24,6 +24,20 @@ PAGES = {
 COLLECTED_AT = datetime(2026, 8, 24, tzinfo=timezone.utc)
 
 
+def test_build_with_coverage_reports_missing_snapshots_as_build_error(
+    tmp_path: Path,
+) -> None:
+    repository_root = Path(__file__).resolve().parents[1]
+
+    with pytest.raises(BuildError, match="snapshot validation failed"):
+        build_all_reports(
+            tmp_path,
+            repository_root / "config/wiki_claims.json",
+            tmp_path / "reports",
+            coverage_baseline=repository_root / "config/document-coverage.json",
+        )
+
+
 def seed_catalog_and_wiki(root: Path) -> Path:
     writer = SnapshotWriter(root / "out" / "wiki")
     claims: list[dict[str, object]] = []

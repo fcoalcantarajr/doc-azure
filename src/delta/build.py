@@ -50,6 +50,8 @@ def build_all_reports(
             claims = coverage.claims
     except (CatalogError, CoverageError) as error:
         raise BuildError(f"catalog validation failed: {error}") from None
+    except SnapshotError as error:
+        raise BuildError(f"snapshot validation failed: {error}") from None
 
     grouped = {slug: [] for slug in FIXED_SLUGS}
     for claim in claims:

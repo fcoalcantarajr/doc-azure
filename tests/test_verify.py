@@ -12,11 +12,18 @@ from subprocess import CompletedProcess
 import pytest
 
 from delta.build import build_all_reports
-from doc_azure.snapshot import SnapshotWriter, read_snapshot_artifact, resolve_snapshot_root
+from doc_azure.snapshot import (
+    SnapshotError,
+    SnapshotWriter,
+    read_snapshot_artifact,
+    resolve_snapshot_root,
+)
 from verify import (
     VerificationError,
+    main as verify_main,
     run_checked,
     verify_gitignore,
+    verify_layout,
     verify_notion_artifacts,
     verify_reports,
     verify_coverage_baselines,
@@ -26,6 +33,39 @@ from verify import (
 
 PAGES = ((35, "leiame"), (10, "politicas"), (9, "changelog"), (37, "apendice"))
 COLLECTED_AT = datetime(2026, 8, 24, tzinfo=timezone.utc)
+
+
+def test_verify_layout_uses_current_document_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed: list[str] = []
+
+    def record_required(path: Path) -> bool:
+        observed.append(path.relative_to(tmp_path).as_posix())
+        return True
+
+    monkeypatch.setattr("verify._is_nonempty_regular_file", record_required)
+
+    verify_layout(tmp_path)
+
+    assert "docs/reference/delta-method.md" in observed
+    assert "docs/archive/session-2026-08-26.md" in observed
+    assert "docs/delta-method.md" not in observed
+    assert "docs/session-2026-08-26.md" not in observed
+
+
+def test_main_reports_snapshot_failure_without_traceback(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fail_gate(*args: object, **kwargs: object) -> None:
+        raise SnapshotError("snapshot root has no complete CURRENT")
+
+    monkeypatch.setattr("verify.verify_repository", fail_gate)
+
+    assert verify_main([]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "GATE_FAIL: snapshot root has no complete CURRENT\n"
 
 
 def seed_verified_repository(root: Path) -> Path:
