@@ -32,7 +32,7 @@ Não misture um ambiente virtual do Windows nativo com a pasta do projeto no WSL
 
 ## Auditoria nova termina com `ACQUISITION_VALIDATION_FAILED`
 
-Causa: o cliente não pôde adquirir ou validar um snapshot completo do Azure. As razões mais comuns são PAT expirado, escopo faltando, acesso ao projeto faltando, falha de rede, resposta do Azure alterada, ou deixar o valor literal `replace_with_your_azure_devops_pat` do `.env.example` sem substituição.
+Causa: o cliente não pôde adquirir ou validar um snapshot completo do Azure. As razões mais comuns são PAT expirado, escopo faltando, acesso ao projeto faltando, falha de rede, resposta do Azure alterada ou manter o valor de exemplo de `.env.example` sem substituição.
 
 1. Abra `.env` e confirme que o placeholder de exemplo foi substituído. Não cole o valor real no terminal ou em uma mensagem de suporte.
 2. Confirme que o PAT não expirou e é limitado a `bancodonordeste`.
@@ -56,7 +56,7 @@ Um operador apenas offline não precisa de `.env` nem de `scripts/setup.py`. Col
 
 Esta é uma auditoria completada, não uma falha. O código de saída `1` significa que a cobertura está completa e pelo menos uma reivindicação avaliada não é `CONFIRMADO`.
 
-Abra o `global.md` atual e os relatórios de página como descrito em [Ler os resultados](guides/run-audit.md#como-ler-o-resultados).
+Abra o `global.md` atual e os relatórios de página como descrito em [Ler os resultados](guides/run-audit.md#como-ler-o-resultado).
 
 ## Auditoria imprime `COVERAGE_GAP`
 
@@ -64,7 +64,7 @@ Causa: o texto atual da Wiki ou o inventário de processo difere da baseline de 
 
 Pare antes da publicação. Um mantenedor deve revisar a mudança exata, atualizar o catálogo de reivindicações ou as verificações determinísticas quando necessário, adicionar um teste de regressão e aprovar novas baselines. Não regenere uma baseline apenas para fazer a porta passar.
 
-## `BUILD_FAILED: UNMAPPDoc_CHANGE: ...`
+## `BUILD_FAILED: UNMAPPED_DOC_CHANGE: ...`
 
 Causa: a construção independente de relatórios usou a baseline de cobertura revisada e encontrou texto alterado da Wiki que nenhuma reivindicação aprovada cobre.
 
@@ -84,7 +84,7 @@ Não delete nem chmod o projeto inteiro como uma solução genérica.
 
 ## Porta não consegue reconstruir relatórios ou diz que a procedência é inverificável
 
-Texto típico inclui `verified report rebuild failed`, `provenance is unverifiable`, `snapshot root has no complete CURRENT`, ou `SnapshotError: snapshot root is missing` no final de um traceback.
+Texto típico inclui `verified report rebuild failed`, `provenance is unverifiable`, `snapshot root has no complete CURRENT` ou `snapshot validation failed`.
 
 Causa: `verify.py` é uma porta de procedência para mantenedores. Ela requer as gerações exatas de Wiki e processo ignoradas nomeadas dentro dos relatórios versionados atuais em `deltas/`. O Git não distribui esses snapshots, e um refresh novo cria IDs de geração diferentes.
 
@@ -101,7 +101,7 @@ Causa: `verify.py` encontrou um manifesto local `out/notion` e seus recibos exte
 1. Mova todo o diretório antigo `out/notion` para um local aprovado com timestamp fora do projeto. Isso preserva `review/` e `fetched/` juntos e evita que recibos antigos contaminem a nova execução.
 2. Regenere os arquivos locais preparados com `uv run python scripts/04_prepare_notion.py --repository-url https://github.com/fcoalcantarajr/doc-azure`.
 3. Se a publicação não for necessária, execute `uv run python verify.py` novamente.
-4. Se a publicação for necessária, repita o fluxo completo de revisão, reconciliation, atualização, read-back e prova em [Contrato de publicação no Notion](notion-publication.md). Não reutilize nem edite à mão um recibo antigo.
+4. Se a publicação for necessária, repita o fluxo completo de revisão, reconciliação, atualização, releitura e prova no [guia de publicação no Notion](guides/publish-notion.md). Não reutilize nem edite à mão um recibo antigo.
 
 Nunca delete recibos externos que devem ser retidos sob uma política de auditoria ou registros. O diretório é ignorado pelo Git mas ainda pode ser evidência institucional.
 

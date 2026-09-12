@@ -87,10 +87,10 @@ still fails the gate.
 
 The 2026-09-09 publication cycle completed the external Notion AI reviews and
 the gated canonical publication/read-back described in
-`docs/completion-audit-2026-09-09.md`. That historical completion does not
+`docs/archive/completion-audit-2026-09-09.md`. That historical completion does not
 approve a later report generation. Every new publication must repeat the exact
 review, reconciliation, update, read-back, and strict gate in
-`docs/notion-publication.md`.
+`docs/notion-publication.md` and the [operational guide](guides/publish-notion.md).
 
 The deterministic-runtime implementation receipt recorded 374 passing tests,
 including duplicate-identifier RED/GREEN, offline no-network, clean/internal

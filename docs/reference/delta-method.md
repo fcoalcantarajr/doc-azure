@@ -78,7 +78,7 @@ completely and the exact returned collection proves the absence.
 Run:
 
 ```text
-uv run python scripts/03_build_delta.py
+uv run python scripts/03_build_delta.py --coverage-baseline config/document-coverage.json
 ```
 
 The builder performs no network operation. It loads every catalog claim,
@@ -94,10 +94,14 @@ replaced. This rollback protects ordinary I/O failures; it does not claim a
 single filesystem transaction across four paths if the process or machine
 terminates between replacements.
 
+This is the canonical invocation for reports that will be committed, reviewed,
+or published. Omitting the baseline is diagnostic only and does not assert
+complete documentary coverage.
+
 Custom local paths are explicit:
 
 ```sh
-uv run python scripts/03_build_delta.py --evidence-root /path/to/repository --catalog /path/to/wiki_claims.json --output-dir /path/to/reports
+uv run python scripts/03_build_delta.py --evidence-root /path/to/repository --catalog /path/to/wiki_claims.json --coverage-baseline /path/to/document-coverage.json --output-dir /path/to/reports
 ```
 
 ## Notion handoff

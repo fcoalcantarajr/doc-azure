@@ -8,10 +8,10 @@ uv run python scripts/03_build_delta.py --coverage-baseline config/document-cove
 
 The referenced configuration was explicitly created, reviewed, and versioned.
 It is not automatically accepted from current source text. The canonical
-runtime supplies `config/document-coverage.json`; passing the option explicitly
-is useful for fixture and diagnostic runs. Omitting the option in the standalone
-builder retains the older exact-source behavior and does not, by itself, assert
-full documentary coverage.
+runtime supplies `config/document-coverage.json`; pass the option explicitly in
+every standalone build that will be committed, reviewed, or published. Omitting
+it retains the older exact-source behavior for diagnosis and tests, but does not
+assert full documentary coverage.
 
 ## Schema version 1
 

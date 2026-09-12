@@ -11,6 +11,25 @@ O aplicativo usa uma única variável de ambiente: `AZDO_PAT`.
 
 O token deve ser de curta duração e limitado à organização `bancodonordeste`.
 
+## Criar o PAT
+
+Crie o token somente depois que sua conta tiver acesso à organização e ao
+projeto:
+
+1. Entre em `https://dev.azure.com/bancodonordeste`.
+2. Abra **User settings** no canto superior direito.
+3. Abra **Personal access tokens**.
+4. Selecione **New Token**.
+5. Em **Organization**, selecione `bancodonordeste`.
+6. Escolha uma data de expiração curta, compatível com a política da organização.
+7. Em **Scopes**, selecione **Custom defined**.
+8. Marque somente **Wiki: Read** e **Work Items: Read**.
+9. Crie o token e copie o valor uma única vez para o arquivo `.env` descrito abaixo.
+
+Não marque **Full access**. Não coloque o token em URL, comando, issue, chat ou
+documento. A Microsoft mantém o fluxo atualizado no
+[guia oficial de PAT do Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops).
+
 ## Arquivo .env
 
 Copie o template:
@@ -33,11 +52,11 @@ Regras do arquivo:
 - Não adicione outras variáveis; o aplicativo lê apenas `AZDO_PAT`.
 - Nunca commit o arquivo `.env`. Ele está no `.gitignore`.
 
-O aplicativo também aceita `AZDO_PAT` do ambiente do processo. Para definir diretamente:
-
-```sh
-export AZDO_PAT="seu_token_real_aqui"
-```
+O aplicativo também aceita `AZDO_PAT` injetada pelo ambiente do processo. Esse
+modo é destinado a automação que já usa um gerenciador de segredos; não cole o
+PAT na linha de comando ou no histórico do shell. Se o shell já tiver
+`AZDO_PAT` definida, esse valor tem prioridade sobre o arquivo `.env`. Execute
+`unset AZDO_PAT` antes de usar o valor do arquivo.
 
 ## Lista de verificação de acesso
 
@@ -76,7 +95,9 @@ O aplicativo tem três modos de execução:
 uv run python scripts/run_audit.py --refresh
 ```
 
-Busca todas as quatro páginas de Wiki e o modelo completo de processo atual. Requer um PAT válido e conexão de rede. Sobrescreve snapshots existentes.
+Busca todas as quatro páginas de Wiki e o modelo completo de processo atual.
+Requer um PAT válido e conexão de rede. Cria uma nova geração imutável e move o
+ponteiro `CURRENT`; não sobrescreve a geração anterior.
 
 ### Auditoria offline
 

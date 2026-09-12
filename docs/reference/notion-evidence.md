@@ -11,6 +11,14 @@ stale timestamps, mismatched hashes, reused chat IDs, duplicate pages, and
 semantic differences. Preserve exact raw tool results. Do not rewrite a raw
 result to make it pass.
 
+Fixed hierarchy identities:
+
+- parent page: `2a1412e0-8c26-803b-a988-dc619a396e45`;
+- Azure audit hub: `3c3412e0-8c26-809d-8e12-e5498b5fde60`.
+
+The hub and parent are different pages. The hub and the four fixed report pages
+are direct children of the parent; the hub is a sibling of the reports.
+
 ## Before any external update
 
 1. Run the one-line preparation command in

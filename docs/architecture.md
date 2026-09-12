@@ -4,7 +4,7 @@ The executable boundary is `scripts/run_audit.py`. It has no Notion import and
 does not call an AI service. The pipeline is deliberately linear:
 
 ```text
-Azure REST (GET allowlist)
+Azure REST (GET plus two query-only POST routes)
         |
         v
 immutable wiki/process generations

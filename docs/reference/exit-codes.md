@@ -1,45 +1,41 @@
 # Códigos de saída do doc-azure
 
-Referência de todos os códigos de saída retornados pelos scripts do doc-azure.
+Use esta referência depois de executar um comando. A mensagem exata continua sendo a melhor pista para diagnóstico.
 
-## `run_audit.py`
+## Auditoria principal
 
-Script principal de auditoria. Executa o pipeline completo de validação.
+`uv run python scripts/run_audit.py [--refresh | --offline]`
 
-| Código | Nome | O que significa | O que fazer |
-|--------|------|-----------------|-------------|
-| `0` | `CLEAN` | Todos os checks passaram. Resultado impresso: `{status}: {logical_sha256}`. Escrito em `out/audit/CURRENT`. | Nenhuma ação necessária. |
-| `1` | `DELTAS` | Issues de validação delta encontradas. Resultado normal — significa que existem divergências entre wiki e processo. | Verificar relatório gerado para detalhes das divergências. |
-| `2` | `COVERAGE_GAP` | Gaps de cobertura documental encontrados. | Revisar `out/delta/document_coverage.json` para identificar itens faltantes. |
-| `3` | `ACQUISITION_VALIDATION_FAILED` | Falha na validação de aquisição. | Verificar logs de coleta (`out/wiki/`, `out/process/`) para identificar a falha. |
-| `4` | `INTERNAL_ERROR` | Erro interno ou exceção não tratada. Mensagem impressa: `RUN_OUTPUT_FAILED: {type(error).__name__}`. | Verificar traceback. Se `SettingsError`, checar variáveis de ambiente (principalmente `AZDO_PAT`). |
+| Código | Status | Significado | Próxima ação |
+| --- | --- | --- | --- |
+| `0` | `CLEAN` | Cobertura completa; todas as reivindicações foram confirmadas. | Leia o bundle atual e prossiga. |
+| `1` | `DELTAS` | Cobertura completa; existe pelo menos um achado diferente de `CONFIRMADO`. | Leia `global.md` e os relatórios da geração atual. Não trate como falha do programa. |
+| `2` | `COVERAGE_GAP` | O texto documental ou inventário de processo divergiu da baseline revisada. | Abra `run.json` da geração atual e examine `gaps`. Interrompa a publicação. |
+| `3` | `ACQUISITION_VALIDATION_FAILED` | A coleta ou validação das fontes não produziu snapshots completos. | Verifique PAT, acesso, rede e manifests em `out/wiki` e `out/process`. |
+| `4` | `INTERNAL_ERROR` | Uma exceção impediu a gravação do bundle final. | Use o tipo em `RUN_OUTPUT_FAILED: <tipo>` e a [solução de problemas](../troubleshooting.md). |
 
-Referência: `scripts/run_audit.py:39`, `scripts/run_audit.py:37`
+`out/audit/CURRENT` contém o ID da geração, não o relatório. Resolva o diretório e leia `run.json` conforme [Como ler o resultado](../guides/run-audit.md#como-ler-o-resultado).
 
-## `verify.py`
+## Porta do repositório
 
-Verificação de provenance do relatório. Valida integridade e versão dos artefatos.
+`uv run python verify.py [--require-publication]`
 
-| Código | Nome | O que significa | O que fazer |
-|--------|------|-----------------|-------------|
-| `0` | `GATE_OK` | Provenance verificado com sucesso. | Nenhuma ação necessária. |
-| `1` | `GATE_FAIL` | Falha na verificação de provenance. Mensagem impressa: `GATE_FAIL: {error}`. | Verificar se `_VOLATILE_PROVENANCE_LINES` ou `_REPORT_PROVENANCE_LINE` foram alterados. Reexecutar `run_audit.py` antes de tentar novamente. |
+| Código | Saída | Significado |
+| --- | --- | --- |
+| `0` | `GATE_OK` | Todos os invariáveis exigidos pelo modo escolhido passaram. |
+| `1` | `GATE_FAIL: <mensagem>` | O primeiro invariável indicado falhou. |
 
-Referência: `verify.py:630-633`
+Não altere expressões internas nem regenere evidência para silenciar a falha. Siga a mensagem e o [guia da porta](../guides/verify-repository.md).
 
 ## Scripts auxiliares
 
-| Script | Sucesso | Falha | Observação |
-|--------|---------|-------|------------|
-| `01_fetch_wiki.py` | `0` | `1` | Mensagens de erro: `ERROR: cached wiki snapshot failed validation`, `ERROR: wiki collection failed safely` |
-| `02_fetch_process.py` | `0` | `1` | |
-| `03_build_delta.py` | `0` | `1` | Mensagem de erro: `BUILD_FAILED: {error}` |
-| `04_prepare_notion.py` | `0` | `1` | Mensagem de erro: `NOTION_PREPARATION_FAILED: {error}` |
-| `setup.py` | `0` | `1` | |
-| `prepare_baselines.py` | `0` | — | Sempre retorna 0 |
+| Script | Sucesso | Falha conhecida |
+| --- | --- | --- |
+| `01_fetch_wiki.py` | `0` | `1` |
+| `02_fetch_process.py` | `0` | `1` |
+| `03_build_delta.py` | `0` | `1`, com `BUILD_FAILED: <mensagem>` para falhas tratadas |
+| `04_prepare_notion.py` | `0` | `1`, com `NOTION_PREPARATION_FAILED: <mensagem>` |
+| `setup.py` | `0` | `1` |
+| `prepare_baselines.py` | `0` quando conclui | outro código ou traceback se a execução não concluir |
 
-## Notas
-
-- `DELTAS` (código `1` do `run_audit.py`) **não é falha** — é o resultado esperado quando existem divergências entre documentação e processo. É o estado mais comum de trabalho.
-- Todos os scripts seguem o padrão `uv run python scripts/<nome>.py`.
-- Para refazer qualquer etapa com cache limpo, usar a flag `--refresh`.
+`--refresh` pertence à coleta. Ele cria uma geração imutável nova e não apaga cache, não recria evidência histórica e não corrige automaticamente relatórios ou recibos.

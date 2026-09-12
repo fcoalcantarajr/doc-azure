@@ -1,12 +1,15 @@
-# Prior work and current handoff
+# Historical handoff snapshot
 
 The original Session 1 inventory was a baseline gap analysis, not a live source
 of truth. Its earlier `no`/`missing` values are superseded by the current
 repository state summarized here.
 
-## Current repository state
+The table below records the state observed on 2026-09-09. It is historical
+evidence, not current operating guidance. Use `../README.md` for current docs.
 
-| Area | Current status | Authoritative handoff |
+## State recorded on 2026-09-09
+
+| Area | Status recorded then | Handoff recorded then |
 | --- | --- | --- |
 | Safety and repository rules | Present | `AGENTS.md`, `.gitignore` |
 | Azure settings and read boundary | Present and tested | `src/doc_azure/settings.py`, `src/doc_azure/azure_client.py`, `../reference/api-contract.md` |
@@ -18,10 +21,10 @@ repository state summarized here.
 | Offline report builder | Present and deterministic | `scripts/03_build_delta.py`, `src/delta/` |
 | Versioned reports | Current | `deltas/leiame.md`, `deltas/politicas.md`, `deltas/changelog.md`, `deltas/apendice.md` |
 | Local Notion preparation | Semantic bodies and repository-bound review packet present; ignored output only | `scripts/04_prepare_notion.py`, `docs/notion-publication.md`, `out/notion/` |
-| Repository gate | Present; local gate passes | `verify.py` |
+| Repository gate | Present; local gate passed in that environment | `verify.py` |
 | Tests and fixtures | Present | `tests/`, `tests/fixtures/` |
 | Current audit receipt | Present | `session-2026-09-08.md` |
-| External Notion publication | Pending Task 8 | `../notion-publication.md` |
+| External Notion publication | Pending at that handoff | `../notion-publication.md` |
 
 ## Historical baseline
 
@@ -30,7 +33,7 @@ evidence. They record what was absent at that earlier point and must not be used
 as a current inventory. Current implementation status comes from the files and
 verification receipts named above.
 
-## Resume point
+## Resume point recorded then
 
 The local handoff is complete only when the current receipt records deterministic
 report hashes, fresh read-only collection, two identical non-secret setup runs

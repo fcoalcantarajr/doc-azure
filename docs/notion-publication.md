@@ -2,11 +2,17 @@
 
 ## Location and existing-page identities
 
-All four reports remain children of the same existing hub page. Publication
+All four reports remain direct children of the fixed parent page. Publication
 must update these pages in place; creating replacements or duplicates is
 forbidden.
 
 Parent page ID: `2a1412e0-8c26-803b-a988-dc619a396e45`
+
+Azure audit hub page ID: `3c3412e0-8c26-809d-8e12-e5498b5fde60`
+
+The hub is another distinct child of the parent above, alongside the four
+report pages. It is not their parent. The strict evidence gate fetches both the
+parent and this sibling hub.
 
 | Slug | Existing title | Existing page ID | URL | Marker |
 | --- | --- | --- | --- | --- |

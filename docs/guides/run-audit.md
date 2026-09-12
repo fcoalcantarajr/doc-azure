@@ -1,182 +1,100 @@
-# Rodar a auditoria
+# Executar a auditoria
 
-Execute a auditoria completa do projeto e obtenha um relatório com o status de cada afirmação do catálogo frente às fontes documentais e de processo.
+Compare as quatro páginas fixas da Wiki com o `Processo-Agil` do Azure DevOps. O aplicativo faz somente requisições REST de leitura e grava evidências locais.
 
 ## Antes de começar
 
-**uv instalado.** O projeto usa `uv` para gerenciar dependências e executar scripts.
+Conclua o [início rápido](../quickstart.md). Para uma coleta nova, confirme que `.env` contém um PAT válido e que sua conta tem os acessos da [lista de verificação](../configuration.md#lista-de-verificação-de-acesso).
 
-```bash
-uv --version
+Confirme que o catálogo versionado existe:
+
+```sh
+ls config/wiki_claims.json
 ```
 
-Deve retornar algo como `uv 0.x.y`. Se não retornar, instale com:
+Resultado esperado: o terminal mostra `config/wiki_claims.json`.
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+## Escolher o modo
 
-**Repositório clonado e configurado.** Verifique que o catálogo de tarefas existe:
+Use somente um destes comandos:
 
-```bash
-ls out/catalog/tasksCatalog.json
-```
+| Necessidade | Comando |
+| --- | --- |
+| Coletar o estado atual do Azure | `uv run python scripts/run_audit.py --refresh` |
+| Reusar snapshots locais completos, sem rede | `uv run python scripts/run_audit.py --offline` |
+| Reusar a cache e buscar somente o que faltar | `uv run python scripts/run_audit.py` |
 
-Se o arquivo não existir, siga o [Quickstart](../quickstart.md) antes de continuar.
+Para a primeira auditoria ou quando as fontes podem ter mudado, use:
 
-## Passo a passo
-
-### 1. Rodar com a configuração padrão
-
-O modo padrão reaproveita a última coleta armazenada na cache. Se a cache não existe, baixa tudo. Se está incompleta, obtém apenas os dados que faltam.
-
-```bash
-uv run python scripts/run_audit.py
-```
-
-**O que você deve ver:**
-
-Na primeira execução, o script baixa fontes do Azure DevOps — pode levar alguns minutos. Ao final:
-
-```
-DELTAS: <hash de 64 caracteres>
-/Volumes/.../doc-azure/out/audit/CURRENT
-```
-
-`DELTAS` é o resultado normal quando a auditoria encontra diferenças. **Não é uma falha de execução.**
-
-Em execuções seguintes, se a cache estiver completa, o script pula a rede e processa direto.
-
-**Se der errado:**
-
-Veja a seção [Se der errado](#se-der-errado) abaixo.
-
-### 2. Atualizar fontes e rodar (`--refresh`)
-
-Use `--refresh` para forçar nova coleta por REST, mesmo que a cache exista.
-
-```bash
+```sh
 uv run python scripts/run_audit.py --refresh
 ```
 
-**O que você deve ver:**
+Uma execução concluída imprime duas linhas semelhantes a estas:
 
-Saída idêntica ao modo padrão:
-
-```
+```text
 DELTAS: <hash de 64 caracteres>
-/Volumes/.../doc-azure/out/audit/CURRENT
+<caminho do projeto>/out/audit/CURRENT
 ```
 
-Útil quando as fontes podem ter mudado — por exemplo, após novas edições no Azure DevOps.
+O código do shell pode ser `0`, `1`, `2` ou `3`; cada um é um resultado classificado. O código `4` significa que o bundle final não pôde ser produzido.
 
-**Se der errado:**
-
-Veja a seção [Se der errado](#se-der-errado) abaixo.
-
-### 3. Rodar offline (`--offline`)
-
-Use `--offline` quando não houver conexão ou quando quiser trabalhar apenas com snapshots locais já baixados.
-
-```bash
-uv run python scripts/run_audit.py --offline
-```
-
-**O que você deve ver:**
-
-```
-DELTAS: <hash de 64 caracteres>
-/Volumes/.../doc-azure/out/audit/CURRENT
-```
-
-Se a cache não existir, o script falha. Veja [Se der errado](#se-der-errado).
-
-> **Importante:** `--offline` e `--refresh` não podem ser usados juntos. O script rejeita a combinação.
-
-**Se der errado:**
-
-Veja a seção [Se der errado](#se-der-errado) abaixo.
-
-### 4. Flags avançadas
-
-As flags abaixo não são necessárias no uso diário. São úteis para testes ou quando o projeto está em diretório diferente.
-
-| Flag | Descrição | Padrão |
-|------|-----------|--------|
-| `--root <caminho>` | Diretório raiz do projeto | `PROJECT_ROOT` |
-| `--catalog <caminho>` | Caminho para o catálogo | `out/catalog/tasksCatalog.json` |
-| `--document-baseline <caminho>` | Baseline documental | `out/document-snapshot/processed_lfs/current_baseline` |
-| `--process-baseline <caminho>` | Baseline de processo | `out/process-snapshot/processed_lfs/current_baseline` |
-
-Exemplo:
-
-```bash
-uv run python scripts/run_audit.py --root /outro/diretorio --refresh
-```
+`--offline` e `--refresh` são incompatíveis. Se não houver snapshots locais completos, o modo offline termina com `ACQUISITION_VALIDATION_FAILED`.
 
 ## Como ler o resultado
 
-Após a execução, abra o relatório:
+`out/audit/CURRENT` contém apenas o identificador da geração atual. Resolva o diretório dessa geração com:
 
-```bash
-cat out/audit/CURRENT
+```sh
+uv run python -c "from pathlib import Path; p=Path('out/audit'); print(p/'snapshots'/(p/'CURRENT').read_text().strip())"
 ```
 
-Na seção `summary`, procure por:
+Resultado esperado: um caminho como `out/audit/snapshots/<identificador>`.
 
-```json
-{
-  "total_claims": N,
-  "confirmed": X,
-  "divergent": Y,
-  "unchecked": Z
-}
-```
+Nesse diretório, leia:
 
-- **confirmed** — afirmações confirmadas entre documentação e processo.
-- **divergent** — diferenças encontradas entre documentação e processo.
-- **unchecked** — afirmações não verificáveis pela API.
+- `global.md`: status global, quantidade de reivindicações, lacunas e hash lógico;
+- `leiame.md`, `politicas.md`, `changelog.md` e `apendice.md`: achados por página;
+- `run.json`: recibo estruturado da execução.
 
-Cada linha de divergência aponta evidência exata em `out/` e no wiki.
+No `run.json`, os campos principais são `status`, `exit_code`, `coverage_complete`, `pages`, `findings`, `gaps`, `logical_sha256` e `provenance`. `findings` e `gaps` são listas; não existe um objeto `summary`.
 
-Mensagens de progresso aparecem no stderr. O stdout retorna apenas o resultado final (`status: hash` + caminho do relatório).
+| Código | Status | Interpretação |
+| --- | --- | --- |
+| `0` | `CLEAN` | Cobertura completa e todas as reivindicações confirmadas. |
+| `1` | `DELTAS` | Auditoria concluída com pelo menos um achado diferente de `CONFIRMADO`. É um resultado válido. |
+| `2` | `COVERAGE_GAP` | A fonte mudou fora da cobertura revisada. Interrompa a publicação. |
+| `3` | `ACQUISITION_VALIDATION_FAILED` | A coleta ou validação de snapshots não foi concluída. |
+| `4` | `INTERNAL_ERROR` | A aplicação não conseguiu gravar o resultado final. |
 
-## Se der errado
+Consulte a [referência de códigos de saída](../reference/exit-codes.md) para as ações de recuperação.
 
-**`uv: command not found`**
+## Opções avançadas
 
-`uv` não está instalado ou não está no PATH. Instale com o comando mostrado em [Antes de começar](#antes-de-começar).
+As opções substituem estes padrões:
 
-**`RUN_OUTPUT_FAILED: FileNotFoundError`** (stderr, código 4)
+| Opção | Padrão |
+| --- | --- |
+| `--root` | raiz detectada do repositório |
+| `--catalog` | `config/wiki_claims.json` |
+| `--document-baseline` | `config/document-coverage.json` |
+| `--process-baseline` | `config/process-coverage.json` |
 
-Arquivo de entrada não encontrado. Verifique que `out/catalog/tasksCatalog.json` existe e que `--root` aponta para o diretório correto.
+Veja a ajuda exata da versão instalada:
 
-**Falha com `--offline` sem cache**
-
-Se a cache não existir, `--offline` não tem dados para processar. Execute primeiro com o modo padrão (sem flags) ou com `--refresh` para criar a cache.
-
-**`DELTAS` na saída (código 1)**
-
-`DELTAS` **não é erro**. Significa que a auditoria encontrou diferenças entre as fontes — resultado esperado quando há divergências legítimas.
-
-**Código de saída diferente de 0 ou 1**
-
-| Código | Significado |
-|--------|-------------|
-| 0 | `CLEAN` — sem divergências |
-| 1 | `DELTAS` — divergências registradas (normal) |
-| 2 | `COVERAGE_GAP` — cobertura incompleta |
-| 3 | `ACQUISITION_VALIDATION_FAILED` — falha na validação de aquisição |
-| 4 | `INTERNAL_ERROR` — erro interno do script |
-
-Códigos 2, 3 e 4 indicam problemas que precisam de atenção.
-
-Para confirmar flags a qualquer momento:
-
-```bash
+```sh
 uv run python scripts/run_audit.py --help
 ```
 
+Resultado esperado: a lista de opções termina sem erro.
+
+## Se der errado
+
+- `uv: command not found`: instale o `uv` conforme o [início rápido](../quickstart.md).
+- `RUN_OUTPUT_FAILED: FileNotFoundError`: confirme os três arquivos em `config/` listados acima e o valor de `--root`.
+- `ACQUISITION_VALIDATION_FAILED` numa coleta nova: siga o diagnóstico de PAT, acesso e rede em [Solução de problemas](../troubleshooting.md#auditoria-nova-termina-com-acquisition_validation_failed).
+- `COVERAGE_GAP`: não regenere a baseline para silenciar a diferença; encaminhe a mudança para revisão de catálogo e cobertura.
+
 ## Próximo passo
 
-Saiba mais sobre a [visão geral do projeto](../README.md).
+Para reconstruir os relatórios versionados, siga [Gerar os relatórios delta](build-reports.md).

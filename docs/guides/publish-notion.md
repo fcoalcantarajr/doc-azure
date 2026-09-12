@@ -1,176 +1,131 @@
 # Publicar no Notion
 
-Gere as páginas Notion a partir dos deltas e publique-as via Notion MCP + Notion AI.
+Prepare, revise, atualize e prove as quatro páginas fixas do Notion. O Python prepara e valida a evidência; as operações externas são executadas no Codex com o conector Notion e o navegador integrado.
+
+Este fluxo modifica páginas externas. Confirme autorização para a publicação imediatamente antes da primeira atualização. Nunca crie páginas substitutas.
 
 ## Antes de começar
 
-**uv instalado.** O projeto usa `uv` para gerenciar dependências e executar scripts.
+Você precisa de:
 
-```bash
-uv --version
+- quatro relatórios oficiais já construídos em `deltas/`;
+- acesso ao repositório privado no GitHub;
+- Codex com o conector Notion conectado e o navegador integrado autenticado no Notion AI;
+- Kimi K3 e Opus 5 disponíveis com esforço máximo;
+- autorização para atualizar as quatro páginas existentes.
+
+As identidades fixas e a hierarquia estão no [contrato de publicação](../notion-publication.md#location-and-existing-page-identities). Os formatos exatos dos recibos estão na [referência de evidências](../reference/notion-evidence.md).
+
+## 1. Preparar o pacote local
+
+Use a URL real do remoto GitHub que contém o commit a revisar:
+
+```sh
+uv run python scripts/04_prepare_notion.py --repository-url https://github.com/fcoalcantarajr/doc-azure
 ```
 
-Deve retornar algo como `uv 0.x.y`. Se não retornar, instale com:
+Resultado esperado: o comando lista `out/notion/publication-manifest.json` e os quatro arquivos:
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+```text
+out/notion/prepared/leiame.md
+out/notion/prepared/politicas.md
+out/notion/prepared/changelog.md
+out/notion/prepared/apendice.md
 ```
 
-**Deltas construídos.** Os arquivos sob `out/notion/` devem existir. Verifique:
+Com `--repository-url`, ele também cria `out/notion/review/packet.csv`, `prompt.txt` e `review-manifest.json`. Nada é enviado ao Notion nessa etapa.
 
-```bash
-ls out/notion/
+Abra os quatro corpos preparados e confirme que não contêm PAT, dado pessoal ou conteúdo impróprio para o destino.
+
+## 2. Obter duas revisões independentes
+
+No navegador integrado, crie um chat novo do Notion AI para cada modelo. Não mostre a resposta de um ao outro.
+
+No primeiro chat:
+
+1. selecione `Kimi K3`;
+2. selecione esforço máximo;
+3. envie exatamente `out/notion/review/prompt.txt` e `packet.csv`;
+4. aguarde a resposta completa;
+5. preserve a resposta e a identidade do chat conforme a referência de evidências.
+
+Repita em outro chat com `Opus 5` e esforço máximo, usando os mesmos arquivos. Se um modelo ou o esforço máximo estiver indisponível, interrompa a publicação; não substitua silenciosamente.
+
+Uma forma autônoma de operar é pedir ao Codex, na mesma tarefa local que tem acesso ao repositório, ao navegador e ao conector Notion:
+
+```text
+Revise este pacote em dois chats novos e separados do Notion AI: Kimi K3 e Opus 5, ambos com esforço máximo. Use exatamente out/notion/review/prompt.txt e packet.csv, não compartilhe as respostas entre os modelos, preserve os resultados brutos e preencha os recibos nos caminhos definidos em docs/reference/notion-evidence.md. Não publique ainda.
 ```
 
-Se o diretório não existir ou estiver vazio, execute `03_build_delta.py` antes de continuar.
+## 3. Reconciliar e repetir
 
-**Notion MCP conectado.** A integração Notion MCP precisa estar configurada no seu ambiente. Consulte [configuração](../configuration.md) se necessário.
+Leia os dois pareceres. Para cada achado, registre em `out/notion/review/reconciliation.json` uma decisão `accepted`, `rejected` ou `deferred`, com justificativa baseada em evidência.
 
-**Navegador disponível.** O passo de publicação requer ChatGPT e Notion AI abertos no navegador, com Kimi K3 e Opus 5 (max effort) acessíveis.
+- Corrija todo achado material aceito.
+- Para rejeitar, demonstre por código, teste ou contrato por que o achado não procede.
+- Um achado material adiado bloqueia a publicação.
+- Qualquer alteração nos relatórios invalida o pacote: reconstrua, prepare novamente e obtenha duas revisões novas.
 
-**URL do repositório.** Anote a URL HTTPS do repositório GitHub. Será usada como `--repository-url`.
+Prossiga somente quando os dois modelos aprovarem o mesmo pacote e a reconciliação não tiver pendência material.
 
-## Passo a passo
+## 4. Confirmar que a porta está fechada
 
-### 1. Preparar páginas localmente
+Antes da atualização externa, execute:
 
-O modo padrão gera os arquivos Notion sob `out/notion/`. Não contata o Notion e não publica.
-
-```bash
-uv run python scripts/04_prepare_notion.py --repository-url https://github.com/usuario/doc-azure
+```sh
+uv run python scripts/04_prepare_notion.py --verify-publication
 ```
 
-**O que você deve ver:**
+Resultado esperado neste momento: `NOTION_PREPARATION_FAILED: ...`, porque ainda não existem recibos completos. Um sucesso prematuro indica evidência antiga ou misturada; pare e preserve `out/notion` para investigação.
 
-```
-out/notion/manifest.json
-out/notion/leiame.md
-out/notion/politicas.md
-out/notion/changelog.md
-out/notion/apendice.md
-```
+## 5. Atualizar as quatro páginas existentes
 
-Cada arquivo é uma página Notion em Markdown pronta para publicação.
+Confirme novamente a autorização. No Codex, use o conector Notion para substituir o corpo de cada `page_id` fixo pelo arquivo preparado do mesmo slug. Não altere título, identidade ou hierarquia e não crie página.
 
-**Se der errado:**
+Salve o resultado bruto de cada atualização em `out/notion/raw/notion-update-<slug>.json` exatamente como retornado. Em seguida, busque cada página pelo conector, salve `notion-fetch-<slug>.json` e extraia o corpo integral para `out/notion/fetched/<slug>.md`.
 
-Veja a seção [Se der errado](#se-der-errado) abaixo.
+## 6. Provar hierarquia e ausência de duplicatas
 
-### 2. Verificar com fetched (`--verify-fetched`)
+Busque pelo conector:
 
-Após baixar as páginas do Notion via MCP, verifique se o conteúdo local confere com o que foi obtido remoto.
+- o parent fixo;
+- o hub fixo;
+- cada uma das quatro páginas.
 
-```bash
-uv run python scripts/04_prepare_notion.py \
-  --repository-url https://github.com/usuario/doc-azure \
-  --verify-fetched out/notion-fetched
+Depois faça doze buscas limitadas ao parent: por ID, título exato e marcador de cada slug. Cada busca deve encontrar somente a página esperada. Grave os resultados e recibos exatamente nos caminhos da [referência de evidências](../reference/notion-evidence.md#prove-no-duplicates).
+
+## 7. Verificar o retorno do conector
+
+```sh
+uv run python scripts/04_prepare_notion.py --verify-fetched out/notion/fetched
 ```
 
-**O que você deve ver:**
+Resultado esperado:
 
-```
+```text
 NOTION_FETCHED_OK
 ```
 
-O diretório `out/notion-fetched` deve conter as páginas baixadas do Notion antes de rodar esta verificação.
+Esse comando compara os quatro corpos lidos de volta; ainda não valida sozinho revisões, hierarquia e duplicatas.
 
-**Se der errado:**
+## 8. Fechar as duas portas rigorosas
 
-Veja a seção [Se der errado](#se-der-errado) abaixo.
-
-### 3. Verificar publicação (`--verify-publication`)
-
-Após publicar as páginas no Notion, confirme que a publicação foi concluída corretamente.
-
-```bash
-uv run python scripts/04_prepare_notion.py \
-  --repository-url https://github.com/usuario/doc-azure \
-  --verify-publication
+```sh
+uv run python scripts/04_prepare_notion.py --verify-publication
 ```
 
-**O que você deve ver:**
+Resultado esperado: `NOTION_PUBLICATION_OK`.
 
-```
-NOTION_PUBLICATION_OK
-```
+Depois execute:
 
-**Se der errado:**
-
-Veja a seção [Se der errado](#se-der-errado) abaixo.
-
-### 4. Flags avançadas
-
-As flags abaixo não são necessárias no uso diário. São úteis para testes ou quando o projeto está em diretório diferente.
-
-| Flag | Descrição | Padrão |
-|------|-----------|--------|
-| `--root <caminho>` | Diretório raiz do projeto | `PROJECT_ROOT` |
-| `--repository-url <url>` | URL HTTPS do repositório GitHub | (obrigatório) |
-| `--verify-fetched <diretório>` | Diretório com páginas baixadas do Notion | — |
-| `--verify-publication` | Verifica se a publicação foi concluída | — |
-
-Exemplo com `--root`:
-
-```bash
-uv run python scripts/04_prepare_notion.py \
-  --root /outro/diretorio \
-  --repository-url https://github.com/usuario/doc-azure
+```sh
+uv run python verify.py --require-publication
 ```
 
-## Como ler o resultado
+Resultado esperado: `GATE_OK`.
 
-Após a preparação, abra o manifesto:
-
-```bash
-cat out/notion/manifest.json
-```
-
-O manifesto lista cada página com seu slug, caminho local e status. Cada arquivo Markdown sob `out/notion/` corresponde a uma página Notion.
-
-As quatro páginas publicadas são:
-
-- **leiame** — Leia-me Processo da Organização Única
-- **politicas** — Template de políticas explícitas
-- **changelog** — Changelog
-- **apendice** — Apêndice Técnico Processo Organização Única
-
-Mensagens de progresso aparecem no stderr. O stdout retorna apenas o resultado final (caminho do manifesto + caminhos das entradas).
+Só declare a publicação concluída se ambos os marcadores aparecerem para o mesmo manifesto e os mesmos relatórios.
 
 ## Se der errado
 
-**`uv: command not found`**
-
-`uv` não está instalado ou não está no PATH. Instale com o comando mostrado em [Antes de começar](#antes-de-começar).
-
-**`NOTION_PREPARATION_FAILED: {error}`**
-
-Erro na preparação local. Verifique:
-
-- `out/notion/` existe e é gravável.
-- `--repository-url` foi informado.
-- Os deltas foram construídos (`out/notion/` contém arquivos).
-
-**`NOTION_FETCHED_OK` não aparece com `--verify-fetched`**
-
-O diretório informado não confere com o conteúdo local. Verifique que o caminho está correto e que as páginas foram baixadas do Notion via MCP antes de rodar a verificação.
-
-**`NOTION_PUBLICATION_OK` não aparece com `--verify-publication`**
-
-A publicação no Notion não foi concluída ou as páginas não foram atualizadas. Verifique se o Notion MCP está conectado e se as páginas foram publicadas corretamente.
-
-**Código de saída 1**
-
-| Código | Significado |
-|--------|-------------|
-| 0 | Sucesso — preparação ou verificação concluída |
-| 1 | Falha — verifique a mensagem de erro acima |
-
-Para confirmar flags a qualquer momento:
-
-```bash
-uv run python scripts/04_prepare_notion.py --help
-```
-
-## Próximo passo
-
-Saiba mais sobre a [visão geral do projeto](../README.md).
+Não ajuste JSON ou resposta bruta para fazê-los passar. Preserve o erro e procure a mensagem exata em [Solução de problemas](../troubleshooting.md). A [referência de evidências](../reference/notion-evidence.md) contém a árvore de arquivos e cada campo obrigatório.

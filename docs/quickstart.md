@@ -2,6 +2,9 @@
 
 Este guia leva você da instalação à primeira auditoria em 5 passos. Se encontrar um erro, consulte a [solução de problemas](troubleshooting.md).
 
+O **terminal** é o aplicativo em que você digita os comandos mostrados neste
+guia: Terminal no macOS ou Ubuntu no Linux e no WSL.
+
 ## 1. Instalar as ferramentas
 
 ### Git
@@ -59,6 +62,9 @@ Resultado esperado: o `uv` cria ou atualiza `.venv` e completa sem erro. Você n
 
 ## 4. Configurar o arquivo privado
 
+Ainda não tem um PAT? Siga [Criar o PAT](configuration.md#criar-o-pat) antes de
+copiar o arquivo.
+
 ```sh
 cp .env.example .env
 ```
@@ -104,13 +110,13 @@ DELTAS: <hash de 64 caracteres>
 .../doc-azure/out/audit/CURRENT
 ```
 
-`DELTAS` e código de saída `1` são um resultado válido: a auditoria completou e encontrou diferenças. Consulte [Ler os resultados](guides/run-audit.md#como-ler-o-resultados) para interpretar.
+`DELTAS` e código de saída `1` são um resultado válido: a auditoria completou e encontrou diferenças. Consulte [Ler os resultados](guides/run-audit.md#como-ler-o-resultado) para interpretar.
 
 ## Próximos passos
 
 | Precisa de... | Consulte |
 | --- | --- |
-| Explicar os códigos de saída | [Ler os resultados](guides/run-audit.md#como-ler-o-resultados) |
+| Explicar os códigos de saída | [Ler os resultados](guides/run-audit.md#como-ler-o-resultado) |
 | Executar offline | [Modos de operação](configuration.md#modos-de-operação) |
 | Corrigir um erro | [Solução de problemas](troubleshooting.md) |
-| Publicar no Notion | [Contrato de publicação](notion-publication.md) |
+| Publicar no Notion | [Guia de publicação](guides/publish-notion.md) |
