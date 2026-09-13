@@ -255,14 +255,26 @@ problemas](../troubleshooting.md#busca-por-marcador-do-notion-não-retorna-highl
 
 ## Verificações finais
 
-Execute os dois comandos:
+Primeiro, verifique isoladamente os quatro corpos relidos:
+
+```sh
+uv run python scripts/04_prepare_notion.py --verify-fetched out/notion/fetched
+```
+
+O marcador obrigatório dessa etapa é `NOTION_FETCHED_OK`. Ele prova a
+equivalência dos quatro corpos com o manifesto atual, mas não valida sozinho as
+revisões, a hierarquia ou as buscas de duplicatas. Se o marcador não aparecer,
+siga o diagnóstico de [`--verify-fetched`](../troubleshooting.md#--verify-fetched-não-imprime-notion_fetched_ok)
+antes de executar as portas completas.
+
+Depois execute os dois comandos:
 
 ```sh
 uv run python scripts/04_prepare_notion.py --verify-publication
 uv run python verify.py --require-publication
 ```
 
-Os marcadores obrigatórios são `NOTION_PUBLICATION_OK` e `GATE_OK`. Se qualquer
+Os marcadores obrigatórios finais são `NOTION_PUBLICATION_OK` e `GATE_OK`. Se qualquer
 comando falhar, procure a mensagem exata em [Solução de
 problemas](../troubleshooting.md), preserve toda a evidência e não declare que
 os relatórios atuais estão publicados.

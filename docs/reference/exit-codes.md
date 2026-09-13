@@ -38,7 +38,7 @@ Esta porta executa `uv run pytest -q` como última etapa. Se a saída mencionar 
 | `01_fetch_wiki.py` | `0` | `1` |
 | `02_fetch_process.py` | `0` | `1` |
 | `03_build_delta.py` | `0` | `1`, com `BUILD_FAILED: <mensagem>` para falhas tratadas |
-| `04_prepare_notion.py` | `0` | `1`, com `NOTION_PREPARATION_FAILED: <mensagem>` |
+| `04_prepare_notion.py` | `0`; `--verify-fetched` imprime `NOTION_FETCHED_OK` e `--verify-publication` imprime `NOTION_PUBLICATION_OK` | `1`, com `NOTION_PREPARATION_FAILED: <mensagem>` |
 | `setup.py` | `0` | `1` |
 | `prepare_baselines.py` | `0` quando conclui | outro código ou traceback se a execução não concluir |
 

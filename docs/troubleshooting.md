@@ -137,6 +137,28 @@ Depois de obter um resultado com `highlight` válido, regenere o item
 correspondente de `fetched/duplicate-search.json` a partir da resposta real e
 repita as duas portas rigorosas. Não reutilize horários ou hashes anteriores.
 
+## `--verify-fetched` não imprime `NOTION_FETCHED_OK`
+
+Causa: o manifesto de publicação ficou obsoleto ou ao menos um dos quatro pares
+`out/notion/fetched/<slug>.md` e `<slug>.json` está ausente, malformado ou não
+corresponde ao corpo preparado atual. A mensagem
+`NOTION_PREPARATION_FAILED: <detalhe>` identifica o primeiro invariável que
+falhou.
+
+1. Preserve a mensagem e todos os resultados brutos do conector.
+2. Confirme que os quatro slugs têm um arquivo `.md`, um recibo `.json` e os
+   resultados brutos de atualização e busca exigidos pela referência.
+3. Se o manifesto estiver obsoleto, prepare um pacote novo e repita as duas
+   revisões independentes; não reutilize recibos do pacote anterior.
+4. Nos demais casos, repita a leitura da página afetada pelo conector e gere o
+   recibo lateral a partir dessa resposta real. Não edite o corpo ou o resultado
+   bruto para fazê-lo coincidir.
+5. Execute novamente `uv run python scripts/04_prepare_notion.py
+   --verify-fetched out/notion/fetched`.
+
+Só prossiga quando a saída for exatamente `NOTION_FETCHED_OK`. Esse marcador
+não substitui `NOTION_PUBLICATION_OK` nem `GATE_OK`.
+
 ## `NOTION_PREPARATION_FAILED: publication manifest is stale`
 
 Causa: um relatório versionado mudou depois que os corpos locais do Notion foram preparados.

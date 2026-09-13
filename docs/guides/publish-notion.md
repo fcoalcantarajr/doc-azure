@@ -68,6 +68,14 @@ Leia os dois pareceres. Para cada achado, registre em `out/notion/review/reconci
 - Um achado material adiado bloqueia a publicação.
 - Qualquer alteração nos relatórios invalida o pacote: reconstrua, prepare novamente e obtenha duas revisões novas.
 
+Antes de reconciliar os achados, confirme a independência das respostas. Se os
+dois corpos forem idênticos byte a byte ou se uma resposta descrever um modelo
+diferente do que estava visivelmente selecionado antes do envio, preserve os
+recibos anômalos, não atualize o Notion e repita **as duas** revisões em chats
+novos. A [referência de evidências](../reference/notion-evidence.md#capturar-cada-revisão-do-navegador)
+explica como registrar a anomalia sem alterar os schemas fechados. Não prossiga
+com uma resposta antiga e apenas uma revisão repetida.
+
 Prossiga somente quando cada achado dos dois modelos tiver uma decisão: todo
 achado aceito já foi corrigido e todo achado rejeitado tem justificativa baseada
 em código, teste ou contrato. Não pode restar achado material `deferred`. Um

@@ -31,7 +31,9 @@ R10. Language: English in code, tests, commits and agent reasoning. Brazilian Po
      docs/reference/exit-codes.md and docs/reference/notion-evidence.md. English in the maintainer
      and historical documentation: docs/architecture.md, docs/document-coverage.md,
      docs/decisions.md, docs/archive/, docs/superpowers/, docs/reference/api-contract.md and
-     docs/reference/delta-method.md.
+     docs/reference/delta-method.md. A new documentation file follows its audience: operator-facing
+     material is Brazilian Portuguese; maintainer or historical material is English. If the audience
+     is not unambiguous from these directory rules, update R10 to classify the path before adding it.
 
 ## Delta Model
 
