@@ -24,12 +24,14 @@ R8. Conventional Commits, atomic, one logical change per commit. Use the git-com
     Never commit .env or anything under out/.
 R9. If a check is inconvenient, you prove it wrong with an official-doc URL and @oracle signs off in
     docs/decisions.md. You never delete, soften or comment out a check to make the gate pass.
-R10. Language: English in all code, tests, commits and reasoning. Brazilian Portuguese in
-     README.md and in every file under docs/ that a user reads to operate the tool (docs/README.md,
-     quickstart.md, configuration.md, guides/, troubleshooting.md, reference/exit-codes.md), and in
-     the four Notion delta pages and the delta markdown files, because the audience is
-     Portuguese-speaking. English in docs/decisions.md, docs/archive/ and the maintainer documents
-     (architecture.md, api-contract.md, audit-runtime.md, document-coverage.md, delta-method.md).
+R10. Language: English in code, tests, commits and agent reasoning. Brazilian Portuguese in
+     README.md, the four Notion delta pages, deltas/, and the operational documentation:
+     docs/README.md, docs/quickstart.md, docs/configuration.md, docs/audit-runtime.md,
+     docs/notion-publication.md, docs/troubleshooting.md, docs/guides/,
+     docs/reference/exit-codes.md and docs/reference/notion-evidence.md. English in the maintainer
+     and historical documentation: docs/architecture.md, docs/document-coverage.md,
+     docs/decisions.md, docs/archive/, docs/superpowers/, docs/reference/api-contract.md and
+     docs/reference/delta-method.md.
 
 ## Delta Model
 
