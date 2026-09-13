@@ -78,9 +78,11 @@ Valores SHA-256 das baselines:
 - `config/process-coverage.json`: `4fe95039f993a9473677b98e4a652bc4d0d79c1ad1a6658d6598bdfce9cd2418`
 
 A execução atualizada mais recente, em 2026-09-09 das 11:35:12 às 11:35:14 UTC,
-coletou quatro páginas de Wiki com quatro GETs e 109 artefatos de processo com
-109 GETs. A geração Wiki foi `a4ae120c5e9d45c9839bd6323c30d719`; a geração de
-processo foi `75963a4853a543f68cb49d5bcb97589f`. Ela retornou código 1
+coletou quatro páginas de Wiki com quatro GETs e 110 artefatos de processo a
+partir de 109 GETs. Um dos artefatos é o mapa local do inventário, derivado das
+respostas coletadas; por isso a quantidade de artefatos é uma unidade maior que
+a de requisições. A geração Wiki foi `a4ae120c5e9d45c9839bd6323c30d719`;
+a geração de processo foi `75963a4853a543f68cb49d5bcb97589f`. Ela retornou código 1
 (`DELTAS`), cobertura completa, zero lacunas e 222 achados classificados: 123
 `CONFIRMADO`, 59 `DIVERGENTE`, 31 `NAO_VERIFICAVEL_API_PROCESSO` e 9
 `AMBIGUO`. Seu hash lógico foi

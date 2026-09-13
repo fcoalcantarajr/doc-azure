@@ -45,8 +45,13 @@ achados. Eles comprovam apenas identidade local.
 | `changelog` | `a6b6baa9bf333d34ab7a47b54652f61c16b8a5b4e2e331159ff33d6e663e0c2d` | `7e91fe550387e579ebfe57919a0bb4b941fafb42613ae107ec8b00e006b7e9af` | `02e60d1a5df8b0dcafb0ab0901829fd79879ff3b0cb0c4dc23cf263c357d5fa8` |
 | `apendice` | `e5099008ab565ef6ef5e625fbc749391df34771b8685defeec61ee7946ac9bae` | `17851534d1efbaa4c5654f4884b24824603f66925da069c3c9c71fe960ea00d2` | `96b0326091548d2c6a47313a32c4b93aad84c0d33329161dca12dc75d332b17c` |
 
-SHA-256 do pacote de revisão atual: `0bbf6aabebf57703b60ea619e36ade4ff8023cd14256cd7b8a3103cc32cd282f`.
-SHA-256 do prompt de revisão atual: `9921af82e43b24bb5a01069d2c251e8dc813f90199b606bb49740fbe475a73a3`.
+SHA-256 do pacote registrado na entrega de 2026-09-09: `0bbf6aabebf57703b60ea619e36ade4ff8023cd14256cd7b8a3103cc32cd282f`.
+SHA-256 do prompt registrado na entrega de 2026-09-09: `9921af82e43b24bb5a01069d2c251e8dc813f90199b606bb49740fbe475a73a3`.
+
+Esses valores são evidência histórica, não parâmetros para uma nova revisão.
+Em toda nova execução, `out/notion/review/review-manifest.json` é a única fonte
+autoritativa para `packet_sha256` e `prompt_sha256`. O hash do prompt também
+depende do valor exato informado em `--repository-url`.
 
 ## Porta obrigatória de revisão adversarial
 
@@ -70,8 +75,9 @@ descrever um modelo diferente daquele visivelmente selecionado antes do envio,
 a independência não foi estabelecida. Preserve o recibo anômalo, abra dois chats
 novos, repita as duas revisões e não atualize o Notion até os novos recibos
 satisfazerem a porta. O verificador rejeita automaticamente hashes de resposta
-iguais; a autodescrição conflitante exige conferência visual do operador e deve
-ser registrada no recibo bruto.
+iguais. A autodescrição conflitante exige conferência visual do operador: a
+resposta anômala já permanece no envelope bruto; registre a decisão em uma nota
+separada, fora dos JSON de schema fechado, e não acrescente campos aos recibos.
 
 Para cada chat, preserve um arquivo de resposta sanitizado e um recibo JSON com
 modelo exato, esforço máximo, superfície do navegador integrado, ID distinto do

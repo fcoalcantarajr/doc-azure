@@ -24,7 +24,11 @@ Se for sua primeira visita, siga o início rápido em ordem. Não inicie com um 
 - Git e `uv`. O GitHub CLI (`gh`) é o caminho recomendado para clonar o repositório, mas HTTPS com token aprovado e SSH também funcionam. O projeto requer Python 3.11+; o `uv` instala e seleciona a versão necessária, então uma instalação Python separada é opcional.
 - Acesso de leitura à organização, projeto, Wiki e processo herdado do Azure DevOps.
 - Um Personal Access Token (PAT) do Azure DevOps, de curta duração e com permissões mínimas, com escopos **Wiki: Read** e **Work Items: Read**.
-- Acesso ao repositório privado. O Notion workspace e o acesso Notion AI são necessários apenas para publicação.
+- Acesso ao repositório privado.
+- Somente para publicação: workspace do Notion, Notion AI, Codex com o conector
+  Notion conectado, navegador integrado autenticado e os modelos Kimi K3 e
+  Opus 5 disponíveis com esforço máximo. Veja todos os pré-requisitos no
+  [guia de publicação](docs/guides/publish-notion.md#antes-de-começar).
 
 Você não resolve permissões de organização ou projeto faltando com um comando. A [lista de verificação de acesso](docs/configuration.md) diz exatamente o que pedir a um administrador.
 

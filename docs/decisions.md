@@ -866,7 +866,8 @@ artifacts. The process candidate stores hashes and JSON pointers, not response
 bodies.
 
 Fresh `scripts/run_audit.py --refresh` evidence collected four Wiki pages in four
-GETs and 109 process artifacts in 109 GETs. It returned `DELTAS` (code 1),
+GETs and produced 110 process artifacts from 109 GETs. The extra artifact is the
+locally derived inventory map. It returned `DELTAS` (code 1),
 coverage complete, zero gaps and 222 findings (123 confirmed, 59 divergent, 31
 API-unverifiable and 9 ambiguous). Reports were rebuilt for the fresh generation
 and the repository gate returned `GATE_OK`.

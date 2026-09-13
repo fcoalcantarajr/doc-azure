@@ -68,7 +68,11 @@ Leia os dois pareceres. Para cada achado, registre em `out/notion/review/reconci
 - Um achado material adiado bloqueia a publicação.
 - Qualquer alteração nos relatórios invalida o pacote: reconstrua, prepare novamente e obtenha duas revisões novas.
 
-Prossiga somente quando os dois modelos aprovarem o mesmo pacote e a reconciliação não tiver pendência material.
+Prossiga somente quando cada achado dos dois modelos tiver uma decisão: todo
+achado aceito já foi corrigido e todo achado rejeitado tem justificativa baseada
+em código, teste ou contrato. Não pode restar achado material `deferred`. Um
+veredito `NEEDS_FIXES` pode ser encerrado por essa reconciliação; a porta não
+exige que o texto literal do veredito mude para `PASS`.
 
 ## 4. Confirmar que a porta está fechada
 

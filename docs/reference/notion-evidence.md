@@ -131,7 +131,10 @@ Os hashes da resposta salva e do navegador bruto devem corresponder aos arquivos
 Se as respostas forem idênticas byte a byte ou a autodescrição de uma resposta
 conflitar com o modelo visível na interface, preserve a anomalia e repita as duas
 revisões em chats novos. A porta rejeita hashes de resposta iguais; a
-autodescrição exige conferência visual. Não trate concordância como prova.
+autodescrição exige conferência visual. O texto conflitante já fica preservado
+em `response_markdown` no envelope bruto. Registre qualquer observação adicional
+em uma nota de operador separada, fora dos JSON validados; não acrescente campos
+aos schemas fechados. Não trate concordância como prova.
 
 ## Reconciliar as revisões
 
