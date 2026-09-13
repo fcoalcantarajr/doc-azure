@@ -24,13 +24,13 @@ Use a URL real do remoto GitHub que contém o commit a revisar:
 uv run python scripts/04_prepare_notion.py --repository-url https://github.com/fcoalcantarajr/doc-azure
 ```
 
-Resultado esperado: o comando lista `out/notion/publication-manifest.json` e os quatro arquivos:
+Resultado esperado: o comando lista caminhos absolutos. Eles terminam em `out/notion/publication-manifest.json` e nos quatro arquivos:
 
 ```text
-out/notion/prepared/leiame.md
-out/notion/prepared/politicas.md
-out/notion/prepared/changelog.md
-out/notion/prepared/apendice.md
+<caminho do projeto>/out/notion/prepared/leiame.md
+<caminho do projeto>/out/notion/prepared/politicas.md
+<caminho do projeto>/out/notion/prepared/changelog.md
+<caminho do projeto>/out/notion/prepared/apendice.md
 ```
 
 Com `--repository-url`, ele também cria `out/notion/review/packet.csv`, `prompt.txt` e `review-manifest.json`. Nada é enviado ao Notion nessa etapa.
@@ -50,6 +50,8 @@ No primeiro chat:
 5. preserve a resposta e a identidade do chat conforme a referência de evidências.
 
 Repita em outro chat com `Opus 5` e esforço máximo, usando os mesmos arquivos. Se um modelo ou o esforço máximo estiver indisponível, interrompa a publicação; não substitua silenciosamente.
+
+Neste contrato, “navegador integrado” é a superfície do navegador integrado do Codex/ChatGPT; o recibo usa o valor literal `chatgpt-integrated-browser`. O aplicativo desktop do Notion não satisfaz essa exigência. O operador não deve montar recibos ou envelopes brutos à mão: peça ao Codex para preservar o resultado real e preencher os arquivos conforme a referência. Se ele não tiver acesso simultâneo ao repositório, ao conector e a essa superfície, interrompa o fluxo.
 
 Uma forma autônoma de operar é pedir ao Codex, na mesma tarefa local que tem acesso ao repositório, ao navegador e ao conector Notion:
 
@@ -82,7 +84,7 @@ Resultado esperado neste momento: `NOTION_PREPARATION_FAILED: ...`, porque ainda
 
 Confirme novamente a autorização. No Codex, use o conector Notion para substituir o corpo de cada `page_id` fixo pelo arquivo preparado do mesmo slug. Não altere título, identidade ou hierarquia e não crie página.
 
-Salve o resultado bruto de cada atualização em `out/notion/raw/notion-update-<slug>.json` exatamente como retornado. Em seguida, busque cada página pelo conector, salve `notion-fetch-<slug>.json` e extraia o corpo integral para `out/notion/fetched/<slug>.md`.
+Salve o resultado bruto de cada atualização em `out/notion/raw/notion-update-<slug>.json` exatamente como retornado. Em seguida, busque cada página pelo conector, salve a resposta em `out/notion/raw/notion-fetch-<slug>.json` e extraia o corpo integral para `out/notion/fetched/<slug>.md`.
 
 ## 6. Provar hierarquia e ausência de duplicatas
 

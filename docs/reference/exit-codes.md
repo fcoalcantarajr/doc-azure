@@ -14,6 +14,8 @@ Use esta referência depois de executar um comando. A mensagem exata continua se
 | `3` | `ACQUISITION_VALIDATION_FAILED` | A coleta ou validação das fontes não produziu snapshots completos. | Verifique PAT, acesso, rede e manifests em `out/wiki` e `out/process`. |
 | `4` | `INTERNAL_ERROR` | Uma exceção impediu a gravação do bundle final. | Use o tipo em `RUN_OUTPUT_FAILED: <tipo>` e a [solução de problemas](../troubleshooting.md). |
 
+O analisador de argumentos também retorna `2` antes da auditoria quando uma opção é inválida ou quando `--offline` e `--refresh` são combinados. Diferencie os casos pela saída: erro de uso contém `usage:` no stderr e não imprime `<STATUS>: <hash>` nem o caminho de `CURRENT`; `COVERAGE_GAP` imprime as duas linhas normais e publica um `run.json` com `status: "COVERAGE_GAP"`.
+
 `out/audit/CURRENT` contém o ID da geração, não o relatório. Resolva o diretório e leia `run.json` conforme [Como ler o resultado](../guides/run-audit.md#como-ler-o-resultado).
 
 ## Porta do repositório
@@ -25,7 +27,7 @@ Use esta referência depois de executar um comando. A mensagem exata continua se
 | `0` | `GATE_OK` | Todos os invariáveis exigidos pelo modo escolhido passaram. |
 | `1` | `GATE_FAIL: <mensagem>` | O primeiro invariável indicado falhou. |
 
-Não altere expressões internas nem regenere evidência para silenciar a falha. Siga a mensagem e o [guia da porta](../guides/verify-repository.md).
+Esta porta executa `uv run pytest -q` como última etapa. Se a saída mencionar `subprocess 'uv' failed`, rode os testes separadamente para ver o detalhe que a porta suprime. Não altere expressões internas nem regenere evidência para silenciar a falha. Siga a mensagem e o [guia da porta](../guides/verify-repository.md).
 
 ## Scripts auxiliares
 

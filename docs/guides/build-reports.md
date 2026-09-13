@@ -35,6 +35,8 @@ O comando retorna `0`. Cada relatório contém procedência, resumo e achados co
 
 Não remova `--coverage-baseline` para contornar `UNMAPPED_DOC_CHANGE`. A execução sem baseline existe para diagnóstico e testes internos, mas não prova cobertura e não deve alimentar commit ou publicação.
 
+O destino padrão é `deltas/`: uma construção bem-sucedida substitui atomicamente os quatro relatórios versionados. Depois de executar, confira `git status --short` e `git diff -- deltas/` antes de commitar. Para experimentar sem tocar nos relatórios oficiais, use `--output-dir` com um diretório temporário fora de `deltas/`.
+
 ## Conferir os arquivos
 
 ```sh

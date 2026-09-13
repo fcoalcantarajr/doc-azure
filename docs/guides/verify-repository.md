@@ -34,7 +34,7 @@ Resultado esperado em ambos os casos válidos:
 GATE_OK
 ```
 
-O script retorna `0` no sucesso. `GATE_FAIL: <mensagem>` e código `1` identificam o primeiro invariável violado. A porta não executa `pytest`; rode os testes separadamente.
+O script retorna `0` no sucesso. `GATE_FAIL: <mensagem>` e código `1` identificam o primeiro invariável violado. A porta executa `uv run pytest -q` como última etapa. Você ainda pode rodar esse comando separadamente para ver a saída completa dos testes ou verificar a saúde portátil de um clone.
 
 ## O que a porta valida
 
@@ -49,7 +49,8 @@ Em ordem, `verify.py` verifica:
 7. ausência de segredos literais em arquivos rastreados;
 8. reconstrução e procedência dos quatro relatórios;
 9. artefatos locais ou, com `--require-publication`, toda a evidência externa do Notion;
-10. funcionamento de `--help` nos scripts públicos.
+10. funcionamento de `--help` nos scripts públicos;
+11. suíte completa com `uv run pytest -q`.
 
 ## Limite importante
 
@@ -63,6 +64,7 @@ Uma nova execução com `--refresh` cria novas gerações imutáveis. Ela não r
 - `verified report rebuild failed`, `provenance is unverifiable` ou erro de snapshot histórico: use a máquina de evidência ou uma transferência privada aprovada. Num clone comum, limite a conclusão aos testes portáteis.
 - `deltas/<arquivo> differs from verified rebuild`: não edite o relatório à mão. Reconstrua-o a partir das gerações corretas e da baseline obrigatória.
 - `Notion verification failed`: preserve os recibos e siga o [guia de publicação](publish-notion.md) desde a preparação; não misture evidências de pacotes diferentes.
+- `subprocess 'uv' failed with exit code <n>`: a suíte falhou dentro da porta. Rode `uv run pytest -q` separadamente para ver o diagnóstico completo.
 - outra mensagem: procure o texto exato em [Solução de problemas](../troubleshooting.md).
 
 ## Próximo passo

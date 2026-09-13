@@ -44,7 +44,7 @@ cd doc-azure
 
 Se sua organização proíbe o GitHub CLI, use o token HTTPS aprovado ou o método SSH do [guia de autenticação do GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github). Uma senha de conta não é aceita para operações Git via HTTPS. Nunca coloque um token do GitHub na URL de clone.
 
-Já tem a pasta? Abra um nela e confirme:
+Já tem a pasta? Abra um terminal nela e confirme:
 
 ```sh
 git rev-parse --show-toplevel

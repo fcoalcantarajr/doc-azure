@@ -123,13 +123,13 @@ Pare a publicação. O contrato proíbe substituição de modelo, esforço reduz
 
 ## `GATE_FAIL` sem mensagem de Notion
 
-Leia o texto após `GATE_FAIL:`. Ele nomeia o invariável que falhou sem imprimir corpos de fonte ou credenciais. Execute o conjunto de testes focado para mais detalhes de diagnóstico:
+Leia o texto após `GATE_FAIL:`. Ele nomeia o invariável que falhou sem imprimir corpos de fonte ou credenciais. A porta executa a suíte completa ao final, mas suprime a saída dos subprocessos para não vazar conteúdo sensível. Se a mensagem for `subprocess 'uv' failed with exit code <n>`, execute os testes separadamente para ver o diagnóstico:
 
 ```sh
 uv run pytest -q
 ```
 
-Se os testes passam mas a porta do repositório falha, a falha restante é um invariável de repositório, evidência, relatório gerado, segredo ou publicação. Não contorne a porta.
+Se os testes separados falharem, corrija essa falha antes de repetir a porta. Se passarem, execute `uv run python verify.py` novamente uma vez. Persistindo a divergência, preserve as duas mensagens sanitizadas e peça ao mantenedor para comparar os ambientes; não envie `.env`, PAT nem arquivos brutos de `out/`. Qualquer outra mensagem após `GATE_FAIL:` identifica um invariável de repositório, evidência, relatório, segredo ou publicação. Não contorne a porta.
 
 ## O terminal imprime `Hello from doc-azure!`
 

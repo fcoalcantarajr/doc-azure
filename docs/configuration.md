@@ -109,6 +109,15 @@ Usa snapshots locais completos sem acesso à rede. Falha se a cópia não contiv
 
 Para operação apenas offline, obtenha uma cópia privada aprovada de ambos os diretórios, coloque-os nos caminhos exatos e execute o comando offline diretamente.
 
+Peça essa cópia à pessoa ou equipe que custodia a máquina de evidências. A transferência deve levar os diretórios `out/wiki/` e `out/process/` completos, preservando `CURRENT`, `snapshots/<identificador>/`, `manifest.json` e todos os artefatos manifestados. Use somente o canal privado aprovado pela organização; não envie as evidências por Git, issue, chat ou e-mail comum. Depois de colocar os dois diretórios na raiz do clone, confirme:
+
+```sh
+ls out/wiki/CURRENT out/process/CURRENT
+uv run python scripts/run_audit.py --offline
+```
+
+O primeiro comando deve listar os dois ponteiros. O segundo valida manifests, hashes e conteúdo ao executar a auditoria; não edite nem renomeie arquivos para fazê-lo passar.
+
 ### Auditoria com cache
 
 ```sh
@@ -123,7 +132,7 @@ Reusa evidências em cache completas e busca apenas partes faltantes. Use `--ref
 uv run --no-sync python scripts/setup.py
 ```
 
-Resultado esperado:
+O comando imprime os três diretórios criados. A linha final esperada é:
 
 ```text
 CONFIGURATION_OK

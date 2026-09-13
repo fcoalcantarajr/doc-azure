@@ -39,6 +39,8 @@ DELTAS: <hash de 64 caracteres>
 
 O código do shell pode ser `0`, `1`, `2` ou `3`; cada um é um resultado classificado. O código `4` significa que o bundle final não pôde ser produzido.
 
+Há uma exceção antes de a auditoria começar: erro de uso da linha de comando também retorna `2`. Nesse caso, o terminal mostra `usage:` e uma mensagem de argumento no stderr, mas não imprime a linha `<STATUS>: <hash>` nem o caminho de `CURRENT`. Corrija as opções e execute novamente; não interprete esse `2` como `COVERAGE_GAP`.
+
 `--offline` e `--refresh` são incompatíveis. Se não houver snapshots locais completos, o modo offline termina com `ACQUISITION_VALIDATION_FAILED`.
 
 ## Como ler o resultado

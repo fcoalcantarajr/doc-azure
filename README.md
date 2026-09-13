@@ -21,7 +21,7 @@ Se for sua primeira visita, siga o início rápido em ordem. Não inicie com um 
 ## O que você precisa
 
 - Um computador com macOS ou Linux e um terminal. No Windows, execute o aplicativo dentro do WSL; o Windows nativo não é suportado porque o bloqueio de snapshots usa a interface Unix `fcntl`.
-- Git, GitHub CLI, `uv`, e Python 3.11+. O `uv` instala e seleciona a versão Python necessária, então uma instalação Python separada é opcional.
+- Git e `uv`. O GitHub CLI (`gh`) é o caminho recomendado para clonar o repositório, mas HTTPS com token aprovado e SSH também funcionam. O projeto requer Python 3.11+; o `uv` instala e seleciona a versão necessária, então uma instalação Python separada é opcional.
 - Acesso de leitura à organização, projeto, Wiki e processo herdado do Azure DevOps.
 - Um Personal Access Token (PAT) do Azure DevOps, de curta duração e com permissões mínimas, com escopos **Wiki: Read** e **Work Items: Read**.
 - Acesso ao repositório privado. O Notion workspace e o acesso Notion AI são necessários apenas para publicação.
@@ -40,7 +40,7 @@ diferenças; não são falha do programa.
 
 ## Limite de segurança
 
-O cliente Azure falha fechado fora da lista de permissões explícita. A coleta usa requisições GET para leituras de Wiki e processo; apenas as duas rotas POST de consulta (WIQL e workitemsbatch) estão permitidas pelo contrato de segurança compartilhado. Criação, atualização, deleção, redirecionamentos, URLs absolutas e overrides de método são rejeitados antes do transporte.
+O cliente Azure falha fechado fora da lista de permissões explícita. A coleta usa requisições GET para leituras de Wiki e processo; apenas as duas rotas POST de consulta (WIQL e workitemsbatch) estão permitidas pelo contrato de segurança compartilhado. Criação, atualização, deleção, URLs absolutas e overrides de método são rejeitados antes do transporte. Redirecionamentos não são seguidos e qualquer resposta 3xx é recusada.
 
 Mantenha `.env` e tudo em `out/` privado. São ignorados pelo Git porque evidências podem incluir dados de funcionários e `.env` contém um segredo. Nunca cole um PAT em um comando, issue, chat, log, relatório ou página do Notion. Antes de commitar ou publicar arquivos regenerados em `deltas/`, inspecione-os por nomes de funcionários, detalhes de contato, identificadores, credenciais ou outro conteúdo não aprovado para o repositório e as quatro páginas de destino.
 
