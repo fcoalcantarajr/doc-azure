@@ -116,6 +116,27 @@ Causa: `verify.py` encontrou um manifesto local `out/notion` e seus recibos exte
 
 Nunca delete recibos externos que devem ser retidos sob uma política de auditoria ou registros. O diretório é ignorado pelo Git mas ainda pode ser evidência institucional.
 
+## Busca por marcador do Notion não retorna `highlight` válido
+
+Causa: uma das quatro buscas de duplicatas por marcador encontrou uma resposta
+sem `highlight`, com `highlight` vazio ou sem o marcador exato. A porta usa esse
+campo para provar que o resultado corresponde ao conteúdo da página, e não
+apenas a um título ou ID semelhante.
+
+1. Preserve o resultado bruto exatamente como o conector o devolveu; não
+   acrescente nem edite `highlight`.
+2. Abra a página esperada e confirme, por releitura do conector, que seu corpo
+   contém o marcador exato registrado no manifesto.
+3. Repita somente a busca pelo marcador exato, limitada à página pai fixa, e
+   salve o novo resultado bruto com seu horário real.
+4. Se o conector continuar omitindo `highlight`, interrompa a publicação e
+   preserve as duas respostas para investigação. Uma busca por título ou ID não
+   substitui a prova por marcador.
+
+Depois de obter um resultado com `highlight` válido, regenere o item
+correspondente de `fetched/duplicate-search.json` a partir da resposta real e
+repita as duas portas rigorosas. Não reutilize horários ou hashes anteriores.
+
 ## `NOTION_PREPARATION_FAILED: publication manifest is stale`
 
 Causa: um relatório versionado mudou depois que os corpos locais do Notion foram preparados.

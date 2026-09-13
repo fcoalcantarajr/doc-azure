@@ -229,7 +229,14 @@ Faça doze buscas no Notion limitadas à página pai: ID, título exato e marcad
 de cada uma das quatro páginas. Salve cada resultado exato como
 `raw/notion-search-<slug>-<kind>.json`. Uma busca bruta usa o mesmo envelope
 `CallToolResult`; seu objeto interno deve ter `type: "workspace_search"` e uma
-lista `results`.
+lista `results`. Cada item de `results` deve identificar uma página com `id`,
+`title` e `url` não vazios; quando `type` estiver presente, seu valor deve ser
+`"page"`. Nas quatro buscas por marcador, o item da página esperada também deve
+conter `highlight` como texto e esse texto deve incluir o marcador exato. O
+conector pode acrescentar formatação ao destaque, mas não pode omitir o
+marcador. Preserve o resultado bruto mesmo quando algum desses campos faltar:
+a porta deve falhar, e o operador não deve completar ou corrigir a resposta à
+mão.
 
 Crie `fetched/duplicate-search.json` com exatamente `schema_version` e
 `searches`. Use `schema_version: 1`. A lista `searches` tem exatamente doze
@@ -241,7 +248,10 @@ matched_page_ids, searched_at, raw_search_path, raw_search_sha256
 ```
 
 Em cada item, `matched_page_ids` deve conter somente o ID fixo esperado. Nenhum
-resultado ou mais de um resultado bloqueia a publicação.
+resultado ou mais de um resultado bloqueia a publicação. Se uma busca por
+marcador encontrar a página mas a resposta não trouxer `highlight` contendo o
+marcador, siga o diagnóstico específico em [Solução de
+problemas](../troubleshooting.md#busca-por-marcador-do-notion-não-retorna-highlight-válido).
 
 ## Verificações finais
 
