@@ -72,11 +72,23 @@ def write_delta_files(root: Path) -> None:
 def write_fetched_snapshot(root: Path, entry: object, body: str) -> None:
     page = entry
     snapshot = {
+        "schema_version": 1,
         "slug": page.slug,
+        "title": page.title,
         "page_id": page.page_id,
         "parent_page_id": page.parent_page_id,
         "url": page.url,
         "marker": page.marker,
+        "updated_at": "2026-09-13T12:00:00+00:00",
+        "fetched_at": "2026-09-13T12:01:00+00:00",
+        "connector_as_of": "2026-09-13T12:01:00+00:00",
+        "last_edited_available": False,
+        "last_edited_time": None,
+        "semantic_sha256": page.semantic_sha256,
+        "raw_fetch_path": f"out/notion/raw/notion-fetch-{page.slug}.json",
+        "raw_fetch_sha256": "a" * 64,
+        "update_receipt_path": f"out/notion/raw/notion-update-{page.slug}.json",
+        "update_receipt_sha256": "b" * 64,
     }
     (root / f"{page.slug}.json").write_text(
         json.dumps(snapshot), encoding="utf-8"
@@ -134,6 +146,28 @@ def test_verify_fetched_notion_accepts_matching_receipts(tmp_path: Path) -> None
         write_fetched_snapshot(fetched_root, entry, body)
 
     verify_fetched_notion(manifest, fetched_root)
+
+
+def test_verify_fetched_notion_rejects_legacy_five_field_receipt(
+    tmp_path: Path,
+) -> None:
+    write_delta_files(tmp_path)
+    manifest = prepare_notion(tmp_path)
+    fetched_root = tmp_path / "fetched"
+    fetched_root.mkdir()
+    for entry in manifest.entries:
+        body = (tmp_path / entry.prepared_path).read_text(encoding="utf-8")
+        write_fetched_snapshot(fetched_root, entry, body)
+    receipt = fetched_root / "leiame.json"
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    legacy_fields = {"slug", "page_id", "parent_page_id", "url", "marker"}
+    receipt.write_text(
+        json.dumps({key: value for key, value in payload.items() if key in legacy_fields}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(NotionPublicationError, match="receipt"):
+        verify_fetched_notion(manifest, fetched_root)
 
 
 def test_verify_fetched_notion_accepts_safe_connector_serialization(

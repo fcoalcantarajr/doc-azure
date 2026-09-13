@@ -62,6 +62,27 @@ _ENTRY_FIELDS = frozenset(
         "semantic_sha256",
     }
 )
+PUBLICATION_RECEIPT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "slug",
+        "title",
+        "page_id",
+        "parent_page_id",
+        "url",
+        "marker",
+        "updated_at",
+        "fetched_at",
+        "connector_as_of",
+        "last_edited_available",
+        "last_edited_time",
+        "semantic_sha256",
+        "raw_fetch_path",
+        "raw_fetch_sha256",
+        "update_receipt_path",
+        "update_receipt_sha256",
+    }
+)
 _HASH = re.compile(r"^[0-9a-f]{64}$")
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 
@@ -294,17 +315,19 @@ def _read_receipt(path: Path) -> dict[str, object]:
 def _verify_receipt(entry: PublicationEntry, receipt: dict[str, object]) -> None:
     expected_fields = {
         "slug": entry.slug,
+        "title": entry.title,
         "page_id": entry.page_id,
         "parent_page_id": entry.parent_page_id,
         "url": entry.url,
         "marker": entry.marker,
+        "semantic_sha256": entry.semantic_sha256,
     }
     for field, expected in expected_fields.items():
         if receipt.get(field) != expected:
             raise NotionPublicationError(
                 f"{entry.slug}: receipt {field} does not match manifest"
             )
-    if set(receipt) != set(expected_fields):
+    if set(receipt) != PUBLICATION_RECEIPT_FIELDS or receipt.get("schema_version") != 1:
         raise NotionPublicationError(f"{entry.slug}: receipt schema is invalid")
 
 

@@ -14,7 +14,7 @@ Você precisa de:
 - Kimi K3 e Opus 5 disponíveis com esforço máximo;
 - autorização para atualizar as quatro páginas existentes.
 
-As identidades fixas e a hierarquia estão no [contrato de publicação](../notion-publication.md#location-and-existing-page-identities). Os formatos exatos dos recibos estão na [referência de evidências](../reference/notion-evidence.md).
+As identidades fixas e a hierarquia estão no [contrato de publicação](../notion-publication.md#localização-e-identidades-das-páginas-existentes). Os formatos exatos dos recibos estão na [referência de evidências](../reference/notion-evidence.md).
 
 ## 1. Preparar o pacote local
 
@@ -94,7 +94,7 @@ Busque pelo conector:
 - o hub fixo;
 - cada uma das quatro páginas.
 
-Depois faça doze buscas limitadas ao parent: por ID, título exato e marcador de cada slug. Cada busca deve encontrar somente a página esperada. Grave os resultados e recibos exatamente nos caminhos da [referência de evidências](../reference/notion-evidence.md#prove-no-duplicates).
+Depois faça doze buscas limitadas ao parent: por ID, título exato e marcador de cada slug. Cada busca deve encontrar somente a página esperada. Grave os resultados e recibos exatamente nos caminhos da [referência de evidências](../reference/notion-evidence.md#provar-a-ausência-de-duplicatas).
 
 ## 7. Verificar o retorno do conector
 

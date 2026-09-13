@@ -14,6 +14,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
 
+from delta.notion import PUBLICATION_RECEIPT_FIELDS
 from delta.notion_external_evidence import (
     ExternalEvidenceError,
     parse_browser_review_result,
@@ -49,25 +50,6 @@ _REVIEW_RECEIPT_FIELDS = {
     "browser_result_path",
     "browser_result_sha256",
     "findings",
-}
-_PUBLICATION_RECEIPT_FIELDS = {
-    "schema_version",
-    "slug",
-    "title",
-    "page_id",
-    "parent_page_id",
-    "url",
-    "marker",
-    "updated_at",
-    "fetched_at",
-    "connector_as_of",
-    "last_edited_available",
-    "last_edited_time",
-    "semantic_sha256",
-    "raw_fetch_path",
-    "raw_fetch_sha256",
-    "update_receipt_path",
-    "update_receipt_sha256",
 }
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 
@@ -178,6 +160,9 @@ def verify_review_gate(root: Path, error_type: type[ValueError]) -> None:
         for finding in receipt["findings"]:
             finding_keys.add((model, str(finding["id"])))
         receipts[model] = receipt
+
+    if len(set(response_hashes.values())) != len(response_hashes):
+        raise error_type("review response bodies are byte-identical")
 
     reconciliation = _load_json(
         review_root / "reconciliation.json", error_type, "review reconciliation"
@@ -466,7 +451,7 @@ def _verify_publication_receipt(
     fetched_body: bytes,
     error_type: type[ValueError],
 ) -> None:
-    if set(receipt) != _PUBLICATION_RECEIPT_FIELDS or receipt.get("schema_version") != 1:
+    if set(receipt) != PUBLICATION_RECEIPT_FIELDS or receipt.get("schema_version") != 1:
         raise error_type(f"{entry.slug}: publication receipt schema is invalid")
     for field in ("slug", "title", "page_id", "parent_page_id", "url", "marker"):
         if receipt.get(field) != getattr(entry, field):

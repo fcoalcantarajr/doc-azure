@@ -12,7 +12,9 @@ Use esta referência depois de executar um comando. A mensagem exata continua se
 | `1` | `DELTAS` | Cobertura completa; existe pelo menos um achado diferente de `CONFIRMADO`. | Leia `global.md` e os relatórios da geração atual. Não trate como falha do programa. |
 | `2` | `COVERAGE_GAP` | O texto documental ou inventário de processo divergiu da baseline revisada. | Abra `run.json` da geração atual e examine `gaps`. Interrompa a publicação. |
 | `3` | `ACQUISITION_VALIDATION_FAILED` | A coleta ou validação das fontes não produziu snapshots completos. | Verifique PAT, acesso, rede e manifests em `out/wiki` e `out/process`. |
-| `4` | `INTERNAL_ERROR` | Uma exceção impediu a gravação do bundle final. | Use o tipo em `RUN_OUTPUT_FAILED: <tipo>` e a [solução de problemas](../troubleshooting.md). |
+| `4` | `INTERNAL_ERROR` | Uma exceção inesperada foi capturada; o bundle de diagnóstico foi gravado. | Resolva `CURRENT`, abra `run.json` e use o `error_type` sanitizado para investigar. |
+
+O código `4` também pode aparecer como `RUN_OUTPUT_FAILED: <tipo>` no stderr. Nesse segundo caso não há as duas linhas normais de status e `CURRENT`: a falha ocorreu ao publicar o próprio bundle. Confira escrita, espaço em disco e tipo dos caminhos em `out/audit` conforme a [solução de problemas](../troubleshooting.md#run_output_failed-). Não confunda esse caso com `INTERNAL_ERROR: <hash>`, que comprova a existência do bundle de diagnóstico.
 
 O analisador de argumentos também retorna `2` antes da auditoria quando uma opção é inválida ou quando `--offline` e `--refresh` são combinados. Diferencie os casos pela saída: erro de uso contém `usage:` no stderr e não imprime `<STATUS>: <hash>` nem o caminho de `CURRENT`; `COVERAGE_GAP` imprime as duas linhas normais e publica um `run.json` com `status: "COVERAGE_GAP"`.
 

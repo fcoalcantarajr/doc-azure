@@ -318,6 +318,36 @@ def test_review_gate_accepts_two_independent_bound_reviews(tmp_path: Path) -> No
     _function("verify_review_gate")(tmp_path)
 
 
+def test_review_gate_rejects_byte_identical_responses(tmp_path: Path) -> None:
+    _seed_reports(tmp_path)
+    _seed_review_gate(tmp_path)
+    review_root = tmp_path / "out" / "notion" / "review"
+    kimi_response = review_root / "responses" / "kimi-k3.md"
+    opus_response = review_root / "responses" / "opus-5.md"
+    opus_response.write_bytes(kimi_response.read_bytes())
+    identical_hash = _sha(opus_response)
+
+    opus_receipt_path = review_root / "receipts" / "opus-5.json"
+    opus_receipt = json.loads(opus_receipt_path.read_text(encoding="utf-8"))
+    opus_receipt["response_sha256"] = identical_hash
+    opus_raw_path = tmp_path / opus_receipt["browser_result_path"]
+    opus_raw = json.loads(opus_raw_path.read_text(encoding="utf-8"))
+    inner = json.loads(opus_raw["content"][0]["text"])
+    inner["response_markdown"] = opus_response.read_text(encoding="utf-8")
+    opus_raw["content"][0]["text"] = json.dumps(inner)
+    opus_raw_path.write_text(json.dumps(opus_raw), encoding="utf-8")
+    opus_receipt["browser_result_sha256"] = _sha(opus_raw_path)
+    opus_receipt_path.write_text(json.dumps(opus_receipt), encoding="utf-8")
+
+    reconciliation_path = review_root / "reconciliation.json"
+    reconciliation = json.loads(reconciliation_path.read_text(encoding="utf-8"))
+    reconciliation["review_response_hashes"]["Opus 5"] = identical_hash
+    reconciliation_path.write_text(json.dumps(reconciliation), encoding="utf-8")
+
+    with pytest.raises(NotionPublicationError, match="byte-identical"):
+        _function("verify_review_gate")(tmp_path)
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     (

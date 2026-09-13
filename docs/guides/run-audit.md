@@ -37,7 +37,7 @@ DELTAS: <hash de 64 caracteres>
 <caminho do projeto>/out/audit/CURRENT
 ```
 
-O código do shell pode ser `0`, `1`, `2` ou `3`; cada um é um resultado classificado. O código `4` significa que o bundle final não pôde ser produzido.
+O código do shell pode ser `0`, `1`, `2` ou `3`; cada um é um resultado classificado. O código `4` cobre uma falha interna inesperada, com ou sem bundle de diagnóstico, conforme a mensagem exibida.
 
 Há uma exceção antes de a auditoria começar: erro de uso da linha de comando também retorna `2`. Nesse caso, o terminal mostra `usage:` e uma mensagem de argumento no stderr, mas não imprime a linha `<STATUS>: <hash>` nem o caminho de `CURRENT`. Corrija as opções e execute novamente; não interprete esse `2` como `COVERAGE_GAP`.
 
@@ -67,7 +67,7 @@ No `run.json`, os campos principais são `status`, `exit_code`, `coverage_comple
 | `1` | `DELTAS` | Auditoria concluída com pelo menos um achado diferente de `CONFIRMADO`. É um resultado válido. |
 | `2` | `COVERAGE_GAP` | A fonte mudou fora da cobertura revisada. Interrompa a publicação. |
 | `3` | `ACQUISITION_VALIDATION_FAILED` | A coleta ou validação de snapshots não foi concluída. |
-| `4` | `INTERNAL_ERROR` | A aplicação não conseguiu gravar o resultado final. |
+| `4` | `INTERNAL_ERROR` ou `RUN_OUTPUT_FAILED` | `INTERNAL_ERROR: <hash>` significa que a falha foi capturada e um bundle de diagnóstico foi publicado. `RUN_OUTPUT_FAILED: <tipo>` significa que a aplicação não conseguiu publicar esse bundle. |
 
 Consulte a [referência de códigos de saída](../reference/exit-codes.md) para as ações de recuperação.
 
@@ -93,8 +93,10 @@ Resultado esperado: a lista de opções termina sem erro.
 ## Se der errado
 
 - `uv: command not found`: instale o `uv` conforme o [início rápido](../quickstart.md).
-- `RUN_OUTPUT_FAILED: FileNotFoundError`: confirme os três arquivos em `config/` listados acima e o valor de `--root`.
-- `ACQUISITION_VALIDATION_FAILED` numa coleta nova: siga o diagnóstico de PAT, acesso e rede em [Solução de problemas](../troubleshooting.md#auditoria-nova-termina-com-acquisition_validation_failed).
+- `COVERAGE_GAP` com `COVERAGE_CONTRACT_INVALID` em `run.json`: confira `config/wiki_claims.json`, `config/document-coverage.json` e `config/process-coverage.json`.
+- `ACQUISITION_VALIDATION_FAILED`: além de PAT, acesso e rede, confira o valor de `--root` e os caminhos avançados informados; arquivo de entrada ausente ou inválido também produz esse estado.
+- `INTERNAL_ERROR: <hash>`: abra o `run.json` da geração indicada por `CURRENT`; o bundle contém o tipo sanitizado da exceção inesperada.
+- `RUN_OUTPUT_FAILED: <tipo>`: siga o diagnóstico de escrita do bundle em [Solução de problemas](../troubleshooting.md#run_output_failed-).
 - `COVERAGE_GAP`: não regenere a baseline para silenciar a diferença; encaminhe a mudança para revisão de catálogo e cobertura.
 
 ## Próximo passo

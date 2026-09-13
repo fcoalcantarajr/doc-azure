@@ -82,6 +82,17 @@ Causa: a auditoria classificou seu trabalho mas não pôde escrever o bundle loc
 
 Não delete nem chmod o projeto inteiro como uma solução genérica.
 
+## `INTERNAL_ERROR: <hash>`
+
+Causa: ocorreu uma exceção inesperada durante a auditoria, mas a aplicação conseguiu publicar um bundle de diagnóstico. O hash e o caminho de `CURRENT` aparecem nas duas linhas normais de saída.
+
+1. Resolva `out/audit/CURRENT` conforme [Como ler o resultado](guides/run-audit.md#como-ler-o-resultado).
+2. Abra `run.json` e anote apenas `error_type`, `status` e `logical_sha256`; não compartilhe evidências brutas.
+3. Execute `uv run pytest -q` para verificar se existe uma regressão portátil.
+4. Preserve a geração de auditoria e encaminhe esses dados sanitizados a um mantenedor.
+
+Esse caso é diferente de `RUN_OUTPUT_FAILED`: em `INTERNAL_ERROR`, o bundle existe e deve ser usado no diagnóstico.
+
 ## Porta não consegue reconstruir relatórios ou diz que a procedência é inverificável
 
 Texto típico inclui `verified report rebuild failed`, `provenance is unverifiable`, `snapshot root has no complete CURRENT` ou `snapshot validation failed`.

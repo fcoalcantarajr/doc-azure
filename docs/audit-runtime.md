@@ -1,99 +1,106 @@
-# Deterministic runtime
+# Runtime determinístico
 
-Canonical command:
+Comando canônico:
 
 ```sh
 uv run python scripts/run_audit.py --refresh
 ```
 
-`--refresh` fetches both source families through the existing allowlisted Azure
-REST collectors. Omit it for cache-first operation; `--offline` forbids network
-acquisition and requires complete local snapshots. The command accepts `--root`,
-`--catalog`, `--document-baseline` and `--process-baseline` for fixture/replay use.
-The ignored `.env` supplies `AZDO_PAT` for network runs only.
+`--refresh` busca as duas famílias de fontes pelos coletores REST Azure já
+permitidos. Omita-o para priorizar a cache; `--offline` proíbe aquisição de rede
+e exige snapshots locais completos. Para fixtures e reexecuções, o comando
+aceita `--root`, `--catalog`, `--document-baseline` e `--process-baseline`. O
+`.env`, ignorado pelo Git, fornece `AZDO_PAT` somente para execuções com rede.
 
-## Pipeline and outputs
+## Pipeline e saídas
 
-Acquisition -> existing collector completeness validation -> documentary coverage
--> process inventory comparison -> existing claim evaluator -> result bundle.
-There is no model, prompt, semantic heuristic, or Notion request in this flow.
+Aquisição -> validação de completude dos coletores -> cobertura documental ->
+comparação do inventário de processo -> avaliador de reivindicações -> bundle de
+resultado. Não há modelo, prompt, heurística semântica nem requisição ao Notion
+nesse fluxo.
 
-The existing immutable `SnapshotWriter` publishes one bundle under `out/audit`.
-Resolve its `CURRENT` pointer to find `run.json`, `global.md` and all four page
-reports. Error/gap runs also publish their own diagnostic bundle, clearly marked
-incomplete; they never replace source evidence or canonical `deltas/` reports.
+O `SnapshotWriter` imutável publica um bundle sob `out/audit`. Resolva o ponteiro
+`CURRENT` para encontrar `run.json`, `global.md` e os quatro relatórios. Execuções
+com erro ou lacuna também publicam um bundle de diagnóstico, claramente marcado
+como incompleto; nunca substituem a evidência de fonte nem os relatórios
+canônicos em `deltas/`.
 
-Exit contract:
+Contrato de saída:
 
-| Code | Meaning |
+| Código | Significado |
 | --- | --- |
-| 0 | Every evaluated assertion confirmed, no coverage gap |
-| 1 | Coverage complete, at least one non-confirmed finding |
-| 2 | Coverage gap or invalid/missing coverage contract |
-| 3 | Acquisition or snapshot/input validation failed |
-| 4 | Unexpected internal error or inability to publish outputs |
+| 0 | Todas as reivindicações avaliadas confirmadas, sem lacuna de cobertura |
+| 1 | Cobertura completa, com pelo menos um achado não confirmado |
+| 2 | Lacuna de cobertura ou contrato de cobertura ausente/inválido |
+| 3 | Falha na aquisição ou validação de snapshots/entradas |
+| 4 | Erro interno inesperado ou impossibilidade de publicar as saídas |
 
-`logical_sha256` excludes generation IDs, collection timestamps and run creation
-time. Provenance remains separately recorded in JSON and rendered reports.
-Immutable run generations may differ on replay while logical results match.
+`logical_sha256` exclui IDs de geração e horários de coleta e criação da
+execução. A procedência permanece registrada separadamente no JSON e nos
+relatórios. Gerações imutáveis podem diferir numa reexecução mesmo quando os
+resultados lógicos são iguais.
 
-## Process inventory baseline
+## Baseline do inventário de processo
 
-`config/process-coverage.json` has exactly `schema_version: 1`,
-`catalog_sha256` and `entries`. Entries are fingerprints from `fingerprint_json`
-over the complete map of artifact filename to parsed JSON response. Every node
-has a type-preserving fingerprint, addressed by an escaped JSON Pointer. Empty
-containers and array order are preserved; object-key order is normalized.
+`config/process-coverage.json` tem exatamente `schema_version: 1`,
+`catalog_sha256` e `entries`. As entradas são impressões de `fingerprint_json`
+sobre o mapa completo entre nomes de artefatos e respostas JSON interpretadas.
+Cada nó tem uma impressão que preserva o tipo e é endereçada por JSON Pointer
+escapado. Contêineres vazios e a ordem de arrays são preservados; a ordem das
+chaves de objetos é normalizada.
 
-Current policy is conservative: every inventory drift is a coverage gap even
-when individual mapped assertions can still be evaluated. This avoids claiming
-coverage of new surfaces, but may require review for API ordering or metadata
-changes. No property is dropped as supposedly volatile without evidence. A
-reviewed baseline is not, by itself, proof that all relevant prose was modeled.
+A política atual é conservadora: toda variação do inventário é uma lacuna de
+cobertura, mesmo quando reivindicações mapeadas ainda podem ser avaliadas. Isso
+evita declarar cobertura de superfícies novas, mas pode exigir revisão por
+mudanças de ordem ou metadados da API. Nenhuma propriedade é descartada como
+supostamente volátil sem evidência. Uma baseline revisada não prova, por si só,
+que todo texto relevante foi modelado.
 
-## Reviewed baseline and current receipt
+## Baseline revisada e recibo atual
 
-The complete pipeline is tested against synthetic full collector fixtures, both
-offline and through HTTP transport substitution with the real collectors.
-The refresh test observes 18 GET requests and no writes. The CLI is exercised as
-a subprocess. The first implementation exposed missing collector clock arguments
-and incorrect categorization of corrupt snapshots; both have regression tests.
+O pipeline completo é testado com fixtures sintéticas integrais dos coletores,
+tanto offline quanto pela substituição do transporte HTTP nos coletores reais.
+O teste de atualização observa 18 requisições GET e nenhuma escrita remota. A
+CLI é exercitada como subprocesso. A primeira implementação revelou argumentos
+de relógio ausentes e classificação incorreta de snapshots corrompidos; ambos
+têm testes de regressão.
 
-The versioned baselines were prepared from the complete verified snapshots with
-`scripts/prepare_baselines.py`, then checked byte-for-byte before being added to
-`config/`. They contain 222 claim IDs, four page line inventories (572, 361, 593
-and 517 lines respectively) and 40,559 process JSON nodes across 110 artifacts.
-The files contain hashes and selectors, not raw Azure response bodies.
+As baselines versionadas foram preparadas a partir dos snapshots completos e
+verificados com `scripts/prepare_baselines.py`, depois conferidas byte a byte
+antes de serem adicionadas a `config/`. Elas contêm 222 IDs de reivindicação,
+inventários das quatro páginas (572, 361, 593 e 517 linhas) e 40.559 nós JSON de
+processo em 110 artefatos. Os arquivos contêm hashes e seletores, não corpos
+brutos de respostas Azure.
 
-Baseline SHA-256 values:
+Valores SHA-256 das baselines:
 
 - `config/document-coverage.json`: `2e0d956a8f74f3933779d297adfff1328267de1ccd8a04e555228b7edbf2990e`
 - `config/process-coverage.json`: `4fe95039f993a9473677b98e4a652bc4d0d79c1ad1a6658d6598bdfce9cd2418`
 
-The latest fresh `--refresh` run on 2026-09-09 at 11:35:12–11:35:14 UTC
-collected four Wiki pages with four GETs and 109 process artifacts with 109
-GETs. Wiki generation was `a4ae120c5e9d45c9839bd6323c30d719`; process
-generation was `75963a4853a543f68cb49d5bcb97589f`. It returned code 1
-(`DELTAS`), coverage complete, zero gaps and 222 classified findings: 123
-`CONFIRMADO`, 59 `DIVERGENTE`, 31 `NAO_VERIFICAVEL_API_PROCESSO` and 9
-`AMBIGUO`. Its logical hash was
+A execução atualizada mais recente, em 2026-09-09 das 11:35:12 às 11:35:14 UTC,
+coletou quatro páginas de Wiki com quatro GETs e 109 artefatos de processo com
+109 GETs. A geração Wiki foi `a4ae120c5e9d45c9839bd6323c30d719`; a geração de
+processo foi `75963a4853a543f68cb49d5bcb97589f`. Ela retornou código 1
+(`DELTAS`), cobertura completa, zero lacunas e 222 achados classificados: 123
+`CONFIRMADO`, 59 `DIVERGENTE`, 31 `NAO_VERIFICAVEL_API_PROCESSO` e 9
+`AMBIGUO`. Seu hash lógico foi
 `3ea48dc27b83ba7ba1491f56538e893433f52eaf9df063affe099dbca0166369`.
 
-The report verifier intentionally canonicalizes only collection timestamp,
-snapshot-generation ID and manifest-hash fields in the provenance section. All
-logical findings and stable report text remain byte-compared, so a fresh
-equivalent collection cannot create a false drift while a real report mutation
-still fails the gate.
+O verificador de relatórios canonicaliza intencionalmente apenas os campos de
+horário de coleta, ID da geração e hash do manifesto na seção de procedência.
+Todos os achados lógicos e o texto estável continuam comparados byte a byte;
+assim, uma coleta nova equivalente não cria falsa variação, enquanto uma
+alteração real do relatório ainda falha na porta.
 
-The 2026-09-09 publication cycle completed the external Notion AI reviews and
-the gated canonical publication/read-back described in
-`docs/archive/completion-audit-2026-09-09.md`. That historical completion does not
-approve a later report generation. Every new publication must repeat the exact
-review, reconciliation, update, read-back, and strict gate in
-`docs/notion-publication.md` and the [operational guide](guides/publish-notion.md).
+O ciclo de 2026-09-09 concluiu as revisões externas no Notion AI e a publicação
+com releitura descrita em `docs/archive/completion-audit-2026-09-09.md`. Essa
+conclusão histórica não aprova uma geração posterior. Toda nova publicação deve
+repetir revisão, reconciliação, atualização, releitura e porta rigorosa conforme
+`docs/notion-publication.md` e o [guia operacional](guides/publish-notion.md).
 
-The deterministic-runtime implementation receipt recorded 374 passing tests,
-including duplicate-identifier RED/GREEN, offline no-network, clean/internal
-exit, and process-drift regressions. Later revisions can add tests; use the
-current `uv run pytest -q` result rather than this historical count. A fresh
-live run is evidence of the application path, not completion of the Notion gates.
+O recibo de implementação do runtime determinístico registrou 374 testes
+aprovados, incluindo regressões de identificador duplicado, modo offline sem
+rede, saídas limpa/interna e variação de processo. Revisões posteriores podem
+adicionar testes; use o resultado atual de `uv run pytest -q`, não essa contagem
+histórica. Uma execução atualizada comprova o caminho da aplicação, não a
+conclusão das portas do Notion.
