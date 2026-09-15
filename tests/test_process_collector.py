@@ -749,7 +749,7 @@ def test_script_uses_one_http_client_one_read_client_and_semaphore_eight(
         http_instances.append(http)
         return http
 
-    constructed: list[tuple[httpx.AsyncClient, asyncio.Semaphore]] = []
+    constructed: list[tuple[httpx.AsyncClient, str, asyncio.Semaphore]] = []
     real_client = AzureReadClient
 
     def client_factory(
@@ -758,7 +758,7 @@ def test_script_uses_one_http_client_one_read_client_and_semaphore_eight(
         pat: str,
         semaphore: asyncio.Semaphore,
     ) -> AzureReadClient:
-        constructed.append((http, semaphore))
+        constructed.append((http, base_url, semaphore))
         return real_client(http, base_url, pat, semaphore)
 
     module.AzureReadClient = client_factory
@@ -788,7 +788,8 @@ def test_script_uses_one_http_client_one_read_client_and_semaphore_eight(
     assert len(http_instances) == 1
     assert len(constructed) == 1
     assert constructed[0][0] is http_instances[0]
-    assert constructed[0][1]._value == 8
+    assert constructed[0][1] == "https://dev.azure.com/bancodonordeste"
+    assert constructed[0][2]._value == 8
     assert len(transport_requests) == 14
     layout_requests = [
         request

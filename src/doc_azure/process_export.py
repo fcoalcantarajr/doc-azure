@@ -408,12 +408,18 @@ def _find_reusable_export(
 ) -> Path | None:
     if not os.path.lexists(root):
         return None
-    try:
-        current = resolve_snapshot_root(root)
-    except SnapshotError:
+    current: Path | None = None
+    expected_generation: str | None = None
+    if os.path.lexists(root / "CURRENT"):
+        try:
+            current = resolve_snapshot_root(root)
+        except SnapshotError:
+            return None
+        expected_generation = current.name
+        if _matching_generation(current, provenance, expected_artifacts):
+            return current
+    elif os.path.lexists(root / "manifest.json"):
         return None
-    if _matching_generation(current, provenance, expected_artifacts):
-        return current
 
     snapshots_root = root / "snapshots"
     try:
@@ -421,7 +427,7 @@ def _find_reusable_export(
             (
                 candidate
                 for candidate in snapshots_root.iterdir()
-                if candidate.name != current.name
+                if current is None or candidate.name != current.name
             ),
             key=lambda candidate: candidate.name,
         )
@@ -434,7 +440,7 @@ def _find_reusable_export(
             return select_snapshot_generation(
                 root,
                 candidate.name,
-                expected_generation=current.name,
+                expected_generation=expected_generation,
             )
         except SnapshotError:
             winner = _matching_current_export(root, provenance, expected_artifacts)

@@ -45,7 +45,7 @@ async def collect_process_with_settings(
     async with http_client_factory() as http:
         client = azure_client_factory(
             http,
-            f"https://dev.azure.com/{settings.organization}",
+            "https://dev.azure.com/" + settings.organization,
             settings.pat,
             asyncio.Semaphore(8),
         )

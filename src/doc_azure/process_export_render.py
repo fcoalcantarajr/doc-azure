@@ -312,7 +312,12 @@ def _layout_outline(value: JsonValue, base_pointer: str) -> list[str]:
                 lines.append(f"{'  ' * depth}- {_code(pointer)} — {_table(label)}")
             for key, item in node.properties:
                 if isinstance(item, (JsonObject, JsonArray)):
-                    visit(item, depth + 1, f"{pointer}/{_pointer_escape(key)}")
+                    child_pointer = (
+                        pointer
+                        if key == "additional_properties"
+                        else f"{pointer}/{_pointer_escape(key)}"
+                    )
+                    visit(item, depth + 1, child_pointer)
         elif isinstance(node, JsonArray):
             for index, item in enumerate(node.items):
                 visit(item, depth, f"{pointer}/{index}")

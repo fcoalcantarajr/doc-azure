@@ -126,6 +126,30 @@ def test_export_covers_all_families_and_traceability(tmp_path: Path) -> None:
     assert "`/layout/pages/0`" in layout_section
 
 
+def test_layout_outline_pointers_ignore_synthetic_additional_properties(
+    tmp_path: Path,
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    artifacts = expected_artifacts()
+    layout_path = f"workitemtypes/{EPIC_REFERENCE}/layout.json"
+    layout_payload = artifacts[layout_path]
+    control = layout_payload["layout"]["pages"][0]["sections"][0]["groups"][0][
+        "controls"
+    ][0]  # type: ignore[index]
+    control["contribution"] = {"id": "Contoso.Extension"}  # type: ignore[index]
+    publish_source(tmp_path, mutation=(layout_path, layout_payload))
+
+    result = export_process_for_llm(tmp_path)
+    text = (result.work_item_types_root / f"{EPIC_REFERENCE}.md").read_text()
+
+    expected_pointer = (
+        "/layout/pages/0/sections/0/groups/0/controls/0/contribution"
+    )
+    assert f"`{expected_pointer}`" in text
+    assert "/additional_properties/contribution" not in text
+
+
 def test_export_preserves_values_unknown_properties_and_only_removes_url(
     tmp_path: Path,
 ) -> None:
@@ -186,6 +210,24 @@ def test_repeated_export_reuses_identical_generation_and_bytes(tmp_path: Path) -
     assert (tmp_path / "out" / "process-llm" / "CURRENT").read_bytes() == current
     assert {path.relative_to(second.generation_root): path.read_bytes()
             for path in second.generation_root.rglob("*") if path.is_file()} == before
+
+
+def test_export_reselects_matching_orphan_when_current_is_missing(
+    tmp_path: Path,
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    seed_process_snapshot(tmp_path)
+    first = export_process_for_llm(tmp_path)
+    export_root = tmp_path / "out" / "process-llm"
+    (export_root / "CURRENT").unlink()
+
+    second = export_process_for_llm(tmp_path)
+
+    assert second.reused is True
+    assert second.generation_root == first.generation_root
+    assert (export_root / "CURRENT").read_text().strip() == first.generation_root.name
+    assert list((export_root / "snapshots").iterdir()) == [first.generation_root]
 
 
 def test_changed_source_creates_and_retains_a_new_generation(tmp_path: Path) -> None:
