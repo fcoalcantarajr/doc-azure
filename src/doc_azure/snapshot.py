@@ -12,7 +12,7 @@ import stat
 import tempfile
 import unicodedata
 import uuid
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -269,6 +269,7 @@ def select_snapshot_generation(
     generation: str,
     *,
     expected_generation: str | None,
+    validator: Callable[[Path], bool] | None = None,
 ) -> Path:
     """Atomically select an existing generation if CURRENT has not changed."""
 
@@ -290,6 +291,8 @@ def select_snapshot_generation(
         target = snapshots_root / generation
         _require_real_directory(target, "CURRENT target")
         _validate_complete_snapshot(target, legacy=False)
+        if validator is not None and not validator(target):
+            raise SnapshotError("snapshot generation failed selection validation")
         _publish_current_pointer(logical_root, generation)
     return target
 

@@ -122,6 +122,9 @@ Em falha, o comando retorna código `1`, imprime
 
 - `out/process/CURRENT está ausente`: execute com `--refresh` se tiver acesso ou obtenha uma
   cópia privada completa de `out/process/`.
+- `out/process-llm/CURRENT está inválido; consulte o troubleshooting`: preserve
+  o ponteiro com outro nome e gere novamente conforme a
+  [recuperação documentada](../troubleshooting.md#llm_export_failed-).
 - `o snapshot do processo está ausente, incompleto ou inválido`: não edite a
   evidência; faça uma coleta nova ou restaure a geração íntegra.
 - `não foi possível publicar a exportação local com segurança`: confira espaço,
@@ -131,3 +134,8 @@ Em falha, o comando retorna código `1`, imprime
   outra execução termine e repita o comando.
 
 Consulte também a [solução de problemas](../troubleshooting.md).
+
+A publicação é atômica para leitores e execuções concorrentes, mas não promete
+durabilidade contra queda de energia: o projeto não executa `fsync` de arquivos
+e diretórios. Depois de desligamento abrupto, rode o comando novamente; se a
+validação de `out/process-llm/CURRENT` falhar, use a recuperação acima.

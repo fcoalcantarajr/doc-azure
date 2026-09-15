@@ -5,9 +5,20 @@
 Esse marcador pertence somente a `scripts/export_process_for_llm.py`. A falha
 não apaga nem troca uma exportação válida anterior.
 
-- Se a mensagem cita `CURRENT`, falta um snapshot local completo. Use
+- Se cita `out/process/CURRENT`, falta um snapshot de origem completo. Use
   `--refresh` somente se tiver PAT e acesso ou restaure `out/process/` por canal
   privado aprovado.
+- Se cita `out/process-llm/CURRENT`, a exportação selecionada falhou na validação.
+  Preserve o ponteiro para diagnóstico e gere uma seleção íntegra:
+
+  ```sh
+  mv out/process-llm/CURRENT out/process-llm/CURRENT.invalid
+  uv run python scripts/export_process_for_llm.py
+  ```
+
+  O comando não apaga a geração adulterada. Ele reseleciona uma geração histórica
+  que corresponda exatamente à fonte ou publica uma nova. Se
+  `CURRENT.invalid` já existir, escolha outro nome explícito antes do `mv`.
 - Se cita validação, não conserte JSON ou manifesto à mão. Uma alteração quebra
   os hashes intencionalmente; faça nova coleta.
 - Se cita escrita, confira espaço livre, permissões e tipos dos caminhos sob
@@ -18,6 +29,11 @@ não apaga nem troca uma exportação válida anterior.
 O modo sem `--refresh` não acessa rede nem credenciais. Se ele parecer exigir
 PAT, confirme que executou `export_process_for_llm.py`, e não `run_audit.py`.
 Veja o [guia específico](guides/export-process-for-llm.md).
+
+O rename e o lock impedem publicação parcial visível durante concorrência ou
+queda do processo. Eles não garantem durabilidade contra queda de energia, pois
+arquivos e diretórios não recebem `fsync`; nesse caso, valide novamente e siga a
+recuperação de `out/process-llm/CURRENT` acima.
 
 Corresponda à mensagem exata do terminal ou ao sintoma. Não exponha `.env`, valores de PAT, dados brutos de funcionários ou arquivos sob `out/` ao pedir ajuda.
 

@@ -942,3 +942,27 @@ semantic preservation, URL-only omission, missing/null/false/zero/empty
 distinction, deterministic reuse, source-change publication, pinned-source
 reads, rollback on write failure, credential-free offline mode, and sanitized
 CLI failures.
+
+The first external adversarial round found two reproducible gaps. Historical
+reuse compared a candidate before acquiring the selector lock, so a coherent
+local replacement in that window could be selected without rechecking its
+provenance and bytes. Selection now accepts a domain validator and executes it
+under the same lock immediately before publishing `CURRENT`. A crash after a
+generation rename but before publishing `CURRENT` also left a reusable orphan;
+the exporter now scans and safely reselects matching orphan generations.
+
+Layout outlines previously derived source pointers from the normalized tree,
+which exposed the synthetic `additional_properties` segment. Rendering now
+skips that segment when constructing source pointers, with a contributed-control
+regression test. A source property literally named `additional_properties`
+remains representationally ambiguous but is not discarded; the wrapper name is
+part of the approved schema contract.
+
+Accepted limits: snapshot publication is not power-loss durable because it does
+not call `fsync`, as already recorded in the snapshot decision above. Repeated
+artifact validation is quadratic in artifact count; the current 21-WIT smoke
+case remains below the gate budget. Maintainers must profile and redesign the
+validated-reader seam if a supported process exceeds 50 WITs or an offline
+export exceeds 10 seconds on the reference workstation. The real CLI smoke test
+uses `uv run --no-sync` so the test itself cannot resolve dependencies from the
+network.

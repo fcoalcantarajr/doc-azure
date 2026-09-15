@@ -94,6 +94,11 @@ def _safe_message(error: Exception) -> str:
             return text
         if "CURRENT is missing" in text:
             return "out/process/CURRENT está ausente"
+        if "export CURRENT is invalid" in text:
+            return (
+                "out/process-llm/CURRENT está inválido; "
+                "consulte o troubleshooting"
+            )
         if "concurrent export" in text:
             return "outra execução publicou uma fonte diferente; tente novamente"
         if "write failure" in text:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from typing import TypeAlias
@@ -80,6 +81,8 @@ def freeze_json(value: object) -> JsonValue:
         )
     if isinstance(value, list):
         return JsonArray(tuple(freeze_json(item) for item in value))
+    if isinstance(value, float) and not math.isfinite(value):
+        raise TypeError("process export contains a non-finite JSON number")
     if value is None or type(value) in (bool, int, float, str):
         return value
     raise TypeError("process export contains a non-JSON value")
@@ -351,7 +354,9 @@ def _source_line(family: EvidenceFamily) -> str:
 
 
 def _json_block(value: JsonValue) -> str:
-    payload = json.dumps(to_builtin(value), ensure_ascii=False, indent=2)
+    payload = json.dumps(
+        to_builtin(value), ensure_ascii=False, allow_nan=False, indent=2
+    )
     longest = max((len(match.group()) for match in re.finditer(r"`+", payload)), default=0)
     fence = "`" * max(3, longest + 1)
     return f"{fence}json\n{payload}\n{fence}"

@@ -194,6 +194,14 @@ def test_export_marks_absent_optional_properties_separately(tmp_path: Path) -> N
     assert "(ausente)" in text
 
 
+@pytest.mark.parametrize("value", (float("nan"), float("inf"), float("-inf")))
+def test_export_model_rejects_non_finite_json_numbers(value: float) -> None:
+    from doc_azure.process_export_render import freeze_json
+
+    with pytest.raises(TypeError, match="non-finite"):
+        freeze_json(value)
+
+
 def test_repeated_export_reuses_identical_generation_and_bytes(tmp_path: Path) -> None:
     from doc_azure.process_export import export_process_for_llm
 
@@ -267,6 +275,59 @@ def test_returning_to_historical_source_reselects_original_export(tmp_path: Path
     assert reused.generation_root == first_export.generation_root
     assert reused.generation_root != second_export.generation_root
     assert len(list((tmp_path / "out" / "process-llm" / "snapshots").iterdir())) == 2
+
+
+def test_historical_reuse_revalidates_candidate_under_selection_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import doc_azure.process_export as process_export
+
+    first_source = publish_source(tmp_path)
+    first_export = process_export.export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process["description"] = "fonte B"
+    second_source = publish_source(tmp_path, mutation=("process.json", process))
+    second_export = process_export.export_process_for_llm(tmp_path)
+    select_snapshot_generation(
+        tmp_path / "out" / "process",
+        first_source.name,
+        expected_generation=second_source.name,
+    )
+    real_select = select_snapshot_generation
+
+    def forge_then_select(
+        root: Path,
+        generation: str,
+        *,
+        expected_generation: str | None,
+        validator: object = None,
+    ) -> Path:
+        candidate = root / "snapshots" / generation
+        bundle = candidate / "bundle.md"
+        bundle.write_text("forged\n")
+        manifest_path = candidate / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        artifact = next(
+            item for item in manifest["artifacts"] if item["path"] == "bundle.md"
+        )
+        artifact["sha256"] = hashlib.sha256(bundle.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+        return real_select(
+            root,
+            generation,
+            expected_generation=expected_generation,
+            validator=validator,  # type: ignore[arg-type]
+        )
+
+    monkeypatch.setattr(process_export, "select_snapshot_generation", forge_then_select)
+
+    with pytest.raises(process_export.ProcessExportError, match="different process source"):
+        process_export.export_process_for_llm(tmp_path)
+
+    assert resolve_snapshot_root(tmp_path / "out" / "process-llm") == (
+        second_export.generation_root
+    )
+    assert first_export.bundle_path.read_text() == "forged\n"
 
 
 def test_forged_current_export_is_never_reused(tmp_path: Path) -> None:
@@ -493,6 +554,28 @@ def test_cli_failure_is_sanitized(tmp_path: Path, capsys: pytest.CaptureFixture[
     )
 
 
+def test_cli_names_invalid_export_current_and_documented_recovery_works(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    seed_process_snapshot(tmp_path)
+    result = export_process_for_llm(tmp_path)
+    result.bundle_path.write_text("tampered\n")
+    script = load_script()
+
+    assert script.main([], project_root=tmp_path) == 1
+    assert capsys.readouterr().err == (
+        "LLM_EXPORT_FAILED: out/process-llm/CURRENT está inválido; "
+        "consulte o troubleshooting\n"
+    )
+
+    export_root = tmp_path / "out" / "process-llm"
+    (export_root / "CURRENT").rename(export_root / "CURRENT.invalid")
+    assert script.main([], project_root=tmp_path) == 0
+    assert capsys.readouterr().out.startswith("LLM_EXPORT_OK\n")
+
+
 def test_cli_refresh_uses_only_process_get_routes(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -540,6 +623,7 @@ def test_real_cli_smoke_exports_without_network(tmp_path: Path) -> None:
         (
             "uv",
             "run",
+            "--no-sync",
             "python",
             "scripts/export_process_for_llm.py",
             "--root",

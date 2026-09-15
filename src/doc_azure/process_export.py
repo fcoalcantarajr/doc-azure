@@ -441,6 +441,9 @@ def _find_reusable_export(
                 root,
                 candidate.name,
                 expected_generation=expected_generation,
+                validator=lambda target: _matching_generation(
+                    target, provenance, expected_artifacts
+                ),
             )
         except SnapshotError:
             winner = _matching_current_export(root, provenance, expected_artifacts)
