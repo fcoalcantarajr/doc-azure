@@ -99,6 +99,11 @@ def _safe_message(error: Exception) -> str:
                 "out/process-llm/CURRENT está inválido; "
                 "consulte o troubleshooting"
             )
+        if "historical export changed during locked validation" in text:
+            return (
+                "uma geração histórica mudou durante a validação; "
+                "repita o comando"
+            )
         if "concurrent export" in text:
             return "outra execução publicou uma fonte diferente; tente novamente"
         if "write failure" in text:

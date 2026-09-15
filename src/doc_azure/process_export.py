@@ -326,7 +326,10 @@ def _semantic_object(payload: dict[str, object], known: frozenset[str]) -> JsonO
     )
     if additional:
         primary += (("additional_properties", JsonObject(additional)),)
-    return JsonObject(primary)
+    return JsonObject(
+        primary,
+        frozenset({"additional_properties"}) if additional else frozenset(),
+    )
 
 
 def _normalize_nested(value: JsonValue) -> JsonValue:
@@ -346,7 +349,10 @@ def _normalize_nested(value: JsonValue) -> JsonValue:
     )
     if additional:
         primary += (("additional_properties", JsonObject(additional)),)
-    return JsonObject(primary)
+    return JsonObject(
+        primary,
+        frozenset({"additional_properties"}) if additional else frozenset(),
+    )
 
 
 def _provenance(
@@ -450,7 +456,7 @@ def _find_reusable_export(
             if winner is not None:
                 return winner
             raise ProcessExportError(
-                "concurrent export published a different process source"
+                "historical export changed during locked validation"
             ) from None
     return None
 

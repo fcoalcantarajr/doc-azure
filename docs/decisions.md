@@ -953,10 +953,16 @@ the exporter now scans and safely reselects matching orphan generations.
 
 Layout outlines previously derived source pointers from the normalized tree,
 which exposed the synthetic `additional_properties` segment. Rendering now
-skips that segment when constructing source pointers, with a contributed-control
-regression test. A source property literally named `additional_properties`
-remains representationally ambiguous but is not discarded; the wrapper name is
-part of the approved schema contract.
+marks only the synthetic wrapper and skips that marked segment when constructing
+source pointers, with contributed-control and literal-name regression cases. A
+source property literally named `additional_properties` therefore keeps its
+real JSON Pointer instead of being attributed to its parent.
+
+The final adversarial hardening round also distinguishes a historical candidate
+that changes during locked revalidation from a genuinely concurrent publication,
+so the operator receives an accurate recovery instruction. The process refresh
+regression test directly asserts the normalized base URL
+`https://dev.azure.com/bancodonordeste`.
 
 Accepted limits: snapshot publication is not power-loss durable because it does
 not call `fsync`, as already recorded in the snapshot decision above. Repeated
@@ -966,3 +972,9 @@ validated-reader seam if a supported process exceeds 50 WITs or an offline
 export exceeds 10 seconds on the reference workstation. The real CLI smoke test
 uses `uv run --no-sync` so the test itself cannot resolve dependencies from the
 network.
+
+GREEN receipt after the final hardening changes:
+
+- `uv run pytest -q` → 413 passed;
+- `uv run python verify.py` → `GATE_OK`;
+- `git diff --check` → exit code 0 with no output.

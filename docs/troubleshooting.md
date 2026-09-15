@@ -23,6 +23,9 @@ não apaga nem troca uma exportação válida anterior.
   os hashes intencionalmente; faça nova coleta.
 - Se cita escrita, confira espaço livre, permissões e tipos dos caminhos sob
   `out/process-llm`.
+- Se informa que uma geração histórica mudou durante a validação, preserve a
+  geração para diagnóstico e repita o comando. O exportador recusou selecionar
+  bytes que mudaram entre a descoberta e a validação protegida por lock.
 - Se cita concorrência, deixe a outra execução terminar e repita. O exportador
   recusa substituir uma geração que veio de fonte diferente.
 

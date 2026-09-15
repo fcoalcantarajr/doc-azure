@@ -14,6 +14,7 @@ class JsonObject:
     """An immutable JSON object preserving property order."""
 
     properties: tuple[tuple[str, "JsonValue"], ...]
+    synthetic_properties: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -317,7 +318,7 @@ def _layout_outline(value: JsonValue, base_pointer: str) -> list[str]:
                 if isinstance(item, (JsonObject, JsonArray)):
                     child_pointer = (
                         pointer
-                        if key == "additional_properties"
+                        if key in node.synthetic_properties
                         else f"{pointer}/{_pointer_escape(key)}"
                     )
                     visit(item, depth + 1, child_pointer)

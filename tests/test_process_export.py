@@ -138,6 +138,7 @@ def test_layout_outline_pointers_ignore_synthetic_additional_properties(
         "controls"
     ][0]  # type: ignore[index]
     control["contribution"] = {"id": "Contoso.Extension"}  # type: ignore[index]
+    control["additional_properties"] = {"label": "Colidido"}  # type: ignore[index]
     publish_source(tmp_path, mutation=(layout_path, layout_payload))
 
     result = export_process_for_llm(tmp_path)
@@ -148,6 +149,10 @@ def test_layout_outline_pointers_ignore_synthetic_additional_properties(
     )
     assert f"`{expected_pointer}`" in text
     assert "/additional_properties/contribution" not in text
+    assert (
+        "`/layout/pages/0/sections/0/groups/0/controls/0/additional_properties`"
+        ' — "Colidido"'
+    ) in text
 
 
 def test_export_preserves_values_unknown_properties_and_only_removes_url(
@@ -321,7 +326,10 @@ def test_historical_reuse_revalidates_candidate_under_selection_lock(
 
     monkeypatch.setattr(process_export, "select_snapshot_generation", forge_then_select)
 
-    with pytest.raises(process_export.ProcessExportError, match="different process source"):
+    with pytest.raises(
+        process_export.ProcessExportError,
+        match="historical export changed during locked validation",
+    ):
         process_export.export_process_for_llm(tmp_path)
 
     assert resolve_snapshot_root(tmp_path / "out" / "process-llm") == (
@@ -574,6 +582,27 @@ def test_cli_names_invalid_export_current_and_documented_recovery_works(
     (export_root / "CURRENT").rename(export_root / "CURRENT.invalid")
     assert script.main([], project_root=tmp_path) == 0
     assert capsys.readouterr().out.startswith("LLM_EXPORT_OK\n")
+
+
+def test_cli_names_historical_revalidation_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    script = load_script()
+
+    def fail_export(root: Path) -> object:
+        raise script.ProcessExportError(
+            "historical export changed during locked validation"
+        )
+
+    monkeypatch.setattr(script, "export_process_for_llm", fail_export)
+
+    assert script.main([], project_root=tmp_path) == 1
+    assert capsys.readouterr().err == (
+        "LLM_EXPORT_FAILED: uma geração histórica mudou durante a validação; "
+        "repita o comando\n"
+    )
 
 
 def test_cli_refresh_uses_only_process_get_routes(
