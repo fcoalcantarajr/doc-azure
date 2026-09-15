@@ -130,6 +130,9 @@ Em falha, o comando retorna código `1`, imprime
 - `não foi possível publicar a exportação local com segurança`: confira espaço,
   permissões e se algum componente de `out/process-llm` virou link simbólico ou
   arquivo comum.
+- `uma geração histórica mudou durante a validação; repita o comando`: preserve
+  a geração para diagnóstico e repita; o exportador recusou selecionar bytes
+  alterados durante a revalidação protegida por lock.
 - `outra execução publicou uma fonte diferente; tente novamente`: espere que a
   outra execução termine e repita o comando.
 

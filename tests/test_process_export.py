@@ -338,6 +338,35 @@ def test_historical_reuse_revalidates_candidate_under_selection_lock(
     assert first_export.bundle_path.read_text() == "forged\n"
 
 
+def test_historical_reuse_reports_concurrent_current_switch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import doc_azure.process_export as process_export
+
+    first_source = publish_source(tmp_path)
+    process_export.export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process["description"] = "fonte B"
+    second_source = publish_source(tmp_path, mutation=("process.json", process))
+    process_export.export_process_for_llm(tmp_path)
+    select_snapshot_generation(
+        tmp_path / "out" / "process",
+        first_source.name,
+        expected_generation=second_source.name,
+    )
+
+    def stale_selector(*args: object, **kwargs: object) -> Path:
+        raise SnapshotError("stale snapshot selector cannot replace CURRENT")
+
+    monkeypatch.setattr(process_export, "select_snapshot_generation", stale_selector)
+
+    with pytest.raises(
+        process_export.ProcessExportError,
+        match="concurrent export published a different process source",
+    ):
+        process_export.export_process_for_llm(tmp_path)
+
+
 def test_forged_current_export_is_never_reused(tmp_path: Path) -> None:
     from doc_azure.process_export import export_process_for_llm
 

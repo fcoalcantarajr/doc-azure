@@ -451,12 +451,16 @@ def _find_reusable_export(
                     target, provenance, expected_artifacts
                 ),
             )
-        except SnapshotError:
+        except SnapshotError as error:
             winner = _matching_current_export(root, provenance, expected_artifacts)
             if winner is not None:
                 return winner
+            if str(error) == "snapshot generation failed selection validation":
+                raise ProcessExportError(
+                    "historical export changed during locked validation"
+                ) from None
             raise ProcessExportError(
-                "historical export changed during locked validation"
+                "concurrent export published a different process source"
             ) from None
     return None
 

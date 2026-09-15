@@ -975,6 +975,6 @@ network.
 
 GREEN receipt after the final hardening changes:
 
-- `uv run pytest -q` → 413 passed;
+- `uv run pytest -q` → 414 passed;
 - `uv run python verify.py` → `GATE_OK`;
 - `git diff --check` → exit code 0 with no output.
