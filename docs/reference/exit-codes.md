@@ -43,4 +43,11 @@ Esta porta executa `uv run pytest -q` como última etapa. Se a saída mencionar 
 | `prepare_baselines.py` | `0` quando conclui | outro código ou traceback se a execução não concluir |
 | `export_process_for_llm.py` | `0`, com `LLM_EXPORT_OK` e dois caminhos absolutos | `1`, com `LLM_EXPORT_FAILED: <mensagem sanitizada>`; a geração anterior é preservada |
 
+No exportador, `uma geração histórica mudou durante a validação; repita o
+comando` identifica bytes alterados durante a revalidação protegida por lock.
+Já `outra execução publicou uma fonte diferente; tente novamente` identifica
+troca concorrente de `CURRENT`. Ambos retornam código `1`, preservam a geração
+anterior e têm recuperação detalhada no
+[guia operacional](../guides/export-process-for-llm.md#falhas).
+
 `--refresh` pertence à coleta. Ele cria uma geração imutável nova e não apaga cache, não recria evidência histórica e não corrige automaticamente relatórios ou recibos.
