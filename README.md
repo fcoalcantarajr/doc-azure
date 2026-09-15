@@ -11,6 +11,7 @@ Escolha o caminho que corresponde ao que você precisa:
 | Instalar e executar a primeira auditoria | [Início rápido](docs/quickstart.md) |
 | Reusar as evidências locais sem acesso ao Azure | [Modos de operação](docs/configuration.md#modos-de-operação) |
 | Executar uma auditoria Azure atualizada | `uv run python scripts/run_audit.py --refresh` |
+| Exportar somente o processo para uma LLM | [Guia de exportação](docs/guides/export-process-for-llm.md) |
 | Entender um resultado ou código de saída | [Ler os resultados](docs/guides/run-audit.md#como-ler-o-resultado) |
 | Corrigir um erro | [Solução de problemas](docs/troubleshooting.md) |
 | Preparar, revisar e verificar a publicação no Notion | [Guia de publicação no Notion](docs/guides/publish-notion.md) |
@@ -54,6 +55,7 @@ A publicação no Notion é separada da auditoria principal. Ela atualiza apenas
 
 - `out/wiki/` e `out/process/`: snapshots imutáveis de fontes ignorados.
 - `out/audit/`: bundles de diagnóstico e resultado por execução, ignorados.
+- `out/process-llm/`: exportações Markdown do processo, ignoradas e independentes da Wiki.
 - `deltas/`: quatro relatórios em português brasileiro versionados.
 - `out/notion/`: corpos de publicação, pacotes de revisão e recibos, ignorados.
 

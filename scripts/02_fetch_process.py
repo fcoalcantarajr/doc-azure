@@ -8,11 +8,7 @@ import asyncio
 import sys
 from collections import Counter
 from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
 from pathlib import Path
-
-import httpx
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -22,28 +18,20 @@ from doc_azure.process_collector import (  # noqa: E402
     ARTIFACT_KINDS,
     GLOBAL_ARTIFACT_PATHS,
     MAPPING_ARTIFACT_PATH,
-    collect_process,
     read_cached_process_manifest,
+)
+from doc_azure.process_runtime import (  # noqa: E402
+    Clock,
+    HttpClientFactory,
+    collect_process_with_settings,
+    make_http_client,
+    utc_now,
 )
 from doc_azure.settings import Settings  # noqa: E402
 from doc_azure.snapshot import SnapshotManifest  # noqa: E402
 
 
-HttpClientFactory = Callable[[], httpx.AsyncClient]
 SettingsLoader = Callable[[Path], Settings]
-Clock = Callable[[], datetime]
-
-
-def utc_now() -> datetime:
-    """Return an aware UTC publication timestamp."""
-
-    return datetime.now(timezone.utc)
-
-
-def make_http_client() -> httpx.AsyncClient:
-    """Construct the one HTTP transport reused for this collection."""
-
-    return httpx.AsyncClient(timeout=60.0)
 
 
 async def _collect_with_settings(
@@ -54,20 +42,16 @@ async def _collect_with_settings(
     http_client_factory: HttpClientFactory,
     now: Clock,
 ) -> tuple[SnapshotManifest, int]:
-    async with http_client_factory() as http:
-        client = AzureReadClient(
-            http,
-            f"https://dev.azure.com/{settings.organization}",
-            settings.pat,
-            asyncio.Semaphore(8),
-        )
-        manifest = await collect_process(
-            project_root,
-            client,
-            refresh=refresh,
-            now=now,
-        )
-        return manifest, len(client.request_records)
+    """Compatibility seam delegating to the shared collection runtime."""
+
+    return await collect_process_with_settings(
+        project_root,
+        settings,
+        refresh=refresh,
+        http_client_factory=http_client_factory,
+        now=now,
+        azure_client_factory=AzureReadClient,
+    )
 
 
 def _artifact_counts(manifest: SnapshotManifest) -> Counter[str]:

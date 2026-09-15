@@ -8,11 +8,12 @@ Comece com o documento que corresponde à sua tarefa. Você não precisa ler as 
 2. [Configuração](configuration.md) — variáveis de ambiente, `.env`, lista de acesso, modos de operação.
 3. [Executar a auditoria](guides/run-audit.md) — executar, ler os resultados e repetir auditorias.
 4. [Construir relatórios](guides/build-reports.md) — reconstruir os quatro relatórios versionados em `deltas/`.
-5. [Verificar o repositório](guides/verify-repository.md) — porta de procedência para mantenedores e verificação de saúde.
-6. [Publicar no Notion](guides/publish-notion.md) — prepare, revise, publique e prove as quatro páginas externas fixas.
-7. [Solução de problemas](troubleshooting.md) — identifique um erro pela mensagem exata no terminal e siga um caminho de recuperação.
-8. [Contrato de publicação no Notion](notion-publication.md) — referência completa do contrato de publicação.
-9. [Referência de evidências do Notion](reference/notion-evidence.md) — caminhos locais exatos, campos JSON obrigatórios e envelopes de conector brutos para a porta rigorosa.
+5. [Exportar o processo para uma LLM](guides/export-process-for-llm.md) — gerar um pacote processo-apenas, sem Wiki nem delta.
+6. [Verificar o repositório](guides/verify-repository.md) — porta de procedência para mantenedores e verificação de saúde.
+7. [Publicar no Notion](guides/publish-notion.md) — prepare, revise, publique e prove as quatro páginas externas fixas.
+8. [Solução de problemas](troubleshooting.md) — identifique um erro pela mensagem exata no terminal e siga um caminho de recuperação.
+9. [Contrato de publicação no Notion](notion-publication.md) — referência completa do contrato de publicação.
+10. [Referência de evidências do Notion](reference/notion-evidence.md) — caminhos locais exatos, campos JSON obrigatórios e envelopes de conector brutos para a porta rigorosa.
 
 ## Entender a auditoria
 

@@ -106,3 +106,12 @@ rede, saídas limpa/interna e variação de processo. Revisões posteriores pode
 adicionar testes; use o resultado atual de `uv run pytest -q`, não essa contagem
 histórica. Uma execução atualizada comprova o caminho da aplicação, não a
 conclusão das portas do Notion.
+
+## Runtime da exportação para LLM
+
+A exportação processo-apenas não integra o pipeline de auditoria acima. O modo
+normal usa exclusivamente a geração completa selecionada por
+`out/process/CURRENT` e faz zero requisições. `--refresh` chama o mesmo runtime
+do coletor de processo, com um `httpx.AsyncClient`, uma execução assíncrona e a
+mesma allowlist GET, sem iniciar os coletores de Wiki ou work items. O resultado
+é derivado em `out/process-llm` e não altera baselines, deltas ou recibos Notion.

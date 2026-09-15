@@ -1,5 +1,24 @@
 # Solução de problemas
 
+## `LLM_EXPORT_FAILED: ...`
+
+Esse marcador pertence somente a `scripts/export_process_for_llm.py`. A falha
+não apaga nem troca uma exportação válida anterior.
+
+- Se a mensagem cita `CURRENT`, falta um snapshot local completo. Use
+  `--refresh` somente se tiver PAT e acesso ou restaure `out/process/` por canal
+  privado aprovado.
+- Se cita validação, não conserte JSON ou manifesto à mão. Uma alteração quebra
+  os hashes intencionalmente; faça nova coleta.
+- Se cita escrita, confira espaço livre, permissões e tipos dos caminhos sob
+  `out/process-llm`.
+- Se cita concorrência, deixe a outra execução terminar e repita. O exportador
+  recusa substituir uma geração que veio de fonte diferente.
+
+O modo sem `--refresh` não acessa rede nem credenciais. Se ele parecer exigir
+PAT, confirme que executou `export_process_for_llm.py`, e não `run_audit.py`.
+Veja o [guia específico](guides/export-process-for-llm.md).
+
 Corresponda à mensagem exata do terminal ou ao sintoma. Não exponha `.env`, valores de PAT, dados brutos de funcionários ou arquivos sob `out/` ao pedir ajuda.
 
 ## `uv: command not found`

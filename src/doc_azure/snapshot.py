@@ -247,9 +247,51 @@ def read_snapshot_artifact(root: Path, relative_path: str | Path) -> bytes:
 def read_snapshot_manifest(root: Path) -> SnapshotManifest:
     """Read and parse the selected manifest without following its final path."""
 
+    manifest, _ = read_snapshot_manifest_with_sha256(root)
+    return manifest
+
+
+def read_snapshot_manifest_with_sha256(
+    root: Path,
+) -> tuple[SnapshotManifest, str]:
+    """Return the validated manifest and the SHA-256 of its exact bytes."""
+
     resolved_root = resolve_snapshot_root(root)
     manifest_bytes = _read_regular_file(resolved_root / _MANIFEST, "manifest")
-    return _parse_snapshot_manifest(manifest_bytes)
+    return (
+        _parse_snapshot_manifest(manifest_bytes),
+        hashlib.sha256(manifest_bytes).hexdigest(),
+    )
+
+
+def select_snapshot_generation(
+    root: Path,
+    generation: str,
+    *,
+    expected_generation: str | None,
+) -> Path:
+    """Atomically select an existing generation if CURRENT has not changed."""
+
+    logical_root = Path(root)
+    if not _GENERATION_PATTERN.fullmatch(generation):
+        raise SnapshotError("snapshot generation is invalid")
+    _require_real_directory(logical_root, "snapshot root")
+    with _snapshot_lock(logical_root):
+        current_path = logical_root / _CURRENT
+        actual_generation = (
+            _read_current_generation(logical_root)
+            if _lexists(current_path)
+            else None
+        )
+        if actual_generation != expected_generation:
+            raise SnapshotError("stale snapshot selector cannot replace CURRENT")
+        snapshots_root = logical_root / _SNAPSHOTS
+        _require_real_directory(snapshots_root, "CURRENT target container")
+        target = snapshots_root / generation
+        _require_real_directory(target, "CURRENT target")
+        _validate_complete_snapshot(target, legacy=False)
+        _publish_current_pointer(logical_root, generation)
+    return target
 
 
 def _publication_token(root: Path) -> str:

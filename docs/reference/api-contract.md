@@ -244,3 +244,18 @@ the previously selected CURRENT generation unchanged.
 8. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/work-item-types-behaviors/list?view=azure-devops-rest-7.1
 9. https://learn.microsoft.com/en-us/rest/api/azure/devops/processes/behaviors/list
 10. https://learn.microsoft.com/en-us/azure/devops/accounts/use-personal-access-tokens-to-authenticate
+## Process-only LLM export contract
+
+The LLM export may either consume the validated generation selected by
+`out/process/CURRENT` without network access or invoke the existing process
+collector with `--refresh`. Refresh is limited to the process GET routes in this
+contract; it must not read Wiki pages, WIQL, work-item batches, Notion, or delta
+artifacts.
+
+The derived `provenance.json` schema is closed at version 1 and records the
+source generation, exact source-manifest SHA-256, source collection time,
+process identity, `process-only` scope, the sole omitted property (`url`), and
+active/disabled/total WIT counts. The derived manifest is produced by
+`SnapshotWriter` and hashes every exported file. The output is an observed API
+representation and cannot establish intent, governance, actual workflow use, or
+correctness.

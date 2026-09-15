@@ -390,6 +390,10 @@ def verify_layout(root: Path) -> None:
         "scripts/02_fetch_process.py",
         "scripts/03_build_delta.py",
         "scripts/04_prepare_notion.py",
+        "scripts/export_process_for_llm.py",
+        "src/doc_azure/process_export.py",
+        "src/doc_azure/process_export_render.py",
+        "src/doc_azure/process_runtime.py",
         "src/delta/build.py",
         "src/delta/render.py",
         "src/delta/notion.py",
@@ -400,10 +404,12 @@ def verify_layout(root: Path) -> None:
         "tests/test_prepare_notion.py",
         "tests/test_notion_publication_gate.py",
         "tests/test_script_entrypoints.py",
+        "tests/test_process_export.py",
         "tests/test_verify.py",
         "docs/reference/delta-method.md",
         "docs/decisions.md",
         "docs/notion-publication.md",
+        "docs/guides/export-process-for-llm.md",
         "docs/archive/session-2026-08-26.md",
         *(f"deltas/{slug}.md" for slug in FIXED_SLUGS),
     )
@@ -485,6 +491,7 @@ def verify_script_entrypoints(root: Path) -> None:
         "04_prepare_notion.py",
         "prepare_baselines.py",
         "run_audit.py",
+        "export_process_for_llm.py",
     ):
         run_checked((sys.executable, f"scripts/{name}", "--help"), repository_root)
 

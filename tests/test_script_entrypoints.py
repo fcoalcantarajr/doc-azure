@@ -20,6 +20,7 @@ PROJECT_ROOT = Path(__file__).parents[1]
         "02_fetch_process.py",
         "03_build_delta.py",
         "04_prepare_notion.py",
+        "export_process_for_llm.py",
     ),
 )
 def test_script_help_never_requires_credentials(script: str) -> None:

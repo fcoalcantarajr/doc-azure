@@ -50,6 +50,10 @@ def test_verify_layout_uses_current_document_paths(
 
     assert "docs/reference/delta-method.md" in observed
     assert "docs/archive/session-2026-08-26.md" in observed
+    assert "scripts/export_process_for_llm.py" in observed
+    assert "src/doc_azure/process_export.py" in observed
+    assert "src/doc_azure/process_export_render.py" in observed
+    assert "docs/guides/export-process-for-llm.md" in observed
     assert "docs/delta-method.md" not in observed
     assert "docs/session-2026-08-26.md" not in observed
 

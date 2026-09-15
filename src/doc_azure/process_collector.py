@@ -359,33 +359,48 @@ def read_cached_process_manifest(root: Path) -> SnapshotManifest | None:
     if state is None:
         return None
     try:
-        processes = _required_json(state, "processes.json")
-        process_id = select_process_id(processes)
-        _validate_process(_required_json(state, "process.json"), process_id)
-        plan = ProcessCollectionPlan.from_index(
-            _required_json(state, "workitemtypes.json")
-        )
-        _validate_process_behaviors(_required_json(state, "behaviors.json"))
-        mapping = _required_json(state, MAPPING_ARTIFACT_PATH)
-        if mapping != plan.mapping_payload(process_id):
-            raise _IncompleteSnapshot("process artifact mapping schema is stale")
-        expected_paths = {
-            *GLOBAL_ARTIFACT_PATHS,
-            MAPPING_ARTIFACT_PATH,
-            *(request.artifact_path for request in plan.requests),
-        }
-        if state.artifact_paths != expected_paths:
-            raise _IncompleteSnapshot("process snapshot artifact set is incomplete")
-        for request in plan.requests:
-            payload = _required_json(state, request.artifact_path)
-            if _is_legacy_layout_payload(request, payload):
-                raise _IncompleteSnapshot("process layout artifact schema is stale")
-            _validate_artifact_payload(
-                request, payload
-            )
+        _validate_snapshot_state(state)
         return state.manifest
     except _IncompleteSnapshot:
         return None
+
+
+def read_validated_process_manifest(snapshot_root: Path) -> SnapshotManifest:
+    """Read one fixed process generation and require the complete current schema."""
+
+    state = _load_snapshot_state(Path(snapshot_root))
+    if state is None:
+        raise ProcessCollectionError("process snapshot is missing")
+    try:
+        _validate_snapshot_state(state)
+    except _IncompleteSnapshot as error:
+        raise ProcessCollectionError(str(error)) from None
+    return state.manifest
+
+
+def _validate_snapshot_state(state: _SnapshotState) -> None:
+    processes = _required_json(state, "processes.json")
+    process_id = select_process_id(processes)
+    _validate_process(_required_json(state, "process.json"), process_id)
+    plan = ProcessCollectionPlan.from_index(
+        _required_json(state, "workitemtypes.json")
+    )
+    _validate_process_behaviors(_required_json(state, "behaviors.json"))
+    mapping = _required_json(state, MAPPING_ARTIFACT_PATH)
+    if mapping != plan.mapping_payload(process_id):
+        raise _IncompleteSnapshot("process artifact mapping schema is stale")
+    expected_paths = {
+        *GLOBAL_ARTIFACT_PATHS,
+        MAPPING_ARTIFACT_PATH,
+        *(request.artifact_path for request in plan.requests),
+    }
+    if state.artifact_paths != expected_paths:
+        raise _IncompleteSnapshot("process snapshot artifact set is incomplete")
+    for request in plan.requests:
+        payload = _required_json(state, request.artifact_path)
+        if _is_legacy_layout_payload(request, payload):
+            raise _IncompleteSnapshot("process layout artifact schema is stale")
+        _validate_artifact_payload(request, payload)
 
 
 async def _obtain_global_payload(

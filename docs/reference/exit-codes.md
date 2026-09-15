@@ -41,5 +41,6 @@ Esta porta executa `uv run pytest -q` como última etapa. Se a saída mencionar 
 | `04_prepare_notion.py` | `0`; `--verify-fetched` imprime `NOTION_FETCHED_OK` e `--verify-publication` imprime `NOTION_PUBLICATION_OK` | `1`, com `NOTION_PREPARATION_FAILED: <mensagem>` |
 | `setup.py` | `0` | `1` |
 | `prepare_baselines.py` | `0` quando conclui | outro código ou traceback se a execução não concluir |
+| `export_process_for_llm.py` | `0`, com `LLM_EXPORT_OK` e dois caminhos absolutos | `1`, com `LLM_EXPORT_FAILED: <mensagem sanitizada>`; a geração anterior é preservada |
 
 `--refresh` pertence à coleta. Ele cria uma geração imutável nova e não apaga cache, não recria evidência histórica e não corrige automaticamente relatórios ou recibos.

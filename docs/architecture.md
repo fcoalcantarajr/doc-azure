@@ -68,6 +68,23 @@ client captured; it cannot cryptographically attest to a remote server response.
 The process inventory is intentionally conservative about metadata/order changes.
 Notion publication and external adversarial reviews are separate, explicit gates.
 
+## Derived process-only LLM export
+
+`scripts/export_process_for_llm.py` is a separate derived-output boundary. It
+pins and validates one immutable `out/process` generation before the first
+artifact read, builds one immutable semantic model, and renders both
+`bundle.md` and the per-WIT documents from that same model. It never imports the
+Wiki, delta evaluator, Notion code, or an LLM client.
+
+The export removes only exact transport properties named `url` and redundant
+validated `count/value` envelopes. It preserves array order, explicit `order`
+values, scalar distinctions, and unknown API extensions under
+`additional_properties`. `SnapshotWriter` publishes the derived files and their
+hashes atomically under `out/process-llm`; provenance binds the result to the
+source generation and exact source-manifest hash. Reuse requires both values to
+match. This representation is descriptive evidence, not proof of institutional
+intent, governance, actual use, or configuration correctness.
+
 ## Handoff checklist
 
 Use the canonical command, then rebuild four versioned reports and prepare the

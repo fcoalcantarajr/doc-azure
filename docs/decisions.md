@@ -930,3 +930,15 @@ failed with `fetch title is not present in page properties`. GREEN: the focused
 connector serialization and adversarial-link cases passed, both hierarchy
 fetches parsed, and the complete external-evidence gate returned
 `NOTION_PUBLICATION_OK`.
+## 2026-09-15 — process-only LLM export
+
+RED required by R4 was captured before production implementation. Command:
+`uv run pytest tests/test_process_export.py tests/test_script_entrypoints.py -q`.
+Result: 13 failed and 6 passed in 0.73s. The failures were the expected missing
+`doc_azure.process_export` module and missing
+`scripts/export_process_for_llm.py` entrypoint. The tests already required the
+hybrid bundle/per-type output, all five evidence families, exact provenance,
+semantic preservation, URL-only omission, missing/null/false/zero/empty
+distinction, deterministic reuse, source-change publication, pinned-source
+reads, rollback on write failure, credential-free offline mode, and sanitized
+CLI failures.
