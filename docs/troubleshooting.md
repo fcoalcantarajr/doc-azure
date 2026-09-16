@@ -21,6 +21,11 @@ não apaga nem troca uma exportação válida anterior.
   `CURRENT.invalid` já existir, escolha outro nome explícito antes do `mv`.
 - Se cita validação, não conserte JSON ou manifesto à mão. Uma alteração quebra
   os hashes intencionalmente; faça nova coleta.
+- Se a mensagem indicar que o baseline da exportação anterior é inválido,
+  preserve `out/process-llm/CURRENT` e as gerações de `out/process/`. O delta
+  exige a fonte imutável registrada pela exportação anterior; restaure essa
+  geração por canal privado aprovado ou faça uma investigação antes de mover o
+  ponteiro. Não substitua silenciosamente por uma pasta escolhida por data.
 - Se cita escrita, confira espaço livre, permissões e tipos dos caminhos sob
   `out/process-llm`.
 - Se informa que uma geração histórica mudou durante a validação, preserve a

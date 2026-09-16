@@ -145,4 +145,5 @@ Esta etapa verifica apenas o formato do `.env` e cria os diretórios de saída n
 `scripts/export_process_for_llm.py` tem dois modos adicionais e independentes da
 auditoria: sem opção, valida e usa `out/process/CURRENT` sem rede; com `--refresh`,
 recoleta somente o processo por GET antes de exportar. O primeiro modo não lê
-`AZDO_PAT`. Veja o [guia de exportação](guides/export-process-for-llm.md).
+`AZDO_PAT`. Ambos produzem o snapshot completo e o delta em relação à fonte da
+exportação anterior. Veja o [guia de exportação](guides/export-process-for-llm.md).

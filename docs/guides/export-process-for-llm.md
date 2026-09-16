@@ -1,8 +1,9 @@
 # Exportar o processo para uma LLM
 
 Este comando transforma o snapshot completo do `Processo-Agil` em Markdown
-pronto para leitura por uma LLM. Ele não lê a Wiki, não calcula diferenças e não
-altera o Azure DevOps.
+pronto para leitura por uma LLM. Também compara a fonte atual com a fonte usada
+pela exportação selecionada anteriormente. Ele não lê a Wiki e não altera o
+Azure DevOps.
 
 ## Escolha o modo
 
@@ -24,7 +25,8 @@ uv run python scripts/export_process_for_llm.py --refresh
 
 Este modo requer `AZDO_PAT` e acesso ao Azure DevOps. Ele faz somente as
 requisições GET do processo já autorizadas para `02_fetch_process.py`. Não lê
-Wiki, work items ou Notion e não gera deltas.
+Wiki, work items ou Notion. Depois da coleta, gera o mesmo pacote e o delta
+processo-apenas.
 
 Para operar outra cópia do projeto, acrescente `--root DIRETORIO`. Veja todas as
 opções sem credencial:
@@ -40,6 +42,8 @@ No sucesso, o comando retorna código `0` e imprime:
 ```text
 LLM_EXPORT_OK
 <caminho absoluto>/out/process-llm/snapshots/<geração>/bundle.md
+<caminho absoluto>/out/process-llm/snapshots/<geração>/delta.md
+<caminho absoluto>/out/process-llm/snapshots/<geração>/delta.json
 <caminho absoluto>/out/process-llm/snapshots/<geração>/work-item-types
 ```
 
@@ -53,22 +57,48 @@ out/process-llm/
     ├── manifest.json
     ├── README.md
     ├── bundle.md
+    ├── delta.md
+    ├── delta.json
     ├── process-summary.md
     ├── provenance.json
     └── work-item-types/
         └── <referenceName>.md
 ```
 
-Se a geração e o hash do snapshot de origem forem os mesmos, o comando reutiliza
-a exportação existente byte a byte. Se ela já for a atual, `CURRENT` não muda; se
+Se a fonte atual e o baseline do delta forem os mesmos, o comando reutiliza a
+exportação existente byte a byte. Se ela já for a atual, `CURRENT` não muda; se
 estiver no histórico, somente o ponteiro volta a selecioná-la. Quando a origem
-muda e ainda não foi exportada, uma geração nova é publicada e as anteriores são
-preservadas.
+ou o baseline muda, uma geração nova é publicada e as anteriores são preservadas.
+
+## Como o baseline do delta é escolhido
+
+O baseline é a fonte registrada pela exportação completa selecionada em
+`out/process-llm/CURRENT` antes do comando começar. O exportador não tenta
+descobrir uma ordem cronológica pelos nomes UUID das pastas nem por horários
+mutáveis do sistema de arquivos.
+
+- `SEM_BASELINE`: não existia exportação anterior; o snapshot atual continua
+  completo, mas não há comparação.
+- `SEM_ALTERACOES`: existe baseline e nenhuma diferença semântica foi observada.
+- `COM_ALTERACOES`: `delta.md` e `delta.json` enumeram adições, remoções e
+  alterações.
+
+Repetir o comando para a mesma fonte não transforma o delta anterior em uma
+comparação da fonte consigo mesma: a geração e os bytes são reutilizados. Se o
+processo voltar a uma configuração antiga, a exportação histórica não é
+reutilizada quando seu baseline for diferente; uma nova geração registra o
+caminho de volta.
 
 ## Qual arquivo enviar
 
 - Envie somente `bundle.md` quando a LLM aceitar um arquivo desse tamanho. Ele é
-  autocontido e inclui processo, behaviors e todos os tipos.
+  autocontido, inclui processo, behaviors e todos os tipos, e aponta para o
+  delta correspondente.
+- Envie `delta.md` quando a pergunta for somente “o que mudou?”. Ele contém os
+  valores anterior e atual e as duas evidências quando ambas existem.
+- Use `delta.json` para automação ou quando a ferramenta aproveitar melhor dados
+  estruturados. `present: false` distingue ausência de `null`, `false`, zero e
+  string vazia.
 - Envie `process-summary.md` com os arquivos necessários de `work-item-types/`
   quando houver limite de contexto ou quando a pergunta tratar de poucos tipos.
 - Use `provenance.json` para registrar qual snapshot originou o conteúdo.
@@ -79,12 +109,17 @@ Cada conjunto informa o caminho do JSON de origem e seu JSON Pointer. Estados e
 campos aparecem em tabelas; regras preservam condições e ações; layouts mantêm a
 hierarquia; behaviors globais e associações por tipo também são incluídos. O
 exportador distingue propriedade ausente, `null`, `false`, zero e string vazia.
+O delta cobre identidade do processo, behaviors globais, metadados dos tipos e
+as cinco famílias de cada tipo. A propriedade de transporte `url` permanece
+omitida dos dois lados.
 
 ## Limites e privacidade
 
 A exportação descreve a configuração observada na API. Ela não prova intenção
 institucional, governança, uso real ou correção. Um campo configurado não prova
 que as equipes o preenchem; uma regra presente não prova sua efetividade prática.
+O delta também não compara a Wiki. Para pedir alterações documentais a uma LLM,
+envie a Wiki atual junto com `bundle.md` e `delta.md`.
 
 Nomes, labels, defaults, condições e ações são preservados porque o destino
 pressuposto é uma LLM corporativa aprovada. A propriedade de transporte chamada
@@ -127,6 +162,9 @@ Em falha, o comando retorna código `1`, imprime
   [recuperação documentada](../troubleshooting.md#llm_export_failed-).
 - `o snapshot do processo está ausente, incompleto ou inválido`: não edite a
   evidência; faça uma coleta nova ou restaure a geração íntegra.
+- `a fonte da exportação anterior está ausente ou inválida`: preserve as duas
+  árvores de snapshots e restaure a geração de processo identificada pela
+  exportação anterior; não escolha outra por data ou UUID.
 - `não foi possível publicar a exportação local com segurança`: confira espaço,
   permissões e se algum componente de `out/process-llm` virou link simbólico ou
   arquivo comum.

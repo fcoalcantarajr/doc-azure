@@ -84,6 +84,8 @@ def main(
 def _print_result(result: ProcessExportResult) -> None:
     print("LLM_EXPORT_OK")
     print(result.bundle_path)
+    print(result.delta_markdown_path)
+    print(result.delta_json_path)
     print(result.work_item_types_root)
 
 
@@ -99,6 +101,8 @@ def _safe_message(error: Exception) -> str:
                 "out/process-llm/CURRENT está inválido; "
                 "consulte o troubleshooting"
             )
+        if "previous export baseline is invalid" in text:
+            return "a fonte da exportação anterior está ausente ou inválida"
         if "historical export changed during locked validation" in text:
             return (
                 "uma geração histórica mudou durante a validação; "

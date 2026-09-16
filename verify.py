@@ -392,6 +392,8 @@ def verify_layout(root: Path) -> None:
         "scripts/04_prepare_notion.py",
         "scripts/export_process_for_llm.py",
         "src/doc_azure/process_export.py",
+        "src/doc_azure/process_export_delta.py",
+        "src/doc_azure/process_export_delta_render.py",
         "src/doc_azure/process_export_render.py",
         "src/doc_azure/process_runtime.py",
         "src/delta/build.py",

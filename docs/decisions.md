@@ -978,3 +978,29 @@ GREEN receipt after the final hardening changes:
 - `uv run pytest -q` → 414 passed;
 - `uv run python verify.py` → `GATE_OK`;
 - `git diff --check` → exit code 0 with no output.
+
+## 2026-09-16 — previous-export process delta
+
+Decision: each process-only LLM export describes the current source snapshot and
+also compares it with the source used by the previously selected successful
+export. The baseline is not inferred from UUID ordering or mutable filesystem
+timestamps. A repeated command for the same source retains the prior comparison
+and reuses the generation byte for byte. Returning to an older process source
+creates a new export because its predecessor is different.
+
+RED required by R4 was captured before production implementation. Command:
+`uv run pytest tests/test_process_export.py::test_export_writes_bundle_summary_and_every_work_item_type tests/test_process_export.py::test_changed_process_reports_exact_previous_and_current_evidence -q`.
+Result: `2 failed in 0.42s`; both failures were the expected missing
+`ProcessExportResult.delta_markdown_path` / `delta_json_path` interface.
+
+GREEN receipt after implementation and hardening:
+
+- `uv run pytest -q` → `430 passed in 5.73s`;
+- `uv run python verify.py` → `GATE_OK` after copying the ignored, immutable
+  evidence generations into the isolated worktree;
+- real-snapshot offline smoke → `SEM_ALTERACOES`, zero changes, with the same
+  process generation on both sides during migration from the pre-delta export;
+- immediate repeat retained the exact `CURRENT` SHA-256
+  `e81ed5b44ec7889e3092555a35ec5271bab468a59b21a4e9a06a4d1411ae0604`
+  and manifest SHA-256
+  `520ff45f2e35b3d3d7400cd842665e14b51c5ebb955f648bbe7b0b55e4128246`.
