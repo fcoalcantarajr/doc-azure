@@ -579,7 +579,13 @@ def _load_previous_model(
         if baseline_identity is None:
             return None
         return _load_model_for_identity(project_root, baseline_identity)
-    except (SnapshotError, ProcessCollectionError, ValueError, TypeError) as error:
+    except (
+        SnapshotError,
+        ProcessCollectionError,
+        ProcessExportError,
+        ValueError,
+        TypeError,
+    ) as error:
         raise ProcessExportError(f"previous export baseline is invalid: {error}") from None
 
 
@@ -587,12 +593,10 @@ def _prior_identity_for_same_source(
     selected_export: Path,
     current_identity: SnapshotIdentity,
 ) -> SnapshotIdentity | None:
-    try:
-        payload = _read_json(selected_export, "delta.json")
-    except ProcessExportError as error:
-        if "is invalid" in str(error):
-            return current_identity
-        raise
+    manifest, _ = read_snapshot_manifest_with_sha256(selected_export)
+    if "delta.json" not in {artifact.path for artifact in manifest.artifacts}:
+        return None
+    payload = _read_json(selected_export, "delta.json")
     return baseline_identity_from_delta(
         payload,
         expected_current=current_identity,

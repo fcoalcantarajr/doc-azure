@@ -390,16 +390,45 @@ def test_existing_export_without_delta_is_migrated_with_same_source_baseline(
         legacy.write_text(relative, path.read_text())
     legacy.commit_manifest(collected_at=COLLECTED_AT, requests=())
     legacy_root = resolve_snapshot_root(export_root)
+    generated.generation_root.rename(tmp_path / "earlier-delta-export")
 
     migrated = export_process_for_llm(tmp_path)
 
     delta = json.loads(migrated.delta_json_path.read_text())
     assert migrated.reused is False
     assert migrated.generation_root != legacy_root
-    assert delta["status"] == "SEM_ALTERACOES"
-    assert delta["baseline"]["source_generation"] == source.name
+    assert delta["status"] == "SEM_BASELINE"
+    assert delta["baseline"] is None
     assert delta["current"]["source_generation"] == source.name
     assert delta["changes"] == []
+
+    repeated = export_process_for_llm(tmp_path)
+    assert repeated.reused is True
+    assert repeated.generation_root == migrated.generation_root
+
+
+def test_invalid_manifested_previous_delta_is_not_treated_as_legacy(
+    tmp_path: Path,
+) -> None:
+    from doc_azure.process_export import ProcessExportError, export_process_for_llm
+
+    publish_source(tmp_path)
+    generated = export_process_for_llm(tmp_path)
+    export_root = tmp_path / "out" / "process-llm"
+    malformed = SnapshotWriter(export_root)
+    for path in generated.generation_root.rglob("*"):
+        if not path.is_file() or path.name == "manifest.json":
+            continue
+        relative = path.relative_to(generated.generation_root).as_posix()
+        content = "{invalid json\n" if relative == "delta.json" else path.read_text()
+        malformed.write_text(relative, content)
+    malformed.commit_manifest(collected_at=COLLECTED_AT, requests=())
+    selected = resolve_snapshot_root(export_root)
+
+    with pytest.raises(ProcessExportError, match="previous export baseline is invalid"):
+        export_process_for_llm(tmp_path)
+
+    assert resolve_snapshot_root(export_root) == selected
 
 
 @pytest.mark.parametrize(
@@ -787,8 +816,8 @@ def test_forged_current_export_is_never_reused(tmp_path: Path) -> None:
 
     result = export_process_for_llm(tmp_path)
 
-    assert result.reused is False
-    assert result.generation_root != genuine.generation_root
+    assert result.reused is True
+    assert result.generation_root == genuine.generation_root
     assert result.bundle_path.read_text() != "forged\n"
 
 
@@ -1103,7 +1132,7 @@ def test_cli_names_invalid_previous_export_baseline_without_leaking_details(
 
     assert script.main([], project_root=tmp_path) == 1
     assert capsys.readouterr().err == (
-        "LLM_EXPORT_FAILED: a fonte da exportação anterior está ausente ou inválida\n"
+        "LLM_EXPORT_FAILED: o baseline da exportação anterior está ausente ou inválido\n"
     )
 
 

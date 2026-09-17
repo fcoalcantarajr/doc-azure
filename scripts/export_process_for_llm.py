@@ -102,7 +102,7 @@ def _safe_message(error: Exception) -> str:
                 "consulte o troubleshooting"
             )
         if "previous export baseline is invalid" in text:
-            return "a fonte da exportação anterior está ausente ou inválida"
+            return "o baseline da exportação anterior está ausente ou inválido"
         if "historical export changed during locked validation" in text:
             return (
                 "uma geração histórica mudou durante a validação; "

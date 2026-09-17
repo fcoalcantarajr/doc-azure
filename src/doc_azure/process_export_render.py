@@ -222,6 +222,8 @@ def render_export_readme() -> str:
 Esta geração contém somente a configuração observada do processo `Processo-Agil`.
 Ela não consulta nem reproduz a Wiki. Além do snapshot atual, `delta.md` e
 `delta.json` comparam a fonte atual com a fonte da exportação anterior.
+Se a exportação anterior não registrava delta, a migração informa
+`SEM_BASELINE`, sem inventar uma comparação.
 
 - Use `bundle.md` quando a ferramenta aceitar um único arquivo.
 - Use `delta.md` para ler as mudanças e `delta.json` para processamento estruturado.
