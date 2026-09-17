@@ -421,8 +421,14 @@ def test_missing_previous_source_succeeds_with_sem_baseline(
     second_source = publish_source(tmp_path, mutation=("process.json", process))
     second_export = export_process_for_llm(tmp_path)
     # Rename the predecessor source to make it disappear.
-    (tmp_path / "out" / "process" / first_source.name).rename(tmp_path / "earlier-source")
-    third_export = export_process_for_llm(tmp_path)
+    first_source.rename(tmp_path / "earlier-source")
+    try:
+        third_export = export_process_for_llm(tmp_path)
+    except (
+        ProcessExportBaselineInvalid,
+        ProcessExportPredecessorUnavailable,
+    ) as error:
+        pytest.fail(f"an absent predecessor must degrade to SEM_BASELINE: {error}")
 
     delta = json.loads(third_export.delta_json_path.read_text())
     assert third_export.reused is False
@@ -467,24 +473,25 @@ def test_incomplete_predecessor_is_baseline_invalid_not_unavailable(
     """B3: incomplete predecessor artifact raises ProcessExportBaselineInvalid, not PredecessorUnavailable."""
     from doc_azure.process_export import ProcessExportBaselineInvalid, ProcessExportPredecessorUnavailable, export_process_for_llm
 
-    publish_source(tmp_path)
-    generated = export_process_for_llm(tmp_path)
+    first_source = publish_source(tmp_path)
+    export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process["description"] = "fonte B"
+    publish_source(tmp_path, mutation=("process.json", process))
+    second_export = export_process_for_llm(tmp_path)
     export_root = tmp_path / "out" / "process-llm"
-    incomplete = SnapshotWriter(export_root)
-    for path in generated.generation_root.rglob("*"):
-        if not path.is_file() or path.name == "manifest.json":
-            continue
-        relative = path.relative_to(generated.generation_root).as_posix()
-        content = "" if relative == "process.json" else path.read_text()
-        incomplete.write_text(relative, content)
-    incomplete.commit_manifest(collected_at=COLLECTED_AT, requests=())
+    # The predecessor generation stays on disk, but one artifact is gone.
+    (first_source / "behaviors.json").unlink()
 
-    with pytest.raises(ProcessExportBaselineInvalid):
+    with pytest.raises(ProcessExportBaselineInvalid) as raised:
         export_process_for_llm(tmp_path)
 
-    # No new generation written.
+    assert not isinstance(raised.value, ProcessExportPredecessorUnavailable)
+    assert first_source.is_dir()
+    # No new generation was written and CURRENT still points at the last one.
     generations = list((export_root / "snapshots").iterdir())
-    assert len(generations) == 1
+    assert len(generations) == 2
+    assert resolve_snapshot_root(export_root) == second_export.generation_root
 
 
 def test_first_export_and_migration_have_baseline_limit_null(

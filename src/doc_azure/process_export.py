@@ -68,6 +68,14 @@ class ProcessExportError(RuntimeError):
     """Raised when a process export cannot be validated or published safely."""
 
 
+class ProcessExportBaselineInvalid(ProcessExportError):
+    """Raised when a manifested predecessor baseline is present but unusable."""
+
+
+class ProcessExportPredecessorUnavailable(ProcessExportError):
+    """Raised when the predecessor source generation is absent from disk."""
+
+
 @dataclass(frozen=True)
 class ProcessExportResult:
     """Paths and identity for one successful process export."""
@@ -570,15 +578,20 @@ def _load_previous_model(
     try:
         provenance = _read_json(selected_export, "provenance.json")
         previous_current = _identity_from_provenance(provenance)
-        baseline_identity = previous_current
-        if previous_current == current_identity:
-            baseline_identity = _prior_identity_for_same_source(
-                selected_export,
-                previous_current,
-            )
+        if previous_current != current_identity:
+            return _load_model_for_identity(project_root, previous_current)
+        baseline_identity = _prior_identity_for_same_source(
+            selected_export,
+            previous_current,
+        )
         if baseline_identity is None:
             return None
-        return _load_model_for_identity(project_root, baseline_identity)
+        try:
+            return _load_model_for_identity(project_root, baseline_identity)
+        except ProcessExportPredecessorUnavailable:
+            # An absent prior generation degrades to SEM_BASELINE; one that is
+            # present but unreadable fails closed in the handler below.
+            return None
     except (
         SnapshotError,
         ProcessCollectionError,
@@ -586,7 +599,9 @@ def _load_previous_model(
         ValueError,
         TypeError,
     ) as error:
-        raise ProcessExportError(f"previous export baseline is invalid: {error}") from None
+        raise ProcessExportBaselineInvalid(
+            f"previous export baseline is invalid: {error}"
+        ) from None
 
 
 def _prior_identity_for_same_source(
@@ -629,13 +644,8 @@ def _load_model_for_identity(
         )
     ):
         raise ValueError("previous source generation is invalid")
-    source_root = (
-        project_root
-        / "out"
-        / "process"
-        / "snapshots"
-        / identity.source_generation
-    )
+    source_root = _source_generation_root(project_root, identity)
+    _require_source_generation(source_root)
     manifest = read_validated_process_manifest(source_root)
     _, digest = read_snapshot_manifest_with_sha256(source_root)
     if (
@@ -649,6 +659,25 @@ def _load_model_for_identity(
         source_collected_at=manifest.collected_at,
     )
     return model
+
+
+def _source_generation_root(project_root: Path, identity: SnapshotIdentity) -> Path:
+    return (
+        project_root
+        / "out"
+        / "process"
+        / "snapshots"
+        / identity.source_generation
+    )
+
+
+def _require_source_generation(source_root: Path) -> None:
+    """Fail typed when a baseline source generation is gone from disk."""
+
+    if not source_root.is_dir():
+        raise ProcessExportPredecessorUnavailable(
+            "historical export baseline source is unavailable"
+        )
 
 
 def _read_json(root: Path, path: str) -> dict[str, object]:
