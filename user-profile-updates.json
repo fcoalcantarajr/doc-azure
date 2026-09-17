@@ -1,0 +1,31 @@
+{
+  "analysis_timestamp": "2026-09-10",
+  "prompts_analyzed": 3,
+  "new_categories": [
+    {
+      "category": "model_routing_failure_recovery",
+      "description": "Subagent dispatch fails with model routing errors (e.g., unsupported model names like north-mini-code-free); orchestrator falls back to direct execution without escalation",
+      "evidence": ["Task 1/2: @fixer subagent failed with model routing error, orchestrator completed docs rewrite directly", "Task 2: Second @fixer subagent failed with same routing error, direct execution fallback confirmed"]
+    },
+    {
+      "category": "progressive_disclosure_documentation",
+      "description": "User approved documentation restructure using progressive disclosure layout across 6 files (README, quickstart, configuration, user-guide, troubleshooting, docs/README), no file deletions permitted",
+      "evidence": ["Memory: documentation_restructure_with_constraint (2x)", "Current prompt: progressive disclosure layout approved, 6 files, no deletions"]
+    },
+    {
+      "category": "subagent_delegation_failure_fallback",
+      "description": "When subagent delegation fails (model routing errors), orchestrator falls back to direct execution without escalating; completes the work itself",
+      "evidence": ["Both @fixer subagent tasks failed with model routing error", "Orchestrator completed rewrite directly: 6 files, found/fixed 3 BLOCKERs, 1 cosmetic issue"]
+    }
+  ],
+  "existing_categories_matched": [
+    "recursive_profile_analysis",
+    "schema_constrained_communication",
+    "structured_extraction_protocol",
+    "subagent_failure_fallback_tolerance",
+    "subagent_failure_fallback_execution",
+    "file_structure_preservation",
+    "verification_discipline",
+    "evidence_based_verification"
+  ]
+}
