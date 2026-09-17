@@ -118,6 +118,9 @@ class ProcessDelta:
             "schema_version": DELTA_SCHEMA_VERSION,
             "status": self.status,
             "baseline": self.baseline.as_dict() if self.baseline else None,
+            "baseline_limit": (
+                self.baseline.source_generation if self.baseline else None
+            ),
             "current": self.current.as_dict(),
             "summary": {**counts, "total": len(self.changes)},
             "changes": [change.as_dict() for change in self.changes],
@@ -178,7 +181,13 @@ def baseline_identity_from_delta(
     """Read the baseline identity from a previously generated delta."""
 
     if set(payload) != {
-        "schema_version", "status", "baseline", "current", "summary", "changes"
+        "schema_version",
+        "status",
+        "baseline",
+        "baseline_limit",
+        "current",
+        "summary",
+        "changes",
     } or payload.get("schema_version") != DELTA_SCHEMA_VERSION:
         raise ValueError("previous delta schema is invalid")
     current = _parse_identity(payload.get("current"))

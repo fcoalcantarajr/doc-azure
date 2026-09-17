@@ -107,6 +107,7 @@ def test_export_writes_bundle_summary_and_every_work_item_type(tmp_path: Path) -
         "schema_version": 1,
         "status": "SEM_BASELINE",
         "baseline": None,
+        "baseline_limit": None,
         "current": {
             "source_generation": result.source_generation,
             "source_manifest_sha256": manifest_hash(tmp_path / "out" / "process"),
