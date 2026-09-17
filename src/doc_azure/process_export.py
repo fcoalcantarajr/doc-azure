@@ -39,7 +39,9 @@ from doc_azure.process_export_delta_render import (
 )
 from doc_azure.snapshot import (
     SnapshotError,
+    SnapshotSelectionValidationError,
     SnapshotWriter,
+    StaleSnapshotWriterError,
     read_snapshot_artifact,
     read_snapshot_manifest_with_sha256,
     resolve_snapshot_root,
@@ -207,7 +209,7 @@ def export_process_for_llm(root: Path) -> ProcessExportResult:
         writer.commit_manifest(collected_at=source_manifest.collected_at, requests=())
     except BaseException as error:
         writer.abort()
-        if isinstance(error, SnapshotError) and "stale snapshot writer" in str(error):
+        if isinstance(error, StaleSnapshotWriterError):
             winner = _matching_current_export(
                 export_root, provenance, rendered_artifacts
             )
@@ -496,7 +498,7 @@ def _find_reusable_export(
             winner = _matching_current_export(root, provenance, expected_artifacts)
             if winner is not None:
                 return winner
-            if str(error) == "snapshot generation failed selection validation":
+            if isinstance(error, SnapshotSelectionValidationError):
                 raise ProcessExportError(
                     "historical export changed during locked validation"
                 ) from None
