@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import re
+from html import escape
+import unicodedata
 
 from doc_azure.process_export_delta import (
     ChangeKind,
@@ -44,7 +46,7 @@ def render_delta_markdown(delta: ProcessDelta) -> str:
             (
                 "- Baseline: `(ausente)`",
                 "",
-                "Nenhuma exportação anterior estava disponível para comparação.",
+                "Nenhum baseline comparável estava disponível para este delta.",
             )
         )
         return "\n".join(lines).rstrip() + "\n"
@@ -122,7 +124,8 @@ def _scope_label(scope: tuple[tuple[str, str], ...]) -> str:
         return "processo"
     if values["kind"] == "global_behaviors":
         return "behaviors globais"
-    return f"{values['reference_name']} / {values['family']}"
+    reference_name = json.dumps(values["reference_name"], ensure_ascii=False)[1:-1]
+    return f"{_code(escape(reference_name))} / {values['family']}"
 
 
 def _evidence_line(label: str, evidence: EvidenceLocation | None) -> str:
@@ -146,6 +149,12 @@ def _json_block(value: object) -> str:
 
 
 def _code(value: str) -> str:
+    value = "".join(
+        f"\\u{ord(character):04x}"
+        if unicodedata.category(character) == "Cc"
+        else character
+        for character in value
+    )
     longest = max(
         (len(match.group()) for match in re.finditer(r"`+", value)),
         default=0,

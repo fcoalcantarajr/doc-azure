@@ -50,9 +50,9 @@ troca concorrente de `CURRENT`. Ambos retornam código `1`, preservam a geraçã
 anterior e têm recuperação detalhada no
 [guia operacional](../guides/export-process-for-llm.md#falhas).
 
-`a fonte da exportação anterior está ausente ou inválida` significa que o
-exportador não conseguiu provar o baseline exigido pelo delta. Ele não escolhe
-automaticamente outra geração por horário ou nome; restaure a fonte registrada
-antes de repetir.
+`o baseline da exportação anterior está ausente ou inválido` significa que o
+exportador não conseguiu provar a procedência ou o delta anterior exigido. Ele
+não escolhe automaticamente outra geração por horário ou nome; verifique a
+exportação selecionada e sua fonte antes de repetir.
 
 `--refresh` pertence à coleta. Ele cria uma geração imutável nova e não apaga cache, não recria evidência histórica e não corrige automaticamente relatórios ou recibos.

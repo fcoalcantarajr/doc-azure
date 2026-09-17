@@ -1004,3 +1004,34 @@ GREEN receipt after implementation and hardening:
   `e81ed5b44ec7889e3092555a35ec5271bab468a59b21a4e9a06a4d1411ae0604`
   and manifest SHA-256
   `520ff45f2e35b3d3d7400cd842665e14b51c5ebb955f648bbe7b0b55e4128246`.
+
+Adversarial review correction: the migration smoke above described the initial
+implementation, not the final semantics. Treating a pre-delta export as a
+self-comparison fabricated a baseline and made `SEM_ALTERACOES` overstate the
+evidence. Migration now yields `SEM_BASELINE`, with no comparable predecessor;
+the next identical run reuses that result byte for byte. A manifested but
+malformed `delta.json` fails closed rather than entering the migration path.
+The Markdown scope heading and source pointers now escape active markup and
+control characters while the structured JSON retains exact values.
+
+Review-driven RED receipts: a malformed, manifested prior `delta.json` was
+accepted (`1 failed in 0.56s`); changing the migration assertion to
+`SEM_BASELINE` failed (`1 failed in 0.20s`); an unescaped WIT name in a heading
+failed (`1 failed in 0.11s`); and a control character in a pointer created a
+false Markdown heading (`1 failed in 0.17s`). Each received a focused GREEN
+result after its production correction. The full-suite and gate receipts are
+recorded after the final review round.
+
+## ADR-001-salvage (attempt 001)
+
+The prior session ended with uncommitted work whose hunks interleaved several
+findings (B2, B3, B4, N9) in the same files, so per-finding atomic commits were
+not recoverable without rewriting history that already carried RED receipts.
+This salvage commit preserves that work as-is in one commit
+(`chore: salvage prior uncommitted work (attempt 001)`). The known RED state at
+salvage time was `4 failed, 430 passed in 6.69s`; after applying the preserved
+B2 rendering source and test hunks it is `4 failed, 432 passed in 6.42s`. The
+four remaining RED tests (baseline-invalid and predecessor semantics for B2,
+B3, B4 and the N9 baseline-limit assertion) await their production
+implementation, which is preserved in `.opencode/salvage/n3-wip.patch` for the
+next lane. Atomic per-finding commits resume after this salvage commit.

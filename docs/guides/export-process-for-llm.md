@@ -65,10 +65,11 @@ out/process-llm/
         └── <referenceName>.md
 ```
 
-Se a fonte atual e o baseline do delta forem os mesmos, o comando reutiliza a
-exportação existente byte a byte. Se ela já for a atual, `CURRENT` não muda; se
-estiver no histórico, somente o ponteiro volta a selecioná-la. Quando a origem
-ou o baseline muda, uma geração nova é publicada e as anteriores são preservadas.
+Se já existir uma geração com a mesma fonte, o mesmo baseline e os mesmos
+arquivos, o comando a reutiliza byte a byte. Se ela já for a atual, `CURRENT`
+não muda; se estiver no histórico, somente o ponteiro volta a selecioná-la.
+Quando a origem ou o baseline muda, uma geração nova é publicada e as anteriores
+são preservadas.
 
 ## Como o baseline do delta é escolhido
 
@@ -77,8 +78,8 @@ O baseline é a fonte registrada pela exportação completa selecionada em
 descobrir uma ordem cronológica pelos nomes UUID das pastas nem por horários
 mutáveis do sistema de arquivos.
 
-- `SEM_BASELINE`: não existia exportação anterior; o snapshot atual continua
-  completo, mas não há comparação.
+- `SEM_BASELINE`: não há baseline comparável (primeira exportação ou migração de
+  uma exportação antiga sem delta); o snapshot atual continua completo.
 - `SEM_ALTERACOES`: existe baseline e nenhuma diferença semântica foi observada.
 - `COM_ALTERACOES`: `delta.md` e `delta.json` enumeram adições, remoções e
   alterações.
@@ -88,6 +89,16 @@ comparação da fonte consigo mesma: a geração e os bytes são reutilizados. S
 processo voltar a uma configuração antiga, a exportação histórica não é
 reutilizada quando seu baseline for diferente; uma nova geração registra o
 caminho de volta.
+
+Exceção na primeira execução após atualizar uma instalação que já tinha uma
+exportação sem `delta.json`: essa geração antiga não registrava comparação.
+Para iniciar a cadeia de deltas sem inventar um predecessor, o comando publica
+ou reseleciona uma geração com status `SEM_BASELINE`, baseline ausente e zero
+mudanças listadas. Isso não afirma que o processo nunca mudou; significa que
+não havia um delta anterior verificável. Da execução seguinte em diante,
+repetir a fonte reutiliza essa geração.
+Se `delta.json` estiver registrado no manifesto, mas inválido, o comando falha
+em vez de tratar corrupção como migração.
 
 ## Qual arquivo enviar
 
@@ -162,9 +173,11 @@ Em falha, o comando retorna código `1`, imprime
   [recuperação documentada](../troubleshooting.md#llm_export_failed-).
 - `o snapshot do processo está ausente, incompleto ou inválido`: não edite a
   evidência; faça uma coleta nova ou restaure a geração íntegra.
-- `a fonte da exportação anterior está ausente ou inválida`: preserve as duas
-  árvores de snapshots e restaure a geração de processo identificada pela
-  exportação anterior; não escolha outra por data ou UUID.
+- `o baseline da exportação anterior está ausente ou inválido`: preserve as
+  duas árvores de snapshots. Verifique o manifesto, `provenance.json` e
+  `delta.json` da geração selecionada em `out/process-llm/CURRENT`, além da
+  geração de processo que eles identificam. Restaure somente evidência íntegra
+  por canal privado aprovado; não escolha outra geração por data ou UUID.
 - `não foi possível publicar a exportação local com segurança`: confira espaço,
   permissões e se algum componente de `out/process-llm` virou link simbólico ou
   arquivo comum.
