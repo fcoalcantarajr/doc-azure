@@ -76,13 +76,22 @@ artifact read, builds one immutable semantic model, and renders both
 `bundle.md` and the per-WIT documents from that same model. It never imports the
 Wiki, delta evaluator, Notion code, or an LLM client.
 
+The selected export is also the explicit predecessor boundary. Its source
+identity loads a second immutable semantic model, and the exporter derives
+`delta.md` plus a closed `delta.json` from the two models. If the current source
+already equals the selected export source, the prior baseline recorded in that
+generation is retained so retries remain byte-stable. UUID names and filesystem
+timestamps are never used to infer chronology. A concurrent change to the
+selected export aborts the operation before reuse or publication.
+
 The export removes only exact transport properties named `url` and redundant
 validated `count/value` envelopes. It preserves array order, explicit `order`
 values, scalar distinctions, and unknown API extensions under
 `additional_properties`. `SnapshotWriter` publishes the derived files and their
 hashes atomically under `out/process-llm`; provenance binds the result to the
 source generation and exact source-manifest hash. Reuse requires both values to
-match. This representation is descriptive evidence, not proof of institutional
+match together with the delta baseline and rendered bytes. This representation
+is descriptive evidence, not proof of institutional
 intent, governance, actual use, or configuration correctness.
 
 ## Handoff checklist

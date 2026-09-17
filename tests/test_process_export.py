@@ -69,6 +69,8 @@ def test_export_writes_bundle_summary_and_every_work_item_type(tmp_path: Path) -
     result = export_process_for_llm(tmp_path)
 
     assert result.bundle_path.is_file()
+    assert result.delta_markdown_path.is_file()
+    assert result.delta_json_path.is_file()
     assert result.work_item_types_root.is_dir()
     assert sorted(path.name for path in result.work_item_types_root.iterdir()) == [
         f"{USER_STORY_REFERENCE}.md",
@@ -92,11 +94,30 @@ def test_export_writes_bundle_summary_and_every_work_item_type(tmp_path: Path) -
     assert {artifact["path"] for artifact in manifest["artifacts"]} == {
         "README.md",
         "bundle.md",
+        "delta.json",
+        "delta.md",
         "process-summary.md",
         "provenance.json",
         f"work-item-types/{EPIC_REFERENCE}.md",
         f"work-item-types/{USER_STORY_REFERENCE}.md",
     }
+
+    delta = json.loads(result.delta_json_path.read_text())
+    assert delta == {
+        "schema_version": 1,
+        "status": "SEM_BASELINE",
+        "baseline": None,
+        "baseline_limit": None,
+        "current": {
+            "source_generation": result.source_generation,
+            "source_manifest_sha256": manifest_hash(tmp_path / "out" / "process"),
+            "source_collected_at": COLLECTED_AT.isoformat(),
+        },
+        "summary": {"added": 0, "removed": 0, "changed": 0, "total": 0},
+        "changes": [],
+    }
+    assert "SEM_BASELINE" in result.delta_markdown_path.read_text()
+    assert "## Delta desde a exportação anterior" in result.bundle_path.read_text()
 
 
 def test_export_covers_all_families_and_traceability(tmp_path: Path) -> None:
@@ -259,7 +280,556 @@ def test_changed_source_creates_and_retains_a_new_generation(tmp_path: Path) -> 
     assert "nova descrição" in second.bundle_path.read_text()
 
 
-def test_returning_to_historical_source_reselects_original_export(tmp_path: Path) -> None:
+def test_changed_process_reports_exact_previous_and_current_evidence(
+    tmp_path: Path,
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    first_source = publish_source(tmp_path)
+    first = export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    previous_default = process["isDefault"]
+    process["isDefault"] = False
+    second_source = publish_source(tmp_path, mutation=("process.json", process))
+
+    second = export_process_for_llm(tmp_path)
+
+    delta = json.loads(second.delta_json_path.read_text())
+    assert delta["status"] == "COM_ALTERACOES"
+    assert delta["baseline"] == {
+        "source_generation": first_source.name,
+        "source_manifest_sha256": manifest_hash(first_source),
+        "source_collected_at": COLLECTED_AT.isoformat(),
+    }
+    assert delta["current"]["source_generation"] == second_source.name
+    assert delta["summary"] == {
+        "added": 0,
+        "removed": 0,
+        "changed": 1,
+        "total": 1,
+    }
+    assert delta["changes"] == [
+        {
+            "kind": "changed",
+            "scope": {"kind": "process"},
+            "path": "/isDefault",
+            "before": {"present": True, "value": previous_default},
+            "after": {"present": True, "value": False},
+            "before_evidence": {
+                "source_generation": first_source.name,
+                "artifact_path": "process.json",
+                "json_pointer": "/isDefault",
+            },
+            "after_evidence": {
+                "source_generation": second_source.name,
+                "artifact_path": "process.json",
+                "json_pointer": "/isDefault",
+            },
+        }
+    ]
+    markdown = second.delta_markdown_path.read_text()
+    assert "true" in markdown
+    assert "false" in markdown
+    assert "process.json" in markdown
+    assert "`/isDefault`" in markdown
+    assert first.generation_root.is_dir()
+
+
+def test_new_source_with_identical_semantics_reports_no_changes_and_reuses(
+    tmp_path: Path,
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    first_source = publish_source(tmp_path)
+    first = export_process_for_llm(tmp_path)
+    second_source = publish_source(tmp_path)
+
+    second = export_process_for_llm(tmp_path)
+    before = {
+        path.relative_to(second.generation_root): path.read_bytes()
+        for path in second.generation_root.rglob("*")
+        if path.is_file()
+    }
+    repeated = export_process_for_llm(tmp_path)
+
+    delta = json.loads(second.delta_json_path.read_text())
+    assert delta["status"] == "SEM_ALTERACOES"
+    assert delta["baseline"]["source_generation"] == first_source.name
+    assert delta["current"]["source_generation"] == second_source.name
+    assert delta["summary"] == {
+        "added": 0,
+        "removed": 0,
+        "changed": 0,
+        "total": 0,
+    }
+    assert delta["changes"] == []
+    assert second.generation_root != first.generation_root
+    assert repeated.reused is True
+    assert repeated.generation_root == second.generation_root
+    assert {
+        path.relative_to(repeated.generation_root): path.read_bytes()
+        for path in repeated.generation_root.rglob("*")
+        if path.is_file()
+    } == before
+
+
+def test_existing_export_without_delta_is_migrated_with_same_source_baseline(
+    tmp_path: Path,
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    source = publish_source(tmp_path)
+    generated = export_process_for_llm(tmp_path)
+    export_root = tmp_path / "out" / "process-llm"
+    legacy = SnapshotWriter(export_root)
+    for path in generated.generation_root.rglob("*"):
+        if not path.is_file() or path.name == "manifest.json":
+            continue
+        relative = path.relative_to(generated.generation_root).as_posix()
+        if relative in {"delta.md", "delta.json"}:
+            continue
+        legacy.write_text(relative, path.read_text())
+    legacy.commit_manifest(collected_at=COLLECTED_AT, requests=())
+    legacy_root = resolve_snapshot_root(export_root)
+    generated.generation_root.rename(tmp_path / "earlier-delta-export")
+
+    migrated = export_process_for_llm(tmp_path)
+
+    delta = json.loads(migrated.delta_json_path.read_text())
+    assert migrated.reused is False
+    assert migrated.generation_root != legacy_root
+    assert delta["status"] == "SEM_BASELINE"
+    assert delta["baseline"] is None
+    assert delta["current"]["source_generation"] == source.name
+    assert delta["changes"] == []
+
+    repeated = export_process_for_llm(tmp_path)
+    assert repeated.reused is True
+    assert repeated.generation_root == migrated.generation_root
+
+
+def test_missing_previous_source_succeeds_with_sem_baseline(
+    tmp_path: Path,
+) -> None:
+    """B4: missing predecessor source does not fail-closes."""
+    from doc_azure.process_export import ProcessExportBaselineInvalid, ProcessExportPredecessorUnavailable, export_process_for_llm
+
+    first_source = publish_source(tmp_path)
+    first_export = export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process["description"] = "fonte B"
+    second_source = publish_source(tmp_path, mutation=("process.json", process))
+    second_export = export_process_for_llm(tmp_path)
+    # Rename the predecessor source to make it disappear.
+    first_source.rename(tmp_path / "earlier-source")
+    try:
+        third_export = export_process_for_llm(tmp_path)
+    except (
+        ProcessExportBaselineInvalid,
+        ProcessExportPredecessorUnavailable,
+    ) as error:
+        pytest.fail(f"an absent predecessor must degrade to SEM_BASELINE: {error}")
+
+    delta = json.loads(third_export.delta_json_path.read_text())
+    assert third_export.reused is False
+    assert third_export.generation_root != first_export.generation_root
+    assert resolve_snapshot_root(tmp_path / "out" / "process-llm") == third_export.generation_root
+    # Prior generation still complete on disk.
+    assert (tmp_path / "out" / "process-llm" / "snapshots" / first_export.generation_root.name / "manifest.json").is_file()
+    assert delta["status"] == "SEM_BASELINE"
+    assert delta["baseline"] is None
+    assert delta.get("baseline_limit") is None
+    assert "predecessor_unavailable" not in str(delta)
+
+
+def test_invalid_manifested_previous_delta_raises_baseline_invalid(
+    tmp_path: Path,
+) -> None:
+    """B1/B3: manifested unreadable delta.json raises ProcessExportBaselineInvalid."""
+    from doc_azure.process_export import ProcessExportBaselineInvalid, export_process_for_llm
+
+    publish_source(tmp_path)
+    generated = export_process_for_llm(tmp_path)
+    export_root = tmp_path / "out" / "process-llm"
+    malformed = SnapshotWriter(export_root)
+    for path in generated.generation_root.rglob("*"):
+        if not path.is_file() or path.name == "manifest.json":
+            continue
+        relative = path.relative_to(generated.generation_root).as_posix()
+        content = "{invalid json\n" if relative == "delta.json" else path.read_text()
+        malformed.write_text(relative, content)
+    malformed.commit_manifest(collected_at=COLLECTED_AT, requests=())
+    selected = resolve_snapshot_root(export_root)
+
+    with pytest.raises(ProcessExportBaselineInvalid, match="previous export baseline is invalid"):
+        export_process_for_llm(tmp_path)
+
+    assert resolve_snapshot_root(export_root) == selected
+
+
+def test_incomplete_predecessor_is_baseline_invalid_not_unavailable(
+    tmp_path: Path,
+) -> None:
+    """B3: incomplete predecessor artifact raises ProcessExportBaselineInvalid, not PredecessorUnavailable."""
+    from doc_azure.process_export import ProcessExportBaselineInvalid, ProcessExportPredecessorUnavailable, export_process_for_llm
+
+    first_source = publish_source(tmp_path)
+    export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process["description"] = "fonte B"
+    publish_source(tmp_path, mutation=("process.json", process))
+    second_export = export_process_for_llm(tmp_path)
+    export_root = tmp_path / "out" / "process-llm"
+    # The predecessor generation stays on disk, but one artifact is gone.
+    (first_source / "behaviors.json").unlink()
+
+    with pytest.raises(ProcessExportBaselineInvalid) as raised:
+        export_process_for_llm(tmp_path)
+
+    assert not isinstance(raised.value, ProcessExportPredecessorUnavailable)
+    assert first_source.is_dir()
+    # No new generation was written and CURRENT still points at the last one.
+    generations = list((export_root / "snapshots").iterdir())
+    assert len(generations) == 2
+    assert resolve_snapshot_root(export_root) == second_export.generation_root
+
+
+def test_first_export_and_migration_have_baseline_limit_null(
+    tmp_path: Path,
+) -> None:
+    """N9: first export and migration assert baseline_limit is null."""
+    from doc_azure.process_export import export_process_for_llm
+
+    # First export.
+    publish_source(tmp_path)
+    result = export_process_for_llm(tmp_path)
+    delta = json.loads(result.delta_json_path.read_text())
+    assert "baseline_limit" in delta
+    assert delta["baseline_limit"] is None
+
+    # Migration: legacy export without delta.json.
+    source = publish_source(tmp_path)
+    generated = export_process_for_llm(tmp_path)
+    export_root = tmp_path / "out" / "process-llm"
+    legacy = SnapshotWriter(export_root)
+    for path in generated.generation_root.rglob("*"):
+        if not path.is_file() or path.name == "manifest.json":
+            continue
+        relative = path.relative_to(generated.generation_root).as_posix()
+        if relative in {"delta.md", "delta.json"}:
+            continue
+        legacy.write_text(relative, path.read_text())
+    legacy.commit_manifest(collected_at=COLLECTED_AT, requests=())
+    generated.generation_root.rename(tmp_path / "earlier-delta-export")
+
+    migrated = export_process_for_llm(tmp_path)
+    delta = json.loads(migrated.delta_json_path.read_text())
+    assert delta["status"] == "SEM_BASELINE"
+    assert delta["baseline"] is None
+    assert delta["baseline_limit"] is None
+
+
+@pytest.mark.parametrize(
+    ("family", "artifact_suffix", "payload_path", "expected_pointer"),
+    (
+        ("fields", "fields.json", ("value", 0, "name"), "/value/0/name"),
+        ("states", "states.json", ("value", 0, "name"), "/value/0/name"),
+        ("rules", "rules.json", ("value", 0, "name"), "/value/0/name"),
+        (
+            "layout",
+            "layout.json",
+            ("layout", "pages", 0, "label"),
+            "/layout/pages/0/label",
+        ),
+        (
+            "behaviors",
+            "behaviors.json",
+            ("value", 0, "isDefault"),
+            "/value/0/isDefault",
+        ),
+    ),
+)
+def test_delta_covers_each_work_item_type_family_with_source_pointer(
+    tmp_path: Path,
+    family: str,
+    artifact_suffix: str,
+    payload_path: tuple[object, ...],
+    expected_pointer: str,
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    publish_source(tmp_path)
+    export_process_for_llm(tmp_path)
+    artifact_path = f"workitemtypes/{EPIC_REFERENCE}/{artifact_suffix}"
+    payload = expected_artifacts()[artifact_path]
+    target: object = payload
+    for segment in payload_path[:-1]:
+        target = target[segment]  # type: ignore[index]
+    final = payload_path[-1]
+    before = target[final]  # type: ignore[index]
+    after: object = not before if isinstance(before, bool) else f"{before} alterado"
+    target[final] = after  # type: ignore[index]
+    current_source = publish_source(tmp_path, mutation=(artifact_path, payload))
+
+    result = export_process_for_llm(tmp_path)
+
+    delta = json.loads(result.delta_json_path.read_text())
+    assert delta["summary"]["total"] == 1
+    change = delta["changes"][0]
+    assert change["kind"] == "changed"
+    assert change["scope"] == {
+        "kind": "work_item_type",
+        "reference_name": EPIC_REFERENCE,
+        "family": family,
+    }
+    assert change["before"] == {"present": True, "value": before}
+    assert change["after"] == {"present": True, "value": after}
+    assert change["before_evidence"]["artifact_path"] == artifact_path
+    assert change["before_evidence"]["json_pointer"] == expected_pointer
+    assert change["after_evidence"] == {
+        "source_generation": current_source.name,
+        "artifact_path": artifact_path,
+        "json_pointer": expected_pointer,
+    }
+
+
+def test_delta_preserves_added_removed_and_distinct_json_values(
+    tmp_path: Path,
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    publish_source(tmp_path)
+    export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process.update(
+        {
+            "addedNull": None,
+            "addedFalse": False,
+            "addedZero": 0,
+            "addedEmpty": "",
+            "url": "https://transport.invalid/ignored",
+        }
+    )
+    added_source = publish_source(tmp_path, mutation=("process.json", process))
+
+    added = export_process_for_llm(tmp_path)
+
+    added_delta = json.loads(added.delta_json_path.read_text())
+    assert added_delta["summary"] == {
+        "added": 4,
+        "removed": 0,
+        "changed": 0,
+        "total": 4,
+    }
+    assert {
+        change["path"]: change["after"] for change in added_delta["changes"]
+    } == {
+        "/addedNull": {"present": True, "value": None},
+        "/addedFalse": {"present": True, "value": False},
+        "/addedZero": {"present": True, "value": 0},
+        "/addedEmpty": {"present": True, "value": ""},
+    }
+    assert all(change["before"] == {"present": False} for change in added_delta["changes"])
+    assert all(change["before_evidence"] is None for change in added_delta["changes"])
+    assert all(
+        change["after_evidence"]["source_generation"] == added_source.name
+        for change in added_delta["changes"]
+    )
+    assert "transport.invalid" not in added.delta_markdown_path.read_text()
+
+    removed_source = publish_source(tmp_path)
+    removed = export_process_for_llm(tmp_path)
+
+    removed_delta = json.loads(removed.delta_json_path.read_text())
+    assert removed_delta["summary"] == {
+        "added": 0,
+        "removed": 4,
+        "changed": 0,
+        "total": 4,
+    }
+    assert all(change["after"] == {"present": False} for change in removed_delta["changes"])
+    assert all(change["after_evidence"] is None for change in removed_delta["changes"])
+    assert all(
+        change["before_evidence"]["source_generation"] == added_source.name
+        for change in removed_delta["changes"]
+    )
+    assert removed_delta["current"]["source_generation"] == removed_source.name
+
+
+def test_delta_escapes_markdown_code_and_json_pointer_segments(tmp_path: Path) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    publish_source(tmp_path)
+    export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process["tick`|/tilde~"] = "linha 1\n```\nlinha 2"
+    publish_source(tmp_path, mutation=("process.json", process))
+
+    result = export_process_for_llm(tmp_path)
+
+    delta = json.loads(result.delta_json_path.read_text())
+    assert delta["changes"][0]["path"] == "/tick`|~1tilde~0"
+    assert delta["changes"][0]["after_evidence"]["json_pointer"] == (
+        "/tick`|~1tilde~0"
+    )
+    markdown = result.delta_markdown_path.read_text()
+    assert "Caminho relativo: ``/tick`|~1tilde~0``" in markdown
+    assert "JSON Pointer ``/tick`|~1tilde~0``" in markdown
+    assert "````json\n" in markdown
+
+
+def test_delta_heading_escapes_work_item_reference_name() -> None:
+    from doc_azure.process_export_delta import (
+        DeltaChange,
+        ProcessDelta,
+        SnapshotIdentity,
+    )
+    from doc_azure.process_export_delta_render import render_delta_markdown
+
+    identity = SnapshotIdentity("a" * 32, "b" * 64, COLLECTED_AT.isoformat())
+    delta = ProcessDelta(
+        identity,
+        identity,
+        (
+            DeltaChange(
+                "changed",
+                (
+                    ("kind", "work_item_type"),
+                    ("reference_name", "Custom.<img>|*`\n## false heading"),
+                    ("family", "fields"),
+                ),
+                "/0/name",
+                "before",
+                "after",
+                None,
+                None,
+            ),
+        ),
+    )
+
+    markdown = render_delta_markdown(delta)
+
+    assert "<img>" not in markdown
+    assert "\n## false heading" not in markdown
+    assert "Custom.&lt;img&gt;|*`\\n## false heading" in markdown
+
+
+def test_delta_pointer_control_character_cannot_create_false_heading(
+    tmp_path: Path,
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    publish_source(tmp_path)
+    export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process["line\n## forged"] = "value"
+    publish_source(tmp_path, mutation=("process.json", process))
+
+    result = export_process_for_llm(tmp_path)
+    markdown = result.delta_markdown_path.read_text()
+
+    assert "\n## forged" not in markdown
+    assert "line\\u000a## forged" in markdown
+    assert json.loads(result.delta_json_path.read_text())["changes"][0]["path"] == (
+        "/line\n## forged"
+    )
+
+
+def test_delta_reports_removed_array_entry_as_one_exact_value(tmp_path: Path) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    publish_source(tmp_path)
+    export_process_for_llm(tmp_path)
+    artifact_path = f"workitemtypes/{EPIC_REFERENCE}/fields.json"
+    fields = expected_artifacts()[artifact_path]
+    removed_field = fields["value"].pop()  # type: ignore[union-attr]
+    fields["count"] = 1
+    publish_source(tmp_path, mutation=(artifact_path, fields))
+
+    result = export_process_for_llm(tmp_path)
+
+    delta = json.loads(result.delta_json_path.read_text())
+    assert delta["summary"] == {
+        "added": 0,
+        "removed": 1,
+        "changed": 0,
+        "total": 1,
+    }
+    assert delta["changes"][0]["path"] == "/1"
+    assert delta["changes"][0]["before"] == {
+        "present": True,
+        "value": removed_field,
+    }
+    assert delta["changes"][0]["after"] == {"present": False}
+    assert delta["changes"][0]["before_evidence"]["json_pointer"] == "/value/1"
+
+
+@pytest.mark.parametrize(
+    ("artifact_path", "scope", "expected_pointer"),
+    (
+        (
+            "behaviors.json",
+            {"kind": "global_behaviors"},
+            "/value/0/name",
+        ),
+        (
+            "workitemtypes.json",
+            {
+                "kind": "work_item_type",
+                "reference_name": EPIC_REFERENCE,
+                "family": "metadata",
+            },
+            "/value/0/description",
+        ),
+    ),
+)
+def test_delta_covers_global_behaviors_and_work_item_metadata(
+    tmp_path: Path,
+    artifact_path: str,
+    scope: dict[str, str],
+    expected_pointer: str,
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    publish_source(tmp_path)
+    export_process_for_llm(tmp_path)
+    payload = expected_artifacts()[artifact_path]
+    key = "name" if artifact_path == "behaviors.json" else "description"
+    payload["value"][0][key] = "valor alterado"  # type: ignore[index]
+    publish_source(tmp_path, mutation=(artifact_path, payload))
+
+    result = export_process_for_llm(tmp_path)
+
+    delta = json.loads(result.delta_json_path.read_text())
+    assert delta["summary"]["total"] == 1
+    assert delta["changes"][0]["scope"] == scope
+    assert delta["changes"][0]["after_evidence"]["artifact_path"] == artifact_path
+    assert delta["changes"][0]["after_evidence"]["json_pointer"] == expected_pointer
+
+
+def test_missing_previous_source_fails_without_replacing_current_export(
+    tmp_path: Path,
+) -> None:
+    from doc_azure.process_export import ProcessExportError, export_process_for_llm
+
+    first_source = publish_source(tmp_path)
+    first_export = export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process["description"] = "fonte seguinte"
+    publish_source(tmp_path, mutation=("process.json", process))
+    first_source.rename(tmp_path / "preserved-missing-source")
+
+    with pytest.raises(ProcessExportError, match="previous export baseline is invalid"):
+        export_process_for_llm(tmp_path)
+
+    assert resolve_snapshot_root(tmp_path / "out" / "process-llm") == (
+        first_export.generation_root
+    )
+
+
+def test_returning_to_historical_source_creates_delta_from_last_export(
+    tmp_path: Path,
+) -> None:
     from doc_azure.process_export import export_process_for_llm
 
     first_source = publish_source(tmp_path)
@@ -274,12 +844,18 @@ def test_returning_to_historical_source_reselects_original_export(tmp_path: Path
         expected_generation=second_source.name,
     )
 
-    reused = export_process_for_llm(tmp_path)
+    returned = export_process_for_llm(tmp_path)
 
-    assert reused.reused is True
-    assert reused.generation_root == first_export.generation_root
-    assert reused.generation_root != second_export.generation_root
-    assert len(list((tmp_path / "out" / "process-llm" / "snapshots").iterdir())) == 2
+    delta = json.loads(returned.delta_json_path.read_text())
+    assert returned.reused is False
+    assert returned.generation_root not in {
+        first_export.generation_root,
+        second_export.generation_root,
+    }
+    assert delta["baseline"]["source_generation"] == second_source.name
+    assert delta["current"]["source_generation"] == first_source.name
+    assert delta["status"] == "COM_ALTERACOES"
+    assert len(list((tmp_path / "out" / "process-llm" / "snapshots").iterdir())) == 3
 
 
 def test_historical_reuse_revalidates_candidate_under_selection_lock(
@@ -297,6 +873,12 @@ def test_historical_reuse_revalidates_candidate_under_selection_lock(
         tmp_path / "out" / "process",
         first_source.name,
         expected_generation=second_source.name,
+    )
+    third_export = process_export.export_process_for_llm(tmp_path)
+    select_snapshot_generation(
+        tmp_path / "out" / "process",
+        second_source.name,
+        expected_generation=first_source.name,
     )
     real_select = select_snapshot_generation
 
@@ -333,9 +915,9 @@ def test_historical_reuse_revalidates_candidate_under_selection_lock(
         process_export.export_process_for_llm(tmp_path)
 
     assert resolve_snapshot_root(tmp_path / "out" / "process-llm") == (
-        second_export.generation_root
+        third_export.generation_root
     )
-    assert first_export.bundle_path.read_text() == "forged\n"
+    assert second_export.bundle_path.read_text() == "forged\n"
 
 
 def test_historical_reuse_reports_concurrent_current_switch(
@@ -353,6 +935,12 @@ def test_historical_reuse_reports_concurrent_current_switch(
         tmp_path / "out" / "process",
         first_source.name,
         expected_generation=second_source.name,
+    )
+    process_export.export_process_for_llm(tmp_path)
+    select_snapshot_generation(
+        tmp_path / "out" / "process",
+        second_source.name,
+        expected_generation=first_source.name,
     )
 
     def stale_selector(*args: object, **kwargs: object) -> Path:
@@ -451,6 +1039,53 @@ def test_current_switch_during_read_cannot_mix_source_generations(
         "source_generation"
     ] == first_source.name
     assert "segunda geração" not in result.bundle_path.read_text()
+
+
+def test_previous_export_switch_during_read_cannot_publish_stale_delta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import doc_azure.process_export as process_export
+
+    publish_source(tmp_path)
+    first_export = process_export.export_process_for_llm(tmp_path)
+    process_b = expected_artifacts()["process.json"]
+    process_b["description"] = "fonte B"
+    publish_source(tmp_path, mutation=("process.json", process_b))
+    second_export = process_export.export_process_for_llm(tmp_path)
+    process_c = expected_artifacts()["process.json"]
+    process_c["description"] = "fonte C"
+    publish_source(tmp_path, mutation=("process.json", process_c))
+    third_export = process_export.export_process_for_llm(tmp_path)
+    export_root = tmp_path / "out" / "process-llm"
+    select_snapshot_generation(
+        export_root,
+        second_export.generation_root.name,
+        expected_generation=third_export.generation_root.name,
+    )
+    original = process_export.read_snapshot_artifact
+    switched = False
+
+    def switching_read(root: Path, path: str) -> bytes:
+        nonlocal switched
+        payload = original(root, path)
+        if not switched and root == second_export.generation_root:
+            switched = True
+            select_snapshot_generation(
+                export_root,
+                first_export.generation_root.name,
+                expected_generation=second_export.generation_root.name,
+            )
+        return payload
+
+    monkeypatch.setattr(process_export, "read_snapshot_artifact", switching_read)
+
+    with pytest.raises(
+        process_export.ProcessExportError,
+        match="concurrent export published a different process source",
+    ):
+        process_export.export_process_for_llm(tmp_path)
+
+    assert resolve_snapshot_root(export_root) == first_export.generation_root
 
 
 @pytest.mark.parametrize(
@@ -574,6 +1209,8 @@ def test_cli_offline_never_loads_credentials_and_prints_contract(
     output = capsys.readouterr().out
     assert output.startswith("LLM_EXPORT_OK\n")
     assert str((tmp_path / "out" / "process-llm").resolve()) in output
+    assert "/delta.md\n" in output
+    assert "/delta.json\n" in output
 
 
 def test_cli_failure_is_sanitized(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -631,6 +1268,26 @@ def test_cli_names_historical_revalidation_failure(
     assert capsys.readouterr().err == (
         "LLM_EXPORT_FAILED: uma geração histórica mudou durante a validação; "
         "repita o comando\n"
+    )
+
+
+def test_cli_names_invalid_previous_export_baseline_without_leaking_details(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    script = load_script()
+
+    def fail_export(root: Path) -> object:
+        raise script.ProcessExportError(
+            "previous export baseline is invalid: /private/path sensitive-detail"
+        )
+
+    monkeypatch.setattr(script, "export_process_for_llm", fail_export)
+
+    assert script.main([], project_root=tmp_path) == 1
+    assert capsys.readouterr().err == (
+        "LLM_EXPORT_FAILED: o baseline da exportação anterior está ausente ou inválido\n"
     )
 
 

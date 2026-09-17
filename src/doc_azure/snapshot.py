@@ -25,6 +25,14 @@ class SnapshotError(RuntimeError):
     """Raised when a snapshot cannot be staged, resolved, or published safely."""
 
 
+class StaleSnapshotWriterError(SnapshotError):
+    """Raised when a stale writer cannot replace the current generation."""
+
+
+class SnapshotSelectionValidationError(SnapshotError):
+    """Raised when a generation fails validation under the selection lock."""
+
+
 @dataclass(frozen=True)
 class SnapshotArtifact:
     """The relative path and content identity of one staged artifact."""
@@ -135,7 +143,9 @@ class SnapshotWriter:
 
         with _snapshot_lock(self._root):
             if _publication_token(self._root) != self._expected_publication:
-                raise SnapshotError("stale snapshot writer cannot replace current generation")
+                raise StaleSnapshotWriterError(
+                    "stale snapshot writer cannot replace current generation"
+                )
             artifacts = _enumerate_registered_artifacts(
                 self._staging, self._registered_paths
             )
@@ -292,7 +302,9 @@ def select_snapshot_generation(
         _require_real_directory(target, "CURRENT target")
         _validate_complete_snapshot(target, legacy=False)
         if validator is not None and not validator(target):
-            raise SnapshotError("snapshot generation failed selection validation")
+            raise SnapshotSelectionValidationError(
+                "snapshot generation failed selection validation"
+            )
         _publish_current_pointer(logical_root, generation)
     return target
 

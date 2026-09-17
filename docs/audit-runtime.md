@@ -114,4 +114,6 @@ normal usa exclusivamente a geração completa selecionada por
 `out/process/CURRENT` e faz zero requisições. `--refresh` chama o mesmo runtime
 do coletor de processo, com um `httpx.AsyncClient`, uma execução assíncrona e a
 mesma allowlist GET, sem iniciar os coletores de Wiki ou work items. O resultado
-é derivado em `out/process-llm` e não altera baselines, deltas ou recibos Notion.
+é derivado em `out/process-llm`: contém o snapshot atual e o delta desde a fonte
+da exportação anterior. Não altera as baselines nem os quatro relatórios de
+Wiki em `deltas/`, e não cria recibos Notion.

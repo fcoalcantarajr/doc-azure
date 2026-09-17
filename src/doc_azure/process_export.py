@@ -26,9 +26,22 @@ from doc_azure.process_export_render import (
     render_process_summary,
     render_work_item_type,
 )
+from doc_azure.process_export_delta import (
+    ProcessDelta,
+    SnapshotIdentity,
+    baseline_identity_from_delta,
+    build_process_delta,
+)
+from doc_azure.process_export_delta_render import (
+    render_delta_bundle_section,
+    render_delta_json,
+    render_delta_markdown,
+)
 from doc_azure.snapshot import (
     SnapshotError,
+    SnapshotSelectionValidationError,
     SnapshotWriter,
+    StaleSnapshotWriterError,
     read_snapshot_artifact,
     read_snapshot_manifest_with_sha256,
     resolve_snapshot_root,
@@ -57,12 +70,22 @@ class ProcessExportError(RuntimeError):
     """Raised when a process export cannot be validated or published safely."""
 
 
+class ProcessExportBaselineInvalid(ProcessExportError):
+    """Raised when a manifested predecessor baseline is present but unusable."""
+
+
+class ProcessExportPredecessorUnavailable(ProcessExportError):
+    """Raised when the predecessor source generation is absent from disk."""
+
+
 @dataclass(frozen=True)
 class ProcessExportResult:
     """Paths and identity for one successful process export."""
 
     generation_root: Path
     bundle_path: Path
+    delta_markdown_path: Path
+    delta_json_path: Path
     work_item_types_root: Path
     source_generation: str
     reused: bool
@@ -150,9 +173,20 @@ def export_process_for_llm(root: Path) -> ProcessExportResult:
         process_id=process_id,
         process_name=process_name,
     )
-    rendered_artifacts = _render_artifacts(model, provenance)
     export_root = project_root / EXPORT_ROOT
     baseline_export_generation = _selected_generation(export_root)
+    baseline_model = _load_previous_model(
+        project_root,
+        export_root,
+        baseline_export_generation,
+        current_identity=SnapshotIdentity.from_model(model),
+    )
+    delta = build_process_delta(model, baseline_model)
+    rendered_artifacts = _render_artifacts(model, provenance, delta)
+    if _selected_generation(export_root) != baseline_export_generation:
+        raise ProcessExportError(
+            "concurrent export published a different process source"
+        )
     existing = _find_reusable_export(export_root, provenance, rendered_artifacts)
     if existing is not None:
         return _result(existing, source_root.name, reused=True)
@@ -175,7 +209,7 @@ def export_process_for_llm(root: Path) -> ProcessExportResult:
         writer.commit_manifest(collected_at=source_manifest.collected_at, requests=())
     except BaseException as error:
         writer.abort()
-        if isinstance(error, SnapshotError) and "stale snapshot writer" in str(error):
+        if isinstance(error, StaleSnapshotWriterError):
             winner = _matching_current_export(
                 export_root, provenance, rendered_artifacts
             )
@@ -384,11 +418,20 @@ def _provenance(
 
 
 def _render_artifacts(
-    model: ProcessExportModel, provenance: dict[str, object]
+    model: ProcessExportModel,
+    provenance: dict[str, object],
+    delta: ProcessDelta,
 ) -> dict[str, str]:
+    bundle = (
+        render_bundle(model).rstrip()
+        + "\n\n"
+        + render_delta_bundle_section(delta)
+    )
     artifacts = {
         "README.md": render_export_readme(),
-        "bundle.md": render_bundle(model),
+        "bundle.md": bundle,
+        "delta.json": render_delta_json(delta),
+        "delta.md": render_delta_markdown(delta),
         "process-summary.md": render_process_summary(model),
         "provenance.json": json.dumps(
             provenance,
@@ -455,7 +498,7 @@ def _find_reusable_export(
             winner = _matching_current_export(root, provenance, expected_artifacts)
             if winner is not None:
                 return winner
-            if str(error) == "snapshot generation failed selection validation":
+            if isinstance(error, SnapshotSelectionValidationError):
                 raise ProcessExportError(
                     "historical export changed during locked validation"
                 ) from None
@@ -516,10 +559,127 @@ def _result(root: Path, source_generation: str, *, reused: bool) -> ProcessExpor
     return ProcessExportResult(
         generation_root=root.resolve(),
         bundle_path=(root / "bundle.md").resolve(),
+        delta_markdown_path=(root / "delta.md").resolve(),
+        delta_json_path=(root / "delta.json").resolve(),
         work_item_types_root=(root / "work-item-types").resolve(),
         source_generation=source_generation,
         reused=reused,
     )
+
+
+def _load_previous_model(
+    project_root: Path,
+    export_root: Path,
+    selected_export_generation: str | None,
+    *,
+    current_identity: SnapshotIdentity,
+) -> ProcessExportModel | None:
+    if selected_export_generation is None:
+        return None
+    selected_export = export_root / "snapshots" / selected_export_generation
+    try:
+        provenance = _read_json(selected_export, "provenance.json")
+        previous_current = _identity_from_provenance(provenance)
+        if previous_current != current_identity:
+            return _load_model_for_identity(project_root, previous_current)
+        baseline_identity = _prior_identity_for_same_source(
+            selected_export,
+            previous_current,
+        )
+        if baseline_identity is None:
+            return None
+        try:
+            return _load_model_for_identity(project_root, baseline_identity)
+        except ProcessExportPredecessorUnavailable:
+            # An absent prior generation degrades to SEM_BASELINE; one that is
+            # present but unreadable fails closed in the handler below.
+            return None
+    except (
+        SnapshotError,
+        ProcessCollectionError,
+        ProcessExportError,
+        ValueError,
+        TypeError,
+    ) as error:
+        raise ProcessExportBaselineInvalid(
+            f"previous export baseline is invalid: {error}"
+        ) from None
+
+
+def _prior_identity_for_same_source(
+    selected_export: Path,
+    current_identity: SnapshotIdentity,
+) -> SnapshotIdentity | None:
+    manifest, _ = read_snapshot_manifest_with_sha256(selected_export)
+    if "delta.json" not in {artifact.path for artifact in manifest.artifacts}:
+        return None
+    payload = _read_json(selected_export, "delta.json")
+    return baseline_identity_from_delta(
+        payload,
+        expected_current=current_identity,
+    )
+
+
+def _identity_from_provenance(payload: dict[str, object]) -> SnapshotIdentity:
+    if set(payload) != PROVENANCE_KEYS:
+        raise ValueError("previous export provenance schema is invalid")
+    generation = payload.get("source_generation")
+    digest = payload.get("source_manifest_sha256")
+    collected_at = payload.get("source_collected_at")
+    if not all(
+        isinstance(item, str) and item
+        for item in (generation, digest, collected_at)
+    ):
+        raise ValueError("previous export provenance identity is invalid")
+    return SnapshotIdentity(generation, digest, collected_at)
+
+
+def _load_model_for_identity(
+    project_root: Path,
+    identity: SnapshotIdentity,
+) -> ProcessExportModel:
+    if (
+        len(identity.source_generation) != 32
+        or any(
+            character not in "0123456789abcdef"
+            for character in identity.source_generation
+        )
+    ):
+        raise ValueError("previous source generation is invalid")
+    source_root = _source_generation_root(project_root, identity)
+    _require_source_generation(source_root)
+    manifest = read_validated_process_manifest(source_root)
+    _, digest = read_snapshot_manifest_with_sha256(source_root)
+    if (
+        digest != identity.source_manifest_sha256
+        or manifest.collected_at != identity.source_collected_at
+    ):
+        raise ValueError("previous source identity does not match its manifest")
+    model, _, _ = _load_model(
+        source_root,
+        source_manifest_sha256=digest,
+        source_collected_at=manifest.collected_at,
+    )
+    return model
+
+
+def _source_generation_root(project_root: Path, identity: SnapshotIdentity) -> Path:
+    return (
+        project_root
+        / "out"
+        / "process"
+        / "snapshots"
+        / identity.source_generation
+    )
+
+
+def _require_source_generation(source_root: Path) -> None:
+    """Fail typed when a baseline source generation is gone from disk."""
+
+    if not source_root.is_dir():
+        raise ProcessExportPredecessorUnavailable(
+            "historical export baseline source is unavailable"
+        )
 
 
 def _read_json(root: Path, path: str) -> dict[str, object]:

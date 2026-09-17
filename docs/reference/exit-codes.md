@@ -41,7 +41,7 @@ Esta porta executa `uv run pytest -q` como última etapa. Se a saída mencionar 
 | `04_prepare_notion.py` | `0`; `--verify-fetched` imprime `NOTION_FETCHED_OK` e `--verify-publication` imprime `NOTION_PUBLICATION_OK` | `1`, com `NOTION_PREPARATION_FAILED: <mensagem>` |
 | `setup.py` | `0` | `1` |
 | `prepare_baselines.py` | `0` quando conclui | outro código ou traceback se a execução não concluir |
-| `export_process_for_llm.py` | `0`, com `LLM_EXPORT_OK` e dois caminhos absolutos | `1`, com `LLM_EXPORT_FAILED: <mensagem sanitizada>`; a geração anterior é preservada |
+| `export_process_for_llm.py` | `0`, com `LLM_EXPORT_OK` e quatro caminhos absolutos: bundle, delta Markdown, delta JSON e diretório por tipo | `1`, com `LLM_EXPORT_FAILED: <mensagem sanitizada>`; a geração anterior é preservada |
 
 No exportador, `uma geração histórica mudou durante a validação; repita o
 comando` identifica bytes alterados durante a revalidação protegida por lock.
@@ -49,5 +49,10 @@ Já `outra execução publicou uma fonte diferente; tente novamente` identifica
 troca concorrente de `CURRENT`. Ambos retornam código `1`, preservam a geração
 anterior e têm recuperação detalhada no
 [guia operacional](../guides/export-process-for-llm.md#falhas).
+
+`o baseline da exportação anterior está ausente ou inválido` significa que o
+exportador não conseguiu provar a procedência ou o delta anterior exigido. Ele
+não escolhe automaticamente outra geração por horário ou nome; verifique a
+exportação selecionada e sua fonte antes de repetir.
 
 `--refresh` pertence à coleta. Ele cria uma geração imutável nova e não apaga cache, não recria evidência histórica e não corrige automaticamente relatórios ou recibos.
