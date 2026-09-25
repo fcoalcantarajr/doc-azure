@@ -5,11 +5,12 @@ auditoria Azure normal não exige esses arquivos. O fluxo de publicação usa o
 conector Notion e o navegador integrado ao ChatGPT; a aplicação Python prepara
 e verifica a evidência, mas não atualiza externamente o Notion.
 
-O verificador rigoroso rejeita campos ausentes ou extras, resultados de
-ferramenta inventados, horários obsoletos, hashes divergentes, IDs de chat
-reutilizados, páginas duplicadas, respostas de revisão idênticas e diferenças
-semânticas. Preserve os resultados brutos exatos. Não reescreva um resultado
-bruto para fazê-lo passar.
+O verificador rigoroso rejeita campos ausentes ou extras, capturas internamente
+inconsistentes, horários obsoletos, hashes divergentes, IDs de chat reutilizados,
+páginas duplicadas, respostas de revisão idênticas e diferenças semânticas. Os
+envelopes registrados vinculam as observações da sessão; eles não são assinaturas
+criptográficas dos serviços externos. Preserve os resultados brutos exatos. Não
+reescreva um resultado bruto para fazê-lo passar.
 
 Identidades fixas da hierarquia:
 
@@ -67,7 +68,7 @@ out/notion/
 │   ├── notion-fetch-<slug>.json              capturado, quatro arquivos
 │   ├── notion-fetch-parent.json              capturado
 │   ├── notion-fetch-hub.json                 capturado
-│   └── notion-search-<slug>-<kind>.json       capturado, doze arquivos
+│   └── notion-search-<slug>-<kind>.json       captura de chamada e resposta, doze arquivos
 ├── fetched/
     ├── <slug>.md                             capturado, quatro arquivos
     ├── <slug>.json                           registrado, quatro arquivos
@@ -140,7 +141,9 @@ browser_result_path, browser_result_sha256, findings
 
 Use `schema_version: 1`, `effort: "maximum"` e
 `surface: "chatgpt-integrated-browser"`. `verdict` é exatamente `PASS` ou
-`NEEDS_FIXES`. Cada item de `findings` tem exatamente `id`, `severity` e
+`NEEDS_FIXES`; para passar a porta, os dois recibos e a primeira linha não
+vazia de cada resposta devem ser exatamente `PASS`. `NEEDS_FIXES` bloqueia a
+publicação. Cada item de `findings` tem exatamente `id`, `severity` e
 `summary`, todos textos não vazios. Os caminhos são relativos ao repositório.
 Os hashes da resposta salva e do navegador bruto devem corresponder aos arquivos.
 
@@ -176,8 +179,10 @@ model, finding_id, decision, rationale, changed_reports
 
 `decision` é `accepted`, `rejected` ou `deferred`; `rationale` é uma explicação
 não vazia baseada em evidência; `changed_reports` é uma lista de slugs dos
-relatórios afetados e pode estar vazia. Um achado material adiado bloqueia a
-publicação mesmo que o esquema JSON passe.
+relatórios afetados e pode estar vazia. Como o schema não registra materialidade
+de forma estruturada, qualquer decisão `deferred` bloqueia a publicação até ser
+resolvida; esse critério é intencionalmente mais estrito que bloquear apenas
+adiamentos materiais.
 
 ## Atualizar e buscar cada página fixa
 
@@ -219,7 +224,10 @@ update_receipt_path, update_receipt_sha256
 
 Use `schema_version: 1`. Copie os valores fixos de identidade e semântica de
 `publication-manifest.json`. `fetched_at` não pode ser anterior a `updated_at`,
-e `connector_as_of` não pode ser anterior a `fetched_at`. Defina
+`connector_as_of` não pode ser anterior a `fetched_at` nem ao
+`page_last_edited_at` bruto. Se a última edição for posterior ao estado que o
+conector declara ter lido, a resposta é obsoleta e bloqueia os modos canônico e
+de cópia. Defina
 `last_edited_available` como `false` e `last_edited_time` como `null` somente
 quando o resultado bruto do conector realmente omitir esse campo.
 
@@ -242,10 +250,33 @@ corresponde ao manifesto de publicação. Cada item tem exatamente `page_id`,
 ## Provar a ausência de duplicatas
 
 Faça doze buscas no Notion limitadas à página pai: ID, título exato e marcador
-de cada uma das quatro páginas. Salve cada resultado exato como
-`raw/notion-search-<slug>-<kind>.json`. Uma busca bruta usa o mesmo envelope
-`CallToolResult`; seu objeto interno deve ter `type: "workspace_search"` e uma
-lista `results`. Cada item de `results` deve identificar uma página com `id`,
+de cada uma das quatro páginas. Salve cada captura como
+`raw/notion-search-<slug>-<kind>.json`, usando exatamente este envelope:
+
+```json
+{
+  "schema_version": 1,
+  "request": {
+    "query": "texto exato enviado",
+    "page_url": "ID ou URL exata da página pai",
+    "page_size": 50
+  },
+  "response": {
+    "isError": false,
+    "content": [{"type": "text", "text": "JSON exato retornado pelo conector"}]
+  }
+}
+```
+
+Registre em `request` todos os argumentos efetivamente enviados, incluindo
+opcionais; o gate confere `query` e `page_url` com o recibo de busca e calcula
+o hash sobre o envelope inteiro. O conector não ecoa esses argumentos no
+resultado: esse envelope é uma observação capturada da sessão que associa a
+chamada à resposta salva, não uma assinatura criptográfica da plataforma. Não
+alegue autenticação além dessa associação. Preserve `response` sem alterações.
+O payload interno pode declarar `type: "workspace_search"` ou `type:
+"ai_search"` e deve conter uma lista `results`. Cada item de `results` deve
+identificar uma página com `id`,
 `title` e `url` não vazios; quando `type` estiver presente, seu valor deve ser
 `"page"`. Nas quatro buscas por marcador, o item da página esperada também deve
 conter `highlight` como texto e esse texto deve incluir o marcador exato. O
@@ -264,7 +295,7 @@ matched_page_ids, searched_at, raw_search_path, raw_search_sha256
 ```
 
 Em cada item, `matched_page_ids` deve conter somente o ID fixo esperado. Nenhum
-resultado ou mais de um resultado bloqueia a publicação. Se uma busca por
+resultado exato ou mais de um resultado exato bloqueia a publicação. Se uma busca por
 marcador encontrar a página mas a resposta não trouxer `highlight` contendo o
 marcador, siga o diagnóstico específico em [Solução de
 problemas](../troubleshooting.md#busca-por-marcador-do-notion-não-retorna-highlight-válido).

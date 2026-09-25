@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 
 import pytest
 
+from delta import notion_external_evidence
 from delta.notion_external_evidence import (
     ExternalEvidenceError,
     parse_browser_review_result,
@@ -70,6 +72,14 @@ def test_fetch_result_cross_checks_page_parent_title_body_and_timestamp() -> Non
 def test_fetch_result_rejects_receipt_identity_not_present_in_raw_result() -> None:
     with pytest.raises(ExternalEvidenceError, match="parent"):
         parse_notion_fetch_result(_tool_result(_fetch_payload(parent_id="wrong")))
+
+
+def test_fetch_result_rejects_connector_snapshot_older_than_page_edit() -> None:
+    payload = _fetch_payload()
+    payload["page_last_edited_at"] = "2026-09-09T01:01:00.000Z"
+
+    with pytest.raises(ExternalEvidenceError, match="predates page last edit"):
+        parse_notion_fetch_result(_tool_result(payload))
 
 
 @pytest.mark.parametrize(
@@ -169,6 +179,43 @@ def test_search_result_returns_only_raw_exact_matches() -> None:
     assert evidence.exact_page_ids("page_id", PAGE_ID) == (PAGE_ID,)
 
 
+def test_search_result_accepts_ai_search_response_shape() -> None:
+    raw = _tool_result(
+        {
+            "results": [
+                {"id": PAGE_ID, "title": TITLE, "url": PAGE_URL, "highlight": BODY}
+            ],
+            "type": "ai_search",
+        }
+    )
+
+    evidence = parse_notion_search_result(raw)
+
+    assert evidence.exact_page_ids("title", TITLE) == (PAGE_ID,)
+
+
+def test_search_title_match_normalizes_unicode_composition() -> None:
+    expected_title = "Delta — Políticas Explícitas × Processo-Agil implementado"
+    decomposed_title = unicodedata.normalize("NFD", expected_title)
+    raw = _tool_result(
+        {
+            "results": [
+                {
+                    "id": PAGE_ID,
+                    "title": decomposed_title,
+                    "url": PAGE_URL,
+                    "highlight": BODY,
+                }
+            ],
+            "type": "workspace_search",
+        }
+    )
+
+    evidence = parse_notion_search_result(raw)
+
+    assert evidence.exact_page_ids("title", expected_title) == (PAGE_ID,)
+
+
 def test_search_result_normalizes_connector_highlight_emphasis() -> None:
     raw = _tool_result(
         {
@@ -190,6 +237,43 @@ def test_search_result_normalizes_connector_highlight_emphasis() -> None:
     assert evidence.exact_page_ids(
         "marker", "DELTA-AUDIT-MARKER-leiame"
     ) == (PAGE_ID,)
+
+
+def test_search_capture_binds_query_and_page_scope_to_raw_response() -> None:
+    page_url = "https://app.notion.com/p/" + PARENT_ID.replace("-", "")
+    response = json.loads(
+        _tool_result(
+            {
+                "results": [
+                    {
+                        "id": PAGE_ID,
+                        "title": TITLE,
+                        "url": PAGE_URL,
+                        "highlight": BODY,
+                        "type": "page",
+                    }
+                ],
+                "type": "workspace_search",
+            }
+        )
+    )
+    raw = json.dumps(
+        {
+            "schema_version": 1,
+            "request": {"query": TITLE, "page_url": page_url, "page_size": 50},
+            "response": response,
+        }
+    ).encode()
+
+    parse_capture = getattr(notion_external_evidence, "parse_notion_search_capture", None)
+    assert callable(parse_capture), "missing Notion search capture parser"
+    evidence = parse_capture(raw, TITLE, PARENT_ID)
+
+    assert evidence.exact_page_ids("title", TITLE) == (PAGE_ID,)
+    with pytest.raises(ExternalEvidenceError, match="request query"):
+        parse_capture(raw, "unrelated query", PARENT_ID)
+    with pytest.raises(ExternalEvidenceError, match="request scope"):
+        parse_capture(raw, TITLE, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
 
 def test_browser_review_result_binds_ui_facts_and_response() -> None:

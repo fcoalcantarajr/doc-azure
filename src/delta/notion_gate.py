@@ -19,7 +19,7 @@ from delta.notion_external_evidence import (
     ExternalEvidenceError,
     parse_browser_review_result,
     parse_notion_fetch_result,
-    parse_notion_search_result,
+    parse_notion_search_capture,
     parse_notion_update_result,
 )
 from delta.notion_semantics import ReportSemantic, parse_notion_semantics
@@ -302,7 +302,7 @@ Procure, no mínimo: falsos MATCH e falsos deltas; gaps de cobertura; claims ou 
 
 Os revisores designados são Kimi K3 e Opus 5, cada um com esforço máximo, em chats independentes no navegador integrado ao ChatGPT. Não substitua esses modelos, não trate concordância como prova e declare explicitamente se consultou o repositório e o CSV.
 
-Responda em português com: (1) veredito PASS ou NEEDS_FIXES; (2) achados numerados, cada um com severidade, claim/page, evidência concreta e correção proposta; (3) lacunas não verificáveis; e (4) declaração explícita de que consultou ou não o repositório e o pacote CSV.
+Comece a resposta com uma linha contendo exatamente `PASS` ou `NEEDS_FIXES`. Em seguida, responda em português com: (1) veredito PASS ou NEEDS_FIXES; (2) achados numerados, cada um com severidade, claim/page, evidência concreta e correção proposta; (3) lacunas não verificáveis; e (4) declaração explícita de que consultou ou não o repositório e o pacote CSV.
 """
 
 
@@ -340,8 +340,8 @@ def _verify_review_receipt(
     ]
     if times[0] > times[2] or times[1] > times[2] or times[2] > times[3]:
         raise error_type(f"{model}: review timestamps are invalid")
-    if receipt.get("verdict") not in {"PASS", "NEEDS_FIXES"}:
-        raise error_type(f"{model}: review verdict is invalid")
+    if receipt.get("verdict") != "PASS":
+        raise error_type(f"{model}: review verdict must be PASS")
     _verify_bound_file(
         root,
         receipt.get("response_path"),
@@ -396,6 +396,15 @@ def _verify_review_receipt(
         raise error_type(f"{model}: browser result response is invalid") from None
     if browser_response != response:
         raise error_type(f"{model}: browser result response differs")
+    try:
+        response_text = response.decode("utf-8")
+    except UnicodeError:
+        raise error_type(f"{model}: review response is invalid") from None
+    first_line = next(
+        (line.strip() for line in response_text.splitlines() if line.strip()), ""
+    )
+    if first_line != receipt["verdict"]:
+        raise error_type(f"{model}: response verdict disagrees with receipt")
     findings = receipt.get("findings")
     if not isinstance(findings, list):
         raise error_type(f"{model}: review findings are invalid")
@@ -465,6 +474,8 @@ def _verify_reconciliation(
             raise error_type("review reconciliation finding coverage is invalid")
         if decision.get("decision") not in {"accepted", "rejected", "deferred"}:
             raise error_type("review reconciliation decision is invalid")
+        if decision.get("decision") == "deferred":
+            raise error_type("deferred review findings block publication")
         if not isinstance(decision.get("rationale"), str) or not decision["rationale"]:
             raise error_type("review reconciliation rationale is invalid")
         reports = decision.get("changed_reports")
@@ -503,6 +514,8 @@ def _verify_publication_receipt(
         )
         if last_edited < updated:
             raise error_type(f"{entry.slug}: last-edited proof is not fresh")
+        if connector_as_of < last_edited:
+            raise error_type(f"{entry.slug}: connector snapshot predates page last edit")
     elif receipt.get("last_edited_time") is not None:
         raise error_type(f"{entry.slug}: unavailable last-edited time must be null")
     for path_field, hash_field, label in (
@@ -680,7 +693,11 @@ def _verify_duplicate_searches(
             "duplicate search raw receipt",
         )
         try:
-            observed = parse_notion_search_result(raw_search).exact_page_ids(
+            observed = parse_notion_search_capture(
+                raw_search,
+                str(search["query"]),
+                str(search["scope_parent_page_id"]),
+            ).exact_page_ids(
                 str(search["kind"]),
                 str(search["query"]),
             )

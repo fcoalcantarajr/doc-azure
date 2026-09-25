@@ -1427,3 +1427,32 @@ Notion entrypoint checks passed with the added base/head options:
 
 The full regression suite passed with `474 passed in 90.07s`; the complete
 repository gate returned `GATE_OK`; and `git diff --check` was clean.
+
+## Draft-only Notion gate corrections — RED
+
+The focused regressions were added before implementation and run with:
+`uv run pytest tests/test_notion_external_evidence.py::test_search_capture_binds_query_and_page_scope_to_raw_response tests/test_notion_publication_gate.py::test_review_gate_rejects_needs_fixes_verdict tests/test_notion_publication_gate.py::test_review_gate_rejects_response_verdict_hidden_by_pass_receipt tests/test_notion_publication_gate.py::test_review_gate_rejects_deferred_reconciliation_decisions tests/test_notion_publication_gate.py::test_publication_gate_cross_checks_raw_search_request_query_and_scope tests/test_notion_publication_gate.py::test_publication_gate_rejects_connector_snapshot_older_than_page_edit -q`.
+RED output: `6 failed in 6.5s`. The failures reproduce the missing request
+capture parser, acceptance of `NEEDS_FIXES`, failure to bind the response's
+opening verdict, acceptance of deferred decisions, lack of query/scope binding
+for duplicate searches, and acceptance of a connector snapshot older than the
+page's last edit.
+
+A focused freshness rerun reached the intended checks after the search capture
+fixtures were updated: `2 failed, 5 passed in 9.6s`. The parser-level and full
+publication regressions both accepted `connector_as_of` earlier than
+`page_last_edited_at`. A Notion search read showed titles can arrive in
+decomposed Unicode form; the title-normalization regression then failed as
+expected before its NFC comparison was added.
+
+### Draft-only Notion gate corrections — GREEN
+
+The focused external-evidence tests passed (`16 passed in 0.10s`) and the
+publication-gate tests passed (`43 passed in 0.51s`). The full suite passed with
+`484 passed in 18.02s`; `uv run python verify.py` returned `GATE_OK`; and
+`git diff --check` was clean. Search captures now associate recorded request
+arguments with the unmodified connector result, without claiming a platform
+signature. Both external reviews must return `PASS` on the first response line;
+all deferred findings block publication because the reconciliation schema has
+no structured materiality field. Fetch parsing rejects results whose declared
+connector freshness precedes the page's last edit, including source/copy fetches.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
@@ -86,7 +87,12 @@ class NotionSearchEvidence:
             if kind == "page_id":
                 is_match = page_id == _normalize_notion_id(query, "search query")
             elif kind == "title":
-                is_match = result.get("title") == query
+                result_title = result.get("title")
+                is_match = (
+                    isinstance(result_title, str)
+                    and unicodedata.normalize("NFC", result_title)
+                    == unicodedata.normalize("NFC", query)
+                )
             else:
                 highlight = result.get("highlight")
                 is_match = isinstance(highlight, str) and query in highlight
@@ -180,6 +186,10 @@ def parse_notion_fetch_result(raw: bytes) -> NotionFetchEvidence:
         if last_edited_raw is not None
         else None
     )
+    if last_edited is not None and datetime.fromisoformat(
+        connector_as_of.replace("Z", "+00:00")
+    ) < datetime.fromisoformat(last_edited.replace("Z", "+00:00")):
+        raise ExternalEvidenceError("fetch snapshot predates page last edit")
     return NotionFetchEvidence(
         page_id=page_id,
         parent_page_id=parent_id,
@@ -260,7 +270,7 @@ def parse_notion_search_result(raw: bytes) -> NotionSearchEvidence:
     """Parse one raw Notion search result for later exact-match evaluation."""
 
     payload = _tool_payload(raw, "search")
-    if payload.get("type") != "workspace_search":
+    if payload.get("type") not in {"workspace_search", "ai_search"}:
         raise ExternalEvidenceError("search result type is invalid")
     results = payload.get("results")
     if not isinstance(results, list) or any(not isinstance(item, dict) for item in results):
@@ -272,6 +282,74 @@ def parse_notion_search_result(raw: bytes) -> NotionSearchEvidence:
         _required_text(result.get("title"), "search title")
         _required_text(result.get("url"), "search URL")
     return NotionSearchEvidence(tuple(results))
+
+
+def parse_notion_search_capture(
+    raw: bytes, expected_query: str, expected_scope_page_id: str
+) -> NotionSearchEvidence:
+    """Bind the recorded Notion search request to its exact connector result."""
+
+    try:
+        capture = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        raise ExternalEvidenceError("raw search capture is not valid JSON") from None
+    if (
+        not isinstance(capture, dict)
+        or set(capture) != {"schema_version", "request", "response"}
+        or type(capture.get("schema_version")) is not int
+        or capture.get("schema_version") != 1
+    ):
+        raise ExternalEvidenceError("search capture schema is invalid")
+
+    request = capture.get("request")
+    allowed_fields = {
+        "query",
+        "page_url",
+        "page_size",
+        "max_highlight_length",
+        "filters",
+        "sort",
+        "data_source_url",
+        "query_type",
+        "teamspace_id",
+    }
+    if (
+        not isinstance(request, dict)
+        or not {"query", "page_url"}.issubset(request)
+        or set(request) - allowed_fields
+    ):
+        raise ExternalEvidenceError("search request schema is invalid")
+    query = _required_text(request.get("query"), "search request query")
+    if query != expected_query:
+        raise ExternalEvidenceError("search request query does not match receipt")
+    raw_scope = _required_text(request.get("page_url"), "search request scope")
+    scope_id = (
+        _notion_id_from_url(raw_scope, "search request scope")
+        if "://" in raw_scope
+        else _normalize_notion_id(raw_scope, "search request scope")
+    )
+    expected_scope = _normalize_notion_id(
+        expected_scope_page_id, "expected search scope"
+    )
+    if scope_id != expected_scope:
+        raise ExternalEvidenceError("search request scope does not match receipt")
+    page_size = request.get("page_size", 10)
+    if not isinstance(page_size, int) or isinstance(page_size, bool) or page_size < 1:
+        raise ExternalEvidenceError("search request page size is invalid")
+    if request.get("query_type", "internal") != "internal":
+        raise ExternalEvidenceError("search request type is invalid")
+
+    response = capture.get("response")
+    if not isinstance(response, dict):
+        raise ExternalEvidenceError("search capture response is invalid")
+    try:
+        response_raw = json.dumps(response, ensure_ascii=False).encode("utf-8")
+    except (TypeError, UnicodeError):
+        raise ExternalEvidenceError("search capture response is invalid") from None
+    evidence = parse_notion_search_result(response_raw)
+    if len(evidence.results) >= page_size:
+        raise ExternalEvidenceError("search result may be truncated")
+    return evidence
 
 
 def parse_browser_review_result(raw: bytes) -> BrowserReviewEvidence:
