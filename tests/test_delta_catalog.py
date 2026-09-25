@@ -294,8 +294,8 @@ def test_reviewed_production_limits_do_not_repeat_superseded_observations() -> N
         "conteúdo, a validade ou a execução das regras."
     )
     assert claims["37-RULE-INCIDENT-BLOCK-001"].limit == (
-        "A regra de Motivo do Bloqueio não foi observada no snapshot de "
-        "Incidente; isso não determina a execução em produção."
+        "A comparação verifica a presença dessa regra específica no snapshot; "
+        "não comprova sua execução em produção."
     )
     assert claims["10-STATE-AE-001"].limit == (
         "A comparação verifica os nomes e a ordem configurados; não registra "
@@ -306,6 +306,6 @@ def test_reviewed_production_limits_do_not_repeat_superseded_observations() -> N
         "Campos de Co-executor 1 e 2 documentados para Incidente"
     )
     assert claims["9-COEXEC-INCIDENTE-001"].limit == (
-        "O grupo inspecionado contém quatro controles de data; isso não "
-        "determina se campos de coexecutor existem em outra área do layout."
+        "A checagem observa apenas o grupo indicado do layout; não determina "
+        "se campos de coexecutor existem em outros grupos."
     )

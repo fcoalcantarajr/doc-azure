@@ -4643,7 +4643,7 @@
         "artifact": "workitemtypes/Processo-Agil.Incidente/layout.json",
         "pointer": "/layout/pages/0/sections/1/groups/2/controls"
       },
-      "limit": "O grupo inspecionado contém quatro controles de data; isso não determina se campos de coexecutor existem em outra área do layout."
+      "limit": "A checagem observa apenas o grupo indicado do layout; não determina se campos de coexecutor existem em outros grupos."
     },
     {
       "id": "9-COEXEC-HU-1-001",
@@ -5995,7 +5995,7 @@
         "rule": "Motivo do Bloqueio",
         "expected": true
       },
-      "limit": "A regra de Motivo do Bloqueio não foi observada no snapshot de Incidente; isso não determina a execução em produção."
+      "limit": "A comparação verifica a presença dessa regra específica no snapshot; não comprova sua execução em produção."
     },
     {
       "id": "37-RULE-AE-COPY-001",

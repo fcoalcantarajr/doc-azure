@@ -1249,7 +1249,7 @@ their disposition before changing the catalog.
 | F2 — `deltas/politicas.md`, `10-STATE-AE-001`, about line 57 | S2. The observed Atendimento Expresso sequence places `Aguardando Desenvolvimento` second, while the limit says it was added after homologation. | Confirmed stale limitation; non-blocking; correct the catalog and rebuild. |
 | F3 — `deltas/changelog.md`, `9-COEXEC-INCIDENTE-001`, about line 109 | S3. The inspected layout group now contains four `DateTimeControl` controls (`CreatedDate`, `StartDate`, `TargetDate`, `ClosedDate`) rather than the two documented co-executor controls. Kimi considers `AMBIGUO` defensible because Incidente is outside the mandatory scope at lines 524–532, but says the row should disclose the changed observation. | Confirmed presentation gap; non-blocking; preserve `AMBIGUO`, clarify the finding title and limitation. |
 | Related claim — `37-RULE-INCIDENT-BLOCK-001` | Not separately numbered by Kimi. Its limit also says the process returns zero rules for INCIDENTE, although the same snapshot returns three rules. | Confirmed related contradiction; non-blocking; correct together with F1. |
-| P1 — `src/doc_azure/audit.py`, `_acquire` | Kimi labels this a pre-existing P1: it alleges the URL is written as `f"{{https://dev.azure.com/{settings.organization}}}"`, producing a literal-brace URL and breaking `run_audit`. | False positive. Both base and reviewed HEAD contain `f"https://dev.azure.com/{settings.organization}"`, ordinary f-string interpolation. No fix is warranted. |
+| P1 — `src/doc_azure/audit.py`, `_acquire` | Kimi labels this a pre-existing P1: it alleges the URL is written with doubled outer braces, producing a literal-brace URL and breaking `run_audit`. | False positive. Direct Git inspection and execution on base and reviewed HEAD show normal interpolation and a valid URL. The doubled-brace form in the claim column quotes Kimi's allegation; it is not source code. |
 | P2 | Exit code 1 in `test_cache_assisted_current_snapshot_matches_full_api_baseline` is `DELTAS`; the fixture intentionally has non-confirmed findings, while the tested condition is `gaps == []`. | Correctly rejected as a defect; expected status semantics. |
 | P3 | The help test replaces `PATH`, but the project already uses Unix-only `fcntl` and `sys.executable` is absolute. | Non-blocking; not a practical portability regression. |
 | P4 | Fallback check `request_count < unique_routes` is redundant/asymmetric but conservative; artifact fingerprints still bind the data. | Non-blocking implementation observation; no acceptance bypass identified. |
@@ -1312,12 +1312,12 @@ claim still contradicted the refreshed process snapshot, as intended.
 
 The catalog now limits `37-RULE-009` to the configured rule count and does not
 claim to validate rule content or execution. The separate block-rule claim
-states that the specific rule was not observed in the INCIDENTE snapshot and
-that this does not prove production execution. `10-STATE-AE-001` now limits
+limits its check to the presence of that specific rule in the snapshot and
+does not claim to prove production execution. `10-STATE-AE-001` now limits
 its conclusion to configured names and order, without claiming chronology or
 squad use. The co-executor finding title now describes what the wiki
-documents; its limitation reports the four observed date controls and does
-not infer absence from other layout groups. Its status remains `AMBIGUO`.
+documents; its limitation scopes the check to the indicated layout group and
+does not infer absence from other groups. Its status remains `AMBIGUO`.
 
 The official baseline preparation produced candidate generation
 `c9eb4e3a8cee40afbc31d67751735e23`. Both accepted baseline files exactly match
@@ -1355,3 +1355,54 @@ rebuilding the four reports, `uv run pytest -q` completed with `454 passed in
 worktree's exact wiki and process source generations. `git diff --check` was
 clean. The report status totals were independently compared before and after
 the content corrections and are unchanged for all four pages.
+
+### Follow-up Kimi review and stable limitation wording
+
+The second Kimi K3 review covered the cumulative range `ed85ce7` to
+`3a9cc44`. It confirmed F1–F3 and the related rule claim as resolved, accepted
+the unchanged status totals and process-baseline patch, and corrected its
+earlier false positive about `run_audit.py --root`. It also identified a real
+future-maintenance risk: the co-executor and block-rule limits repeated current
+snapshot observations. Those two limits now describe the scope and operation
+of each check, rather than asserting a count or presence/absence that could
+become stale after re-collection. The co-executor status remains `AMBIGUO`.
+
+The review's URL allegation was not reproduced by the exact Git object. The
+local command `git show
+3a9cc44bbde180053bc1b3e93946fc3bb21d10dc:src/doc_azure/audit.py | rg -n -F
+'client = AzureReadClient'` returns line 95 as
+`client = AzureReadClient(http, f"https://dev.azure.com/{settings.organization}",`.
+The blob SHA is `f1c4f64d53e6d51986f4afead20f739d31d8736e`, the same SHA Kimi
+reported. Kimi's earlier full-file fetch showed the same single-interpolation
+line; its later focused transcription showed different bytes while naming the
+same blob. The local Git object is the controlling evidence. An executable
+check also produced `https://dev.azure.com/example` with scheme `https` for
+the source expression; the doubled-brace variant produces
+`{https://dev.azure.com/example}` with no parsed scheme. The URL allegation
+therefore remains classified as a reviewer false positive, and the decision
+table above explicitly distinguishes the quoted allegation from source.
+
+### Follow-up correction receipts
+
+The regression test was updated first to require stable wording. RED command:
+`uv run pytest -q
+tests/test_delta_catalog.py::test_reviewed_production_limits_do_not_repeat_superseded_observations`.
+It failed in `0.15s` at the block-rule limit assertion because the catalog
+still said the rule had not been observed in the current snapshot. After both
+limit changes, the same command passed: `1 passed in 0.15s`.
+
+The official `scripts/prepare_baselines.py` produced candidate generation
+`51bf90b2e5694a73920834138666e6a9`. Both versioned baselines match their
+candidates except for the new catalog digest
+`ee1a107cb9eb9f05a8facf6aa91419e5f1031e1cf985320113cc814a5518d32c`. The
+process baseline still has 41,543 fingerprints and source generation
+`e1445692d82e4ed688a637cb34c1ebc0`, `full_api`, manifest SHA-256
+`dffc602b1263e3d7009c6d24b917f8880b2c5324b18088ca0ffa0ae840f48c35`, 115
+artifacts, and 114 requests. The four official reports were rebuilt; their
+status totals remain unchanged: `leiame` 2/2/6/4, `politicas` 12/6/19/0,
+`changelog` 84/18/5/2, and `apendice` 22/36/1/3, in the order
+`CONFIRMADO`/`DIVERGENTE`/`NAO_VERIFICAVEL_API_PROCESSO`/`AMBIGUO`.
+
+The complete suite passed with `454 passed in 12.62s`; `uv run python
+verify.py` returned `GATE_OK`; and `git diff --check` was clean. This receipt
+precedes the final exact-SHA Kimi review of the follow-up commit.
