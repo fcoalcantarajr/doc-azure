@@ -65,7 +65,8 @@ Leia os dois pareceres. Para cada achado, registre em `out/notion/review/reconci
 
 - Corrija todo achado material aceito.
 - Para rejeitar, demonstre por código, teste ou contrato por que o achado não procede.
-- Um achado material adiado bloqueia a publicação.
+- Qualquer achado adiado bloqueia a publicação; o schema atual não registra
+  materialidade estruturada para permitir uma exceção segura.
 - Qualquer alteração nos relatórios invalida o pacote: reconstrua, prepare novamente e obtenha duas revisões novas.
 
 Antes de reconciliar os achados, confirme a independência das respostas. Se os
@@ -98,7 +99,7 @@ Confirme novamente a autorização. No Codex, use o conector Notion para substit
 
 Salve o resultado bruto de cada atualização em `out/notion/raw/notion-update-<slug>.json` exatamente como retornado. Em seguida, busque cada página pelo conector, salve a resposta em `out/notion/raw/notion-fetch-<slug>.json` e extraia o corpo integral para `out/notion/fetched/<slug>.md`.
 
-## 6. Provar hierarquia e ausência de duplicatas
+## 6. Registrar hierarquia e buscas por duplicatas
 
 Busque pelo conector:
 
@@ -106,7 +107,9 @@ Busque pelo conector:
 - o hub fixo;
 - cada uma das quatro páginas.
 
-Depois faça doze buscas limitadas ao parent: por ID, título exato e marcador de cada slug. Cada busca deve encontrar somente a página esperada. Grave os resultados e recibos exatamente nos caminhos da [referência de evidências](../reference/notion-evidence.md#provar-a-ausência-de-duplicatas).
+Depois faça doze buscas limitadas ao parent: por ID, título exato e marcador de cada slug. Preserve também respostas vazias como evidência bruta, mas elas não aprovam a verificação de unicidade. Registre os resultados e recibos na [referência de evidências](../reference/notion-evidence.md#registrar-buscas-por-duplicatas).
+
+Essas buscas são evidência complementar, não prova exaustiva de ausência: a documentação oficial do Notion diz que Search não garante todos os resultados e pode não refletir imediatamente páginas compartilhadas. `has_more: false` e `next_cursor: null` encerram a paginação retornada, mas não eliminam essa limitação. O schema atual não contém inventário independente comprovadamente completo, então resultado vazio ou a presença de somente a página esperada mantém o gate bloqueado. O conector atual `ai_search` também pode omitir os campos de paginação, caso em que o parser falha antes.
 
 ## 7. Verificar o retorno do conector
 
@@ -122,13 +125,16 @@ NOTION_FETCHED_OK
 
 Esse comando compara os quatro corpos lidos de volta; ainda não valida sozinho revisões, hierarquia e duplicatas.
 
-## 8. Fechar as duas portas rigorosas
+## 8. Registrar o bloqueio das portas rigorosas
 
 ```sh
 uv run python scripts/04_prepare_notion.py --verify-publication
 ```
 
-Resultado esperado: `NOTION_PUBLICATION_OK`.
+Neste momento, a porta canônica bloqueia após validar os demais recibos com
+`Notion Search is not an exhaustive uniqueness proof; no independent complete
+inventory evidence is present`. O comando retorna código `1`; não espere
+`NOTION_PUBLICATION_OK` com Search como única evidência de ausência.
 
 Depois execute:
 
@@ -136,9 +142,13 @@ Depois execute:
 uv run python verify.py --require-publication
 ```
 
-Resultado esperado: `GATE_OK`.
+Com `--require-publication`, o verificador também retorna `GATE_FAIL` pela mesma
+limitação. O `GATE_OK` sem esse argumento verifica a auditoria local; não
+comprova publicação. Não declare a publicação concluída até que exista e seja
+validada uma fonte independente comprovadamente completa para a unicidade.
 
-Só declare a publicação concluída se ambos os marcadores aparecerem para o mesmo manifesto e os mesmos relatórios.
+Preserve os erros e recibos brutos para rastreabilidade; não altere páginas
+originais ou cópias com base em buscas que não provam unicidade.
 
 ## Se der errado
 

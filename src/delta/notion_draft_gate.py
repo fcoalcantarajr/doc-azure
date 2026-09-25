@@ -33,6 +33,8 @@ _DRAFT_FIELDS = {
     "duplicate_result_sha256",
     "source_fetch_path",
     "source_fetch_sha256",
+    "source_final_fetch_path",
+    "source_final_fetch_sha256",
     "copy_fetch_path",
     "copy_fetch_sha256",
 }
@@ -104,6 +106,7 @@ def verify_draft_publication_gate(root: Path, error_type: type[ValueError]) -> N
     target_ids: set[str] = set()
     target_entries: list[PublicationEntry] = []
     updated_times: list[datetime] = []
+    source_final_fetch_times: list[datetime] = []
     draft_fetched = repository_root / "out" / "notion" / "draft" / "fetched"
 
     for raw_entry in raw_entries:
@@ -147,6 +150,11 @@ def verify_draft_publication_gate(root: Path, error_type: type[ValueError]) -> N
         for path_field, hash_field, label in (
             ("duplicate_result_path", "duplicate_result_sha256", "duplicate result"),
             ("source_fetch_path", "source_fetch_sha256", "source raw fetch"),
+            (
+                "source_final_fetch_path",
+                "source_final_fetch_sha256",
+                "final source raw fetch",
+            ),
             ("copy_fetch_path", "copy_fetch_sha256", "initial copy raw fetch"),
         ):
             _verify_bound_file(
@@ -176,6 +184,12 @@ def verify_draft_publication_gate(root: Path, error_type: type[ValueError]) -> N
             error_type,
             f"{slug} source",
         )
+        source_final = _read_fetch(
+            repository_root,
+            str(raw_entry["source_final_fetch_path"]),
+            error_type,
+            f"{slug} final source",
+        )
         copy = _read_fetch(
             repository_root,
             str(raw_entry["copy_fetch_path"]),
@@ -192,12 +206,25 @@ def verify_draft_publication_gate(root: Path, error_type: type[ValueError]) -> N
             or copy.parent_page_id != source.parent_page_id
         ):
             raise error_type(f"{slug}: source and copy identities are inconsistent")
+        if (
+            source_final.page_id != source.page_id
+            or source_final.title != source.title
+            or source_final.url != source.url
+            or source_final.parent_page_id != source.parent_page_id
+            or source_final.body != source.body
+            or source_final.last_edited_time != source.last_edited_time
+        ):
+            raise error_type(f"{slug}: source changed after copy updates")
         source_fetched_at = _parse_time(
             source.connector_as_of, error_type, "source fetch"
+        )
+        source_final_fetched_at = _parse_time(
+            source_final.connector_as_of, error_type, "final source fetch"
         )
         copy_fetched_at = _parse_time(copy.connector_as_of, error_type, "copy fetch")
         if not (source_fetched_at <= duplicated_at <= copy_fetched_at):
             raise error_type(f"{slug}: copy provenance timestamps are invalid")
+        source_final_fetch_times.append(source_final_fetched_at)
         if re.search(r"<(?:page|database)\s+url=", copy.body):
             raise error_type(f"{slug}: copy contains child pages or databases")
         try:
@@ -250,11 +277,15 @@ def verify_draft_publication_gate(root: Path, error_type: type[ValueError]) -> N
         )
         if updated_at < duplicated_at:
             raise error_type(f"{slug}: draft was updated before it was duplicated")
+        if copy_fetched_at > updated_at:
+            raise error_type(f"{slug}: copy fetch must precede update")
         updated_times.append(updated_at)
         target_entries.append(draft_entry)
 
     if tuple(entry.slug for entry in target_entries) != tuple(expected_by_slug):
         raise error_type("draft target order is invalid")
+    if any(fetched_at < max(updated_times) for fetched_at in source_final_fetch_times):
+        raise error_type("final source fetch predates copy updates")
     duplicate_manifest = SimpleNamespace(
         parent_page_id=NOTION_DRAFT_PARENT_PAGE_ID,
         entries=tuple(target_entries),
@@ -277,6 +308,10 @@ def verify_draft_publication_gate(root: Path, error_type: type[ValueError]) -> N
         for search in searches
     ):
         raise error_type("draft duplicate search predates the copy updates")
+    raise error_type(
+        "Notion Search is not an exhaustive uniqueness proof; "
+        "no independent complete inventory evidence is present"
+    )
 
 
 def _read_fetch(

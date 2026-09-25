@@ -1456,3 +1456,71 @@ signature. Both external reviews must return `PASS` on the first response line;
 all deferred findings block publication because the reconciliation schema has
 no structured materiality field. Fetch parsing rejects results whose declared
 connector freshness precedes the page's last edit, including source/copy fetches.
+
+## Draft-only gate follow-up — RED
+
+Additional adversarial tests were added before changing the gate. The search
+parser tests confirmed that captures with `has_more: true`, missing pagination
+fields, or scope-restricting optional arguments were incorrectly accepted. The
+review response tests exposed that a receipt could omit findings from the raw
+response. The copy-gate tests exposed that a post-edit copy fetch could be used
+as the pre-edit child-page check, and that the original pages were never
+re-fetched after the copies were changed. The operational guide also described
+only material deferred findings as blocking, unlike the schema's fail-closed
+gate.
+
+The focused source-freshness and CSV-access cases were run before implementation
+with `uv run pytest tests/test_notion_publication_gate.py -q -k
+'unreviewed_packet_csv or stale_final_source_fetch'`: `2 failed, 47 deselected`.
+The empty-response contract was run before implementation with `uv run pytest
+tests/test_notion_publication_gate.py -q -k identical_empty_searches`: `1 failed,
+49 deselected`. These failures showed that the gate accepted a review that had
+not read `packet.csv`, accepted a final source fetch taken before copy updates,
+and rejected repeated complete empty search results.
+
+## Draft-only gate follow-up — GREEN
+
+The follow-up now requires review responses to be one strict JSON object and
+compares its verdict and complete findings list to the receipt. It requires
+explicitly complete search results, forbids optional filters or selectors, and
+rejects a repeated broad result when that result contains different expected
+copies. The parser accepts empty responses with complete pagination metadata
+for raw evidence, but the gate rejects them as proof of absence. The copy gate enforces
+`source_fetch <= duplicate <= copy_fetch <= update <= read-back`, then fetches
+each source after all updates and compares its identity, body, and last-edit
+time with the initial source fetch. The operations guide now says any deferred
+decision blocks publication.
+
+Focused verification: `uv run pytest tests/test_notion_external_evidence.py
+tests/test_notion_publication_gate.py -q` returned `69 passed in 0.71s`.
+
+The live Notion connector check returned `type: ai_search` with five results
+but no `has_more` or `next_cursor`. A live Staging fetch also returned body
+text marked `as of 2026-03-10T12:52:14.922Z` while `page_last_edited_at` was
+`2026-09-10T17:21:02.453Z`. These outputs do not satisfy the current freshness
+or completeness gates. The result from March is not accepted as current
+evidence, and no Notion pages have been modified. Do not edit copy contents
+unless a subsequent read-back is at least as recent as the page's last edit;
+do not claim exhaustive duplicate searches without explicit complete-page
+evidence.
+
+The complete repository suite then returned `494 passed in 19.29s`; the
+complete verification command returned `GATE_OK`; and `git diff --check` had
+no output. The live MCP observations above remain a runtime limitation separate
+from the local code gate.
+
+## Search-only uniqueness block — final verification
+
+An independent review identified that a complete-looking, non-empty Search
+response containing only the expected page still cannot prove the absence of
+duplicates. Both canonical and Staging gates now reject that inference unless
+independent, demonstrably complete inventory evidence is available. Empty
+Search responses remain parseable and preservable as raw evidence, but the
+gates reject them as proof of absence. No complete inventory mechanism is
+claimed by the current schema, and no Notion page was edited.
+
+Final verification: `uv run pytest -q` returned `496 passed`; `uv run python
+verify.py` returned `GATE_OK` for the local repository mode; and `git diff
+--check` had no output. Publication-flagged modes remain blocked by the
+non-exhaustive Search limitation until independent inventory evidence is
+available.

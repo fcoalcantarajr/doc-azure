@@ -16,25 +16,43 @@ Resultado esperado: todos os testes passam. Essa verificação funciona em um cl
 
 `verify.py` compara os relatórios com as gerações históricas exatas de Wiki e processo registradas neles. Esses snapshots ficam ignorados pelo Git. Portanto, a porta só pode retornar `GATE_OK` na máquina que os retém ou depois de uma transferência privada aprovada.
 
-Se `out/notion/fetched/hierarchy.json` não existe, execute:
+Se `out/notion/fetched/hierarchy.json` não existe, execute a porta local:
 
 ```sh
 uv run python verify.py
 ```
 
-Se esse arquivo existe, há uma tentativa de publicação registrada. Use obrigatoriamente a porta rigorosa:
+Se esse arquivo existe, há uma tentativa de publicação registrada. A porta
+rigorosa detecta inconsistências, mas a conclusão de unicidade permanece
+bloqueada: Search não garante que todos os resultados foram retornados e o
+schema atual não contém inventário independente comprovadamente completo.
+Execute-a para registrar o bloqueio:
 
 ```sh
 uv run python verify.py --require-publication
 ```
 
-Resultado esperado em ambos os casos válidos:
+Com a evidência atual, a porta rigorosa retorna erro de unicidade, como
+`GATE_FAIL: Notion Search is not an exhaustive uniqueness proof; no independent
+complete inventory evidence is present`. `GATE_OK` sem opção de publicação
+cobre somente as verificações locais. Para executar essa porta local:
+
+```sh
+uv run python verify.py
+```
+
+Resultado esperado:
 
 ```text
 GATE_OK
 ```
 
 O script retorna `0` no sucesso. `GATE_FAIL: <mensagem>` e código `1` identificam o primeiro invariável violado. A porta executa `uv run pytest -q` como última etapa. Você ainda pode rodar esse comando separadamente para ver a saída completa dos testes ou verificar a saúde portátil de um clone.
+
+Com `--require-publication` ou `--require-draft-publication`, Search sozinho
+não pode produzir `GATE_OK`; o erro de unicidade informa que falta inventário
+independente. Isso não invalida o `GATE_OK` da verificação local sem esses
+argumentos e tampouco prova que páginas foram publicadas.
 
 ## O que a porta valida
 

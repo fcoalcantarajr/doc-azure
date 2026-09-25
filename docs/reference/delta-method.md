@@ -144,11 +144,17 @@ points, checks the full ignore policy, scans sensitive `.env` values without
 printing them, validates the current status contract, rejects prose-only Python
 modules, and validates any local Notion manifest. With
 `--require-publication`, it delegates to the complete external-evidence gate.
+That mode currently blocks publication when Notion Search is the only
+uniqueness evidence: Search does not guarantee exhaustive results, and the
+current evidence schema has no independent complete inventory.
 
-The final post-publication gate is:
+To record the current publication-evidence blocker, run:
 
 ```text
 uv run python verify.py --require-publication
 ```
 
-Success is the single marker `GATE_OK`.
+With the current Search-only evidence, this mode reports `GATE_FAIL` for the
+missing independent inventory. `GATE_OK` from `uv run python verify.py` without
+publication flags covers the local repository gate only; it does not prove
+publication.

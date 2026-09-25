@@ -21,6 +21,7 @@ from delta.notion_external_evidence import (
     parse_notion_fetch_result,
     parse_notion_search_capture,
     parse_notion_update_result,
+    parse_review_response,
 )
 from delta.notion_semantics import ReportSemantic, parse_notion_semantics
 
@@ -239,6 +240,10 @@ def verify_publication_gate(root: Path, error_type: type[ValueError]) -> None:
         fetched_receipts[entry.slug] = receipt
     _verify_hierarchy(repository_root, fetched_root, manifest, error_type)
     _verify_duplicate_searches(repository_root, fetched_root, manifest, error_type)
+    raise error_type(
+        "Notion Search is not an exhaustive uniqueness proof; "
+        "no independent complete inventory evidence is present"
+    )
 
 
 def _render_packet(manifest: object, semantics: tuple[ReportSemantic, ...]) -> str:
@@ -302,7 +307,7 @@ Procure, no mínimo: falsos MATCH e falsos deltas; gaps de cobertura; claims ou 
 
 Os revisores designados são Kimi K3 e Opus 5, cada um com esforço máximo, em chats independentes no navegador integrado ao ChatGPT. Não substitua esses modelos, não trate concordância como prova e declare explicitamente se consultou o repositório e o CSV.
 
-Comece a resposta com uma linha contendo exatamente `PASS` ou `NEEDS_FIXES`. Em seguida, responda em português com: (1) veredito PASS ou NEEDS_FIXES; (2) achados numerados, cada um com severidade, claim/page, evidência concreta e correção proposta; (3) lacunas não verificáveis; e (4) declaração explícita de que consultou ou não o repositório e o pacote CSV.
+Responda somente com um objeto JSON válido, em português, sem cercas de código nem texto fora do objeto. Use exatamente estas chaves de topo: `verdict`, `findings`, `unverifiable_gaps`, `repository_consulted`, `packet_csv_consulted`. `verdict` deve ser `PASS` ou `NEEDS_FIXES`. `findings` deve ser uma lista; cada achado tem exatamente `id`, `severity`, `claim_or_page`, `evidence` e `proposed_correction`, todos textos não vazios e com IDs únicos. `unverifiable_gaps` é uma lista de textos. Os dois campos `*_consulted` são booleanos e devem refletir o que você realmente conseguiu consultar. Inclua todos os achados e lacunas no JSON; não escreva conclusões adicionais fora dele. `PASS` só cabe se não houver achado material sem resolução.
 """
 
 
@@ -397,30 +402,18 @@ def _verify_review_receipt(
     if browser_response != response:
         raise error_type(f"{model}: browser result response differs")
     try:
-        response_text = response.decode("utf-8")
-    except UnicodeError:
-        raise error_type(f"{model}: review response is invalid") from None
-    first_line = next(
-        (line.strip() for line in response_text.splitlines() if line.strip()), ""
-    )
-    if first_line != receipt["verdict"]:
+        parsed_response = parse_review_response(response)
+    except ExternalEvidenceError as error:
+        raise error_type(f"{model}: response is invalid: {error}") from None
+    if parsed_response["verdict"] != receipt["verdict"]:
         raise error_type(f"{model}: response verdict disagrees with receipt")
+    if parsed_response["packet_csv_consulted"] is not True:
+        raise error_type(f"{model}: packet CSV was not consulted")
     findings = receipt.get("findings")
     if not isinstance(findings, list):
         raise error_type(f"{model}: review findings are invalid")
-    identifiers: set[str] = set()
-    for finding in findings:
-        if not isinstance(finding, dict) or set(finding) != {
-            "id",
-            "severity",
-            "summary",
-        }:
-            raise error_type(f"{model}: review finding schema is invalid")
-        if any(not isinstance(value, str) or not value for value in finding.values()):
-            raise error_type(f"{model}: review finding is invalid")
-        if finding["id"] in identifiers:
-            raise error_type(f"{model}: duplicate review finding id")
-        identifiers.add(finding["id"])
+    if findings != parsed_response["findings"]:
+        raise error_type(f"{model}: response findings disagree with receipt")
 
 
 def _verify_reconciliation(
@@ -653,6 +646,9 @@ def _verify_duplicate_searches(
         expected[(entry.slug, "title")] = (entry.title, entry.page_id)
         expected[(entry.slug, "marker")] = (entry.marker, entry.page_id)
     seen: set[tuple[str, str]] = set()
+    response_targets: dict[str, set[str]] = {}
+    response_queries: dict[str, set[tuple[str, str, str]]] = {}
+    target_page_ids = {page_id for _, page_id in expected.values()}
     for search in searches:
         required = {
             "slug",
@@ -675,7 +671,7 @@ def _verify_duplicate_searches(
             search.get("query") != query
             or search.get("scope_parent_page_id") != manifest.parent_page_id
             or search.get("expected_page_id") != page_id
-            or search.get("matched_page_ids") != [page_id]
+            or search.get("matched_page_ids") not in ([], [page_id])
         ):
             raise error_type("duplicate search found a missing or duplicate page")
         _parse_time(search.get("searched_at"), error_type, "duplicate search")
@@ -693,18 +689,56 @@ def _verify_duplicate_searches(
             "duplicate search raw receipt",
         )
         try:
-            observed = parse_notion_search_capture(
+            evidence = parse_notion_search_capture(
                 raw_search,
                 str(search["query"]),
                 str(search["scope_parent_page_id"]),
-            ).exact_page_ids(
+            )
+            observed = evidence.exact_page_ids(
                 str(search["kind"]),
                 str(search["query"]),
             )
         except ExternalEvidenceError as error:
             raise error_type(f"duplicate raw search is invalid: {error}") from None
+        expected_in_response = evidence.exact_page_ids("page_id", page_id)
+        if expected_in_response and page_id not in observed:
+            raise error_type("duplicate search result does not match its exact query")
+        if tuple(observed) not in {(), (page_id,)}:
+            raise error_type("duplicate raw search found a missing or duplicate page")
         if list(observed) != search.get("matched_page_ids"):
             raise error_type("duplicate raw search disagrees with receipt")
+        if not observed:
+            raise error_type("empty duplicate searches do not prove absence")
+        previous_targets = response_targets.setdefault(evidence.response_sha256, set())
+        previous_queries = response_queries.setdefault(
+            evidence.response_sha256, set()
+        )
+        result_ids = {
+            str(result["id"]).replace("-", "").lower()
+            for result in evidence.results
+        }
+        target_ids_in_response = {
+            target
+            for target in target_page_ids
+            if target.replace("-", "").lower() in result_ids
+        }
+        if (
+            previous_targets
+            and page_id not in previous_targets
+            and target_ids_in_response.intersection(previous_targets | {page_id})
+        ):
+            raise error_type("search response reused for different pages")
+        if evidence.results and len(target_ids_in_response) > 1 and previous_queries:
+            raise error_type("search response reused for different pages")
+        current_query = (str(search["slug"]), str(search["kind"]), str(search["query"]))
+        if (
+            evidence.results
+            and previous_queries
+            and current_query not in previous_queries
+        ):
+            raise error_type("search response reused for different queries")
+        previous_targets.add(page_id)
+        previous_queries.add(current_query)
         seen.add(key)
     if seen != set(expected):
         raise error_type("duplicate search coverage is incomplete")

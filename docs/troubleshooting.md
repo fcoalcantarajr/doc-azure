@@ -202,7 +202,10 @@ falhou.
    --verify-fetched out/notion/fetched`.
 
 Só prossiga quando a saída for exatamente `NOTION_FETCHED_OK`. Esse marcador
-não substitui `NOTION_PUBLICATION_OK` nem `GATE_OK`.
+prova apenas a equivalência dos quatro corpos. No estado atual, as portas de
+publicação continuam bloqueadas quando Search é a única evidência de
+unicidade; consulte a [referência de evidências](reference/notion-evidence.md)
+antes de interpretar `NOTION_PREPARATION_FAILED` ou `GATE_FAIL`.
 
 ## `NOTION_PREPARATION_FAILED: publication manifest is stale`
 

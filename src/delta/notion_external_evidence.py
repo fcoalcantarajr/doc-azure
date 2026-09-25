@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import unicodedata
@@ -38,6 +39,29 @@ class ExternalEvidenceError(ValueError):
     """Raised when a raw external tool result cannot prove the claimed fact."""
 
 
+class _DuplicateJSONKey(ValueError):
+    """Raised when strict JSON evidence contains an ambiguous object."""
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateJSONKey(key)
+        result[key] = value
+    return result
+
+
+def _strict_json_load(raw: bytes | str, label: str) -> object:
+    try:
+        text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+        return json.loads(text, object_pairs_hook=_unique_json_object)
+    except _DuplicateJSONKey:
+        raise ExternalEvidenceError(f"{label} contains duplicate JSON key") from None
+    except (UnicodeError, json.JSONDecodeError):
+        raise ExternalEvidenceError(f"{label} is not valid JSON") from None
+
+
 @dataclass(frozen=True)
 class NotionFetchEvidence:
     """Identity, hierarchy, content, and freshness extracted from a raw fetch."""
@@ -72,6 +96,7 @@ class NotionSearchEvidence:
     """Exact-match projection of a raw Notion workspace search."""
 
     results: tuple[dict[str, object], ...]
+    response_sha256: str
 
     def exact_page_ids(self, kind: str, query: str) -> tuple[str, ...]:
         """Return stable unique page IDs satisfying one exact query meaning."""
@@ -160,10 +185,9 @@ def parse_notion_fetch_result(raw: bytes) -> NotionFetchEvidence:
         if parent_match is not None
         else None
     )
-    try:
-        properties = json.loads(properties_match.group(1))
-    except json.JSONDecodeError:
-        raise ExternalEvidenceError("fetch page properties are invalid") from None
+    properties = _strict_json_load(
+        properties_match.group(1), "fetch page properties"
+    )
     if not isinstance(properties, dict):
         raise ExternalEvidenceError("fetch title is not present in page properties")
     property_title = properties.get("title")
@@ -272,6 +296,20 @@ def parse_notion_search_result(raw: bytes) -> NotionSearchEvidence:
     payload = _tool_payload(raw, "search")
     if payload.get("type") not in {"workspace_search", "ai_search"}:
         raise ExternalEvidenceError("search result type is invalid")
+    if (
+        "has_more" not in payload
+        or "next_cursor" not in payload
+        or payload.get("has_more") is not False
+        or payload.get("next_cursor") is not None
+    ):
+        raise ExternalEvidenceError("search pagination is incomplete or invalid")
+    request_status = payload.get("request_status")
+    if request_status is not None and (
+        not isinstance(request_status, dict)
+        or request_status.get("type") != "complete"
+        or request_status.get("incomplete_reason") is not None
+    ):
+        raise ExternalEvidenceError("search response is incomplete")
     results = payload.get("results")
     if not isinstance(results, list) or any(not isinstance(item, dict) for item in results):
         raise ExternalEvidenceError("search results are invalid")
@@ -281,7 +319,10 @@ def parse_notion_search_result(raw: bytes) -> NotionSearchEvidence:
         _normalize_notion_id(result.get("id"), "search page")
         _required_text(result.get("title"), "search title")
         _required_text(result.get("url"), "search URL")
-    return NotionSearchEvidence(tuple(results))
+    canonical = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return NotionSearchEvidence(tuple(results), hashlib.sha256(canonical).hexdigest())
 
 
 def parse_notion_search_capture(
@@ -289,10 +330,7 @@ def parse_notion_search_capture(
 ) -> NotionSearchEvidence:
     """Bind the recorded Notion search request to its exact connector result."""
 
-    try:
-        capture = json.loads(raw.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError):
-        raise ExternalEvidenceError("raw search capture is not valid JSON") from None
+    capture = _strict_json_load(raw, "raw search capture")
     if (
         not isinstance(capture, dict)
         or set(capture) != {"schema_version", "request", "response"}
@@ -302,21 +340,9 @@ def parse_notion_search_capture(
         raise ExternalEvidenceError("search capture schema is invalid")
 
     request = capture.get("request")
-    allowed_fields = {
-        "query",
-        "page_url",
-        "page_size",
-        "max_highlight_length",
-        "filters",
-        "sort",
-        "data_source_url",
-        "query_type",
-        "teamspace_id",
-    }
     if (
         not isinstance(request, dict)
-        or not {"query", "page_url"}.issubset(request)
-        or set(request) - allowed_fields
+        or set(request) != {"query", "page_url", "page_size"}
     ):
         raise ExternalEvidenceError("search request schema is invalid")
     query = _required_text(request.get("query"), "search request query")
@@ -333,11 +359,9 @@ def parse_notion_search_capture(
     )
     if scope_id != expected_scope:
         raise ExternalEvidenceError("search request scope does not match receipt")
-    page_size = request.get("page_size", 10)
-    if not isinstance(page_size, int) or isinstance(page_size, bool) or page_size < 1:
+    page_size = request.get("page_size")
+    if type(page_size) is not int or page_size != 50:
         raise ExternalEvidenceError("search request page size is invalid")
-    if request.get("query_type", "internal") != "internal":
-        raise ExternalEvidenceError("search request type is invalid")
 
     response = capture.get("response")
     if not isinstance(response, dict):
@@ -347,9 +371,54 @@ def parse_notion_search_capture(
     except (TypeError, UnicodeError):
         raise ExternalEvidenceError("search capture response is invalid") from None
     evidence = parse_notion_search_result(response_raw)
-    if len(evidence.results) >= page_size:
-        raise ExternalEvidenceError("search result may be truncated")
+    if len(evidence.results) > page_size:
+        raise ExternalEvidenceError("search result exceeds requested page size")
     return evidence
+
+
+def parse_review_response(raw: bytes) -> dict[str, object]:
+    """Parse the single structured JSON response used for review receipts."""
+
+    payload = _strict_json_load(raw, "review response")
+    if not isinstance(payload, dict) or set(payload) != {
+        "verdict",
+        "findings",
+        "unverifiable_gaps",
+        "repository_consulted",
+        "packet_csv_consulted",
+    }:
+        raise ExternalEvidenceError("review response schema is invalid")
+    if payload.get("verdict") not in {"PASS", "NEEDS_FIXES"}:
+        raise ExternalEvidenceError("review response verdict is invalid")
+    if type(payload.get("repository_consulted")) is not bool or type(
+        payload.get("packet_csv_consulted")
+    ) is not bool:
+        raise ExternalEvidenceError("review response access declarations are invalid")
+    findings = payload.get("findings")
+    if not isinstance(findings, list):
+        raise ExternalEvidenceError("review response findings are invalid")
+    identifiers: set[str] = set()
+    finding_fields = {
+        "id",
+        "severity",
+        "claim_or_page",
+        "evidence",
+        "proposed_correction",
+    }
+    for finding in findings:
+        if not isinstance(finding, dict) or set(finding) != finding_fields:
+            raise ExternalEvidenceError("review response finding schema is invalid")
+        if any(not isinstance(value, str) or not value.strip() for value in finding.values()):
+            raise ExternalEvidenceError("review response finding is invalid")
+        if finding["id"] in identifiers:
+            raise ExternalEvidenceError("review response contains duplicate finding IDs")
+        identifiers.add(finding["id"])
+    gaps = payload.get("unverifiable_gaps")
+    if not isinstance(gaps, list) or any(
+        not isinstance(gap, str) or not gap.strip() for gap in gaps
+    ):
+        raise ExternalEvidenceError("review response unverifiable gaps are invalid")
+    return payload
 
 
 def parse_browser_review_result(raw: bytes) -> BrowserReviewEvidence:
@@ -390,10 +459,7 @@ def parse_browser_review_result(raw: bytes) -> BrowserReviewEvidence:
 
 
 def _tool_payload(raw: bytes, label: str) -> dict[str, object]:
-    try:
-        envelope = json.loads(raw.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError):
-        raise ExternalEvidenceError(f"raw {label} result is not valid JSON") from None
+    envelope = _strict_json_load(raw, f"raw {label} result")
     if not isinstance(envelope, dict) or envelope.get("isError") is not False:
         raise ExternalEvidenceError(f"raw {label} result reports an error")
     content = envelope.get("content")
@@ -406,10 +472,7 @@ def _tool_payload(raw: bytes, label: str) -> dict[str, object]:
     ]
     if len(texts) != 1 or not isinstance(texts[0], str):
         raise ExternalEvidenceError(f"raw {label} result has ambiguous text content")
-    try:
-        payload = json.loads(texts[0])
-    except json.JSONDecodeError:
-        raise ExternalEvidenceError(f"raw {label} text is not valid JSON") from None
+    payload = _strict_json_load(texts[0], f"raw {label} text")
     if not isinstance(payload, dict):
         raise ExternalEvidenceError(f"raw {label} payload must be an object")
     return payload

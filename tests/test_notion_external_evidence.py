@@ -15,6 +15,7 @@ from delta.notion_external_evidence import (
     parse_notion_fetch_result,
     parse_notion_search_result,
     parse_notion_update_result,
+    parse_review_response,
 )
 
 
@@ -26,6 +27,8 @@ BODY = "DELTA-AUDIT-MARKER-leiame\n\n## Resumo"
 
 
 def _tool_result(payload: dict[str, object]) -> bytes:
+    if "results" in payload and "type" in payload:
+        payload = {"has_more": False, "next_cursor": None, **payload}
     return json.dumps(
         {
             "content": [{"type": "text", "text": json.dumps(payload)}],
@@ -239,6 +242,64 @@ def test_search_result_normalizes_connector_highlight_emphasis() -> None:
     ) == (PAGE_ID,)
 
 
+def test_search_result_rejects_incomplete_or_unpaginated_results() -> None:
+    complete = {
+        "has_more": True,
+        "next_cursor": "next-page",
+        "results": [
+            {"id": PAGE_ID, "title": TITLE, "url": PAGE_URL, "type": "page"}
+        ],
+        "type": "workspace_search",
+    }
+
+    with pytest.raises(ExternalEvidenceError, match="pagination"):
+        parse_notion_search_result(_tool_result(complete))
+
+    missing_pagination = {
+        "results": [
+            {"id": PAGE_ID, "title": TITLE, "url": PAGE_URL, "type": "page"}
+        ],
+        "type": "workspace_search",
+    }
+    raw = json.dumps(
+        {
+            "content": [{"type": "text", "text": json.dumps(missing_pagination)}],
+            "isError": False,
+        }
+    ).encode()
+    with pytest.raises(ExternalEvidenceError, match="pagination"):
+        parse_notion_search_result(raw)
+
+    missing_cursor = {
+        "has_more": False,
+        "results": [],
+        "type": "workspace_search",
+    }
+    missing_cursor_raw = json.dumps(
+        {
+            "content": [
+                {"type": "text", "text": json.dumps(missing_cursor)}
+            ],
+            "isError": False,
+        }
+    ).encode()
+    with pytest.raises(ExternalEvidenceError, match="pagination"):
+        parse_notion_search_result(missing_cursor_raw)
+
+    result_limit = {
+        "has_more": False,
+        "next_cursor": None,
+        "request_status": {
+            "type": "complete",
+            "incomplete_reason": "query_result_limit_reached",
+        },
+        "results": [],
+        "type": "workspace_search",
+    }
+    with pytest.raises(ExternalEvidenceError, match="incomplete"):
+        parse_notion_search_result(_tool_result(result_limit))
+
+
 def test_search_capture_binds_query_and_page_scope_to_raw_response() -> None:
     page_url = "https://app.notion.com/p/" + PARENT_ID.replace("-", "")
     response = json.loads(
@@ -276,6 +337,35 @@ def test_search_capture_binds_query_and_page_scope_to_raw_response() -> None:
         parse_capture(raw, TITLE, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
 
+def test_search_capture_rejects_scope_restricting_optional_arguments() -> None:
+    page_url = "https://app.notion.com/p/" + PARENT_ID.replace("-", "")
+    response = json.loads(
+        _tool_result(
+            {
+                "results": [
+                    {"id": PAGE_ID, "title": TITLE, "url": PAGE_URL, "type": "page"}
+                ],
+                "type": "workspace_search",
+            }
+        )
+    )
+    raw = json.dumps(
+        {
+            "schema_version": 1,
+            "request": {
+                "query": TITLE,
+                "page_url": page_url,
+                "page_size": 50,
+                "filters": {"title_only": True},
+            },
+            "response": response,
+        }
+    ).encode()
+
+    with pytest.raises(ExternalEvidenceError, match="request schema"):
+        notion_external_evidence.parse_notion_search_capture(raw, TITLE, PARENT_ID)
+
+
 def test_browser_review_result_binds_ui_facts_and_response() -> None:
     response = "PASS\n\n## Achados\nNenhum achado material."
     raw = _tool_result(
@@ -307,3 +397,28 @@ def test_browser_review_result_binds_ui_facts_and_response() -> None:
     altered["content"][0]["text"] = json.dumps(altered_payload)
     with pytest.raises(ExternalEvidenceError, match="model"):
         parse_browser_review_result(json.dumps(altered).encode())
+
+
+def test_review_response_requires_one_structured_json_object() -> None:
+    response = {
+        "verdict": "PASS",
+        "findings": [],
+        "unverifiable_gaps": ["Repository unavailable."],
+        "repository_consulted": False,
+        "packet_csv_consulted": True,
+    }
+
+    assert parse_review_response(json.dumps(response).encode()) == response
+    with pytest.raises(ExternalEvidenceError, match="valid JSON"):
+        parse_review_response(b"PASS\nNo findings.")
+    with pytest.raises(ExternalEvidenceError, match="valid JSON"):
+        parse_review_response(
+            (json.dumps(response) + "\nConclusion: NEEDS_FIXES").encode()
+        )
+
+
+def test_review_response_rejects_duplicate_object_keys() -> None:
+    raw = b'''{"verdict":"NEEDS_FIXES","verdict":"PASS","findings":[],"unverifiable_gaps":[],"repository_consulted":true,"packet_csv_consulted":true}'''
+
+    with pytest.raises(ExternalEvidenceError, match="duplicate JSON key"):
+        parse_review_response(raw)

@@ -13,6 +13,7 @@ import pytest
 
 from delta import notion as notion_module
 from delta.notion import NotionPublicationError, prepare_notion
+from delta.notion_external_evidence import parse_notion_search_capture
 
 
 STATUSES = (
@@ -92,6 +93,12 @@ def _connector_result(payload: dict[str, object]) -> str:
 def _search_capture_result(
     *, query: str, scope_page_id: str, result: dict[str, object]
 ) -> str:
+    results = result.get("results")
+    if isinstance(results, list):
+        for item in results:
+            if isinstance(item, dict):
+                item["highlight"] = query
+    result = {"has_more": False, "next_cursor": None, **result}
     return json.dumps(
         {
             "schema_version": 1,
@@ -261,6 +268,8 @@ def test_prepare_review_packet_is_deterministic_without_presuming_github_access(
     assert "Se a interface ou as ferramentas disponíveis permitirem" in prompt
     assert "Se não permitirem, marque esse escopo como não verificado" in prompt
     assert "declare explicitamente que não consultou" in prompt
+    assert "somente com um objeto JSON válido" in prompt
+    assert "claim_or_page" in prompt
     assert "repositório privado" not in prompt
     for required in (
         "tente falsificar",
@@ -318,7 +327,10 @@ def _seed_review_gate(root: Path) -> object:
         (("kimi-k3", "Kimi K3"), ("opus-5", "Opus 5"))
     ):
         response_path = responses / f"{slug}.md"
-        response_path.write_text(f"PASS\n\n# {model}\n", encoding="utf-8")
+        response_path.write_text(
+            _review_response(unverifiable_gaps=[f"Relato de {model} sem lacunas."]),
+            encoding="utf-8",
+        )
         response_hashes[model] = _sha(response_path)
         raw_path = review_root / "raw" / f"{slug}.json"
         raw_path.parent.mkdir(exist_ok=True)
@@ -384,6 +396,57 @@ def _seed_review_gate(root: Path) -> object:
     return manifest
 
 
+def _review_response(
+    *,
+    verdict: str = "PASS",
+    findings: list[dict[str, str]] | None = None,
+    unverifiable_gaps: list[str] | None = None,
+    packet_csv_consulted: bool = True,
+) -> str:
+    return json.dumps(
+        {
+            "verdict": verdict,
+            "findings": findings or [],
+            "unverifiable_gaps": unverifiable_gaps or [],
+            "repository_consulted": True,
+            "packet_csv_consulted": packet_csv_consulted,
+        },
+        ensure_ascii=False,
+        indent=2,
+    ) + "\n"
+
+
+def _rewrite_review_response(
+    root: Path,
+    slug: str,
+    response_text: str,
+    *,
+    synchronize_findings: bool = False,
+) -> None:
+    review_root = root / "out/notion/review"
+    receipt_path = review_root / f"receipts/{slug}.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    response_path = root / receipt["response_path"]
+    response_path.write_text(response_text, encoding="utf-8")
+    receipt["response_sha256"] = _sha(response_path)
+    raw_path = root / receipt["browser_result_path"]
+    raw = json.loads(raw_path.read_text(encoding="utf-8"))
+    inner = json.loads(raw["content"][0]["text"])
+    inner["response_markdown"] = response_text
+    raw["content"][0]["text"] = json.dumps(inner)
+    raw_path.write_text(json.dumps(raw), encoding="utf-8")
+    receipt["browser_result_sha256"] = _sha(raw_path)
+    if synchronize_findings:
+        receipt["findings"] = json.loads(response_text)["findings"]
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    reconciliation_path = review_root / "reconciliation.json"
+    reconciliation = json.loads(reconciliation_path.read_text(encoding="utf-8"))
+    model = receipt["model"]
+    reconciliation["review_response_hashes"][model] = receipt["response_sha256"]
+    reconciliation_path.write_text(json.dumps(reconciliation), encoding="utf-8")
+
+
 def test_review_gate_accepts_two_independent_bound_reviews(tmp_path: Path) -> None:
     _seed_reports(tmp_path)
     _seed_review_gate(tmp_path)
@@ -408,26 +471,47 @@ def test_review_gate_rejects_response_verdict_hidden_by_pass_receipt(
 ) -> None:
     _seed_reports(tmp_path)
     _seed_review_gate(tmp_path)
-    review_root = tmp_path / "out/notion/review"
-    receipt_path = review_root / "receipts/kimi-k3.json"
-    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-    response_path = tmp_path / receipt["response_path"]
-    response_path.write_text("NEEDS_FIXES\n\nReview details.\n", encoding="utf-8")
-    receipt["response_sha256"] = _sha(response_path)
-    raw_path = tmp_path / receipt["browser_result_path"]
-    raw = json.loads(raw_path.read_text(encoding="utf-8"))
-    inner = json.loads(raw["content"][0]["text"])
-    inner["response_markdown"] = response_path.read_text(encoding="utf-8")
-    raw["content"][0]["text"] = json.dumps(inner)
-    raw_path.write_text(json.dumps(raw), encoding="utf-8")
-    receipt["browser_result_sha256"] = _sha(raw_path)
-    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
-    reconciliation_path = review_root / "reconciliation.json"
-    reconciliation = json.loads(reconciliation_path.read_text(encoding="utf-8"))
-    reconciliation["review_response_hashes"]["Kimi K3"] = receipt["response_sha256"]
-    reconciliation_path.write_text(json.dumps(reconciliation), encoding="utf-8")
+    _rewrite_review_response(
+        tmp_path, "kimi-k3", _review_response(verdict="NEEDS_FIXES")
+    )
 
     with pytest.raises(NotionPublicationError, match="response verdict"):
+        _function("verify_review_gate")(tmp_path)
+
+
+def test_review_gate_rejects_response_findings_omitted_from_receipt(
+    tmp_path: Path,
+) -> None:
+    _seed_reports(tmp_path)
+    _seed_review_gate(tmp_path)
+    finding = {
+        "id": "K-1",
+        "severity": "P1",
+        "claim_or_page": "leiame",
+        "evidence": "The source does not support the claim.",
+        "proposed_correction": "Remove the unsupported claim.",
+    }
+    _rewrite_review_response(
+        tmp_path,
+        "kimi-k3",
+        _review_response(findings=[finding]),
+    )
+
+    with pytest.raises(NotionPublicationError, match="response findings"):
+        _function("verify_review_gate")(tmp_path)
+
+
+def test_review_gate_rejects_unreviewed_packet_csv(tmp_path: Path) -> None:
+    _seed_reports(tmp_path)
+    _seed_review_gate(tmp_path)
+    _rewrite_review_response(
+        tmp_path,
+        "kimi-k3",
+        _review_response(packet_csv_consulted=False),
+        synchronize_findings=True,
+    )
+
+    with pytest.raises(NotionPublicationError, match="packet CSV"):
         _function("verify_review_gate")(tmp_path)
 
 
@@ -437,12 +521,19 @@ def test_review_gate_rejects_deferred_reconciliation_decisions(
     _seed_reports(tmp_path)
     _seed_review_gate(tmp_path)
     review_root = tmp_path / "out/notion/review"
-    receipt_path = review_root / "receipts/kimi-k3.json"
-    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-    receipt["findings"] = [
-        {"id": "K-1", "severity": "important", "summary": "Material issue"}
-    ]
-    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    finding = {
+        "id": "K-1",
+        "severity": "important",
+        "claim_or_page": "leiame",
+        "evidence": "Material issue in source evidence.",
+        "proposed_correction": "Correct the claim before publication.",
+    }
+    _rewrite_review_response(
+        tmp_path,
+        "kimi-k3",
+        _review_response(findings=[finding]),
+        synchronize_findings=True,
+    )
     reconciliation_path = review_root / "reconciliation.json"
     reconciliation = json.loads(reconciliation_path.read_text(encoding="utf-8"))
     reconciliation["decisions"] = [
@@ -578,18 +669,23 @@ def test_review_gate_rejects_stale_or_incomplete_reconciliation(tmp_path: Path) 
     _seed_reports(tmp_path)
     _seed_review_gate(tmp_path)
     review_root = tmp_path / "out" / "notion" / "review"
-    receipt_path = review_root / "receipts" / "kimi-k3.json"
-    receipt = json.loads(receipt_path.read_text())
-    receipt["findings"] = [
-        {"id": "K-1", "severity": "important", "summary": "Material issue"}
-    ]
-    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    finding = {
+        "id": "K-1",
+        "severity": "important",
+        "claim_or_page": "leiame",
+        "evidence": "Material issue in source evidence.",
+        "proposed_correction": "Correct the claim before publication.",
+    }
+    _rewrite_review_response(
+        tmp_path,
+        "kimi-k3",
+        _review_response(findings=[finding]),
+        synchronize_findings=True,
+    )
 
     with pytest.raises(NotionPublicationError, match="reconciliation"):
         _function("verify_review_gate")(tmp_path)
 
-    receipt["findings"] = []
-    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
     report = tmp_path / "deltas" / "leiame.md"
     report.write_text(
         report.read_text(encoding="utf-8").replace("limite leiame", "novo limite"),
@@ -791,6 +887,18 @@ def _seed_draft_publication_gate(root: Path) -> object:
             ),
             encoding="utf-8",
         )
+        source_final_raw = raw_root / f"source-final-{entry.slug}.json"
+        source_final_raw.write_text(
+            _fetch_connector_result(
+                title=entry.title,
+                url=entry.url,
+                parent_id=entry.parent_page_id,
+                body=prepared_body,
+                as_of=(base_time + timedelta(minutes=2, seconds=30)).isoformat(),
+                last_edited=(base_time - timedelta(minutes=4)).isoformat(),
+            ),
+            encoding="utf-8",
+        )
         copy_raw = raw_root / f"copy-before-edit-{entry.slug}.json"
         copy_raw.write_text(
             _fetch_connector_result(
@@ -874,6 +982,8 @@ def _seed_draft_publication_gate(root: Path) -> object:
                 "duplicate_result_sha256": _sha(duplicate_raw),
                 "source_fetch_path": str(source_raw.relative_to(root)),
                 "source_fetch_sha256": _sha(source_raw),
+                "source_final_fetch_path": str(source_final_raw.relative_to(root)),
+                "source_final_fetch_sha256": _sha(source_final_raw),
                 "copy_fetch_path": str(copy_raw.relative_to(root)),
                 "copy_fetch_sha256": _sha(copy_raw),
             }
@@ -938,13 +1048,73 @@ def _seed_draft_publication_gate(root: Path) -> object:
     return manifest
 
 
-def test_draft_publication_gate_accepts_copies_with_readback_and_source_proof(
+def test_draft_publication_gate_blocks_search_only_uniqueness_claim(
     tmp_path: Path,
 ) -> None:
     _seed_reports(tmp_path)
     _seed_draft_publication_gate(tmp_path)
 
-    _function("verify_draft_publication_gate")(tmp_path)
+    with pytest.raises(
+        NotionPublicationError,
+        match="Notion Search is not an exhaustive uniqueness proof",
+    ):
+        _function("verify_draft_publication_gate")(tmp_path)
+
+
+def test_draft_gate_records_empty_searches_but_blocks_unproven_absence(
+    tmp_path: Path,
+) -> None:
+    _seed_reports(tmp_path)
+    _seed_draft_publication_gate(tmp_path)
+    draft_root = tmp_path / "out/notion/draft"
+    search_path = draft_root / "fetched/duplicate-search.json"
+    searches = json.loads(search_path.read_text(encoding="utf-8"))
+    for row in searches["searches"]:
+        raw_path = tmp_path / row["raw_search_path"]
+        capture = json.loads(raw_path.read_text(encoding="utf-8"))
+        payload = {
+            "type": "ai_search",
+            "results": [],
+            "has_more": False,
+            "next_cursor": None,
+        }
+        capture["response"]["content"][0]["text"] = json.dumps(payload)
+        row["matched_page_ids"] = []
+        raw_path.write_text(json.dumps(capture), encoding="utf-8")
+        row["raw_search_sha256"] = _sha(raw_path)
+        evidence = parse_notion_search_capture(
+            raw_path.read_bytes(), row["query"], row["scope_parent_page_id"]
+        )
+        assert evidence.results == ()
+    search_path.write_text(json.dumps(searches), encoding="utf-8")
+
+    with pytest.raises(
+        NotionPublicationError,
+        match="empty duplicate searches do not prove absence",
+    ):
+        _function("verify_draft_publication_gate")(tmp_path)
+
+
+def test_draft_gate_rejects_reused_nonempty_response_across_query_kinds(
+    tmp_path: Path,
+) -> None:
+    _seed_reports(tmp_path)
+    _seed_draft_publication_gate(tmp_path)
+    draft_root = tmp_path / "out/notion/draft"
+    search_path = draft_root / "fetched/duplicate-search.json"
+    searches = json.loads(search_path.read_text(encoding="utf-8"))
+    first_capture_path = tmp_path / searches["searches"][0]["raw_search_path"]
+    first_capture = json.loads(first_capture_path.read_text(encoding="utf-8"))
+    for row in searches["searches"][1:3]:
+        raw_path = tmp_path / row["raw_search_path"]
+        capture = json.loads(raw_path.read_text(encoding="utf-8"))
+        capture["response"] = first_capture["response"]
+        raw_path.write_text(json.dumps(capture), encoding="utf-8")
+        row["raw_search_sha256"] = _sha(raw_path)
+    search_path.write_text(json.dumps(searches), encoding="utf-8")
+
+    with pytest.raises(NotionPublicationError, match="reused for different queries"):
+        _function("verify_draft_publication_gate")(tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -957,6 +1127,10 @@ def test_draft_publication_gate_accepts_copies_with_readback_and_source_proof(
         ("child_pages", "contains child pages or databases"),
         ("duplicate_id", "IDs must be distinct"),
         ("updated_source", "publication page_id"),
+        ("source_changed_after_copy", "source changed after copy updates"),
+        ("stale_final_source_fetch", "final source fetch predates copy updates"),
+        ("copy_fetch_after_update", "copy fetch must precede update"),
+        ("reused_broad_search", "search response reused for different pages"),
         ("duplicate_search", "duplicate raw search"),
         ("stale_search", "search predates the copy updates"),
     ),
@@ -1028,6 +1202,56 @@ def test_draft_publication_gate_rejects_invalid_copy_provenance(
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         receipt["page_id"] = entry["source_page_id"]
         receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    elif mutation == "source_changed_after_copy":
+        path = tmp_path / entry["source_final_fetch_path"]
+        original = manifest.entries[0]
+        wrong_body = (tmp_path / original.prepared_path).read_text(
+            encoding="utf-8"
+        ).replace("limite leiame", "fonte alterada depois da cópia")
+        path.write_text(
+            _fetch_connector_result(
+                title=original.title,
+                url=original.url,
+                parent_id=original.parent_page_id,
+                body=wrong_body,
+                as_of="2026-09-25T15:04:00+00:00",
+                last_edited="2026-09-25T15:04:00+00:00",
+            ),
+            encoding="utf-8",
+        )
+        entry["source_final_fetch_sha256"] = _sha(path)
+    elif mutation == "stale_final_source_fetch":
+        path = tmp_path / entry["source_final_fetch_path"]
+        original = manifest.entries[0]
+        body = (tmp_path / original.prepared_path).read_text(encoding="utf-8")
+        path.write_text(
+            _fetch_connector_result(
+                title=original.title,
+                url=original.url,
+                parent_id=original.parent_page_id,
+                body=body,
+                as_of="2026-09-25T15:00:45+00:00",
+                last_edited="2026-09-25T14:56:00+00:00",
+            ),
+            encoding="utf-8",
+        )
+        entry["source_final_fetch_sha256"] = _sha(path)
+    elif mutation == "copy_fetch_after_update":
+        path = tmp_path / entry["copy_fetch_path"]
+        original = manifest.entries[0]
+        copy_id = entry["page_id"]
+        path.write_text(
+            _fetch_connector_result(
+                title=f"Cópia de {original.title}",
+                url=f"https://app.notion.com/p/{copy_id.replace('-', '')}",
+                parent_id=original.parent_page_id,
+                body=(tmp_path / original.prepared_path).read_text(encoding="utf-8"),
+                as_of="2026-09-25T15:02:00+00:00",
+                last_edited="2026-09-25T15:02:00+00:00",
+            ),
+            encoding="utf-8",
+        )
+        entry["copy_fetch_sha256"] = _sha(path)
     elif mutation == "duplicate_search":
         fetched_root = draft_root / "fetched"
         search_path = fetched_root / "duplicate-search.json"
@@ -1049,6 +1273,30 @@ def test_draft_publication_gate_rejects_invalid_copy_provenance(
         raw_path.write_text(json.dumps(raw), encoding="utf-8")
         row["raw_search_sha256"] = _sha(raw_path)
         search_path.write_text(json.dumps(searches), encoding="utf-8")
+    elif mutation == "reused_broad_search":
+        fetched_root = draft_root / "fetched"
+        search_path = fetched_root / "duplicate-search.json"
+        searches = json.loads(search_path.read_text(encoding="utf-8"))
+        broad_results = []
+        for target in targets["entries"]:
+            broad_results.append(
+                {
+                    "id": target["page_id"],
+                    "title": target["title"],
+                    "url": target["url"],
+                    "type": "page",
+                    "highlight": target["marker"],
+                }
+            )
+        for row in searches["searches"]:
+            raw_path = tmp_path / row["raw_search_path"]
+            capture = json.loads(raw_path.read_text(encoding="utf-8"))
+            result = json.loads(capture["response"]["content"][0]["text"])
+            result["results"] = broad_results
+            capture["response"]["content"][0]["text"] = json.dumps(result)
+            raw_path.write_text(json.dumps(capture), encoding="utf-8")
+            row["raw_search_sha256"] = _sha(raw_path)
+        search_path.write_text(json.dumps(searches), encoding="utf-8")
     else:
         search_path = draft_root / "fetched" / "duplicate-search.json"
         searches = json.loads(search_path.read_text(encoding="utf-8"))
@@ -1060,13 +1308,17 @@ def test_draft_publication_gate_rejects_invalid_copy_provenance(
         _function("verify_draft_publication_gate")(tmp_path)
 
 
-def test_publication_gate_accepts_semantic_readback_and_external_provenance(
+def test_publication_gate_blocks_search_only_uniqueness_claim(
     tmp_path: Path,
 ) -> None:
     _seed_reports(tmp_path)
     _seed_publication_gate(tmp_path)
 
-    _function("verify_publication_gate")(tmp_path)
+    with pytest.raises(
+        NotionPublicationError,
+        match="Notion Search is not an exhaustive uniqueness proof",
+    ):
+        _function("verify_publication_gate")(tmp_path)
 
 
 @pytest.mark.parametrize(

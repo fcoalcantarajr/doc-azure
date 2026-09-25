@@ -26,8 +26,8 @@ O analisador de argumentos também retorna `2` antes da auditoria quando uma op�
 
 | Código | Saída | Significado |
 | --- | --- | --- |
-| `0` | `GATE_OK` | Todos os invariáveis exigidos pelo modo escolhido passaram. |
-| `1` | `GATE_FAIL: <mensagem>` | O primeiro invariável indicado falhou. |
+| `0` | `GATE_OK` | Os invariáveis do modo local passaram; modos de publicação só retornam isso quando todas as evidências exigidas passam. |
+| `1` | `GATE_FAIL: <mensagem>` | O primeiro invariável indicado falhou. No estado atual, `--require-publication` e `--require-draft-publication` bloqueiam Search como prova de unicidade por falta de inventário independente. |
 
 Esta porta executa `uv run pytest -q` como última etapa. Se a saída mencionar `subprocess 'uv' failed`, rode os testes separadamente para ver o detalhe que a porta suprime. Não altere expressões internas nem regenere evidência para silenciar a falha. Siga a mensagem e o [guia da porta](../guides/verify-repository.md).
 
@@ -38,7 +38,7 @@ Esta porta executa `uv run pytest -q` como última etapa. Se a saída mencionar 
 | `01_fetch_wiki.py` | `0` | `1` |
 | `02_fetch_process.py` | `0` | `1` |
 | `03_build_delta.py` | `0` | `1`, com `BUILD_FAILED: <mensagem>` para falhas tratadas |
-| `04_prepare_notion.py` | `0`; `--verify-fetched` imprime `NOTION_FETCHED_OK` e `--verify-publication` imprime `NOTION_PUBLICATION_OK` | `1`, com `NOTION_PREPARATION_FAILED: <mensagem>` |
+| `04_prepare_notion.py` | `0`; `--verify-fetched` imprime `NOTION_FETCHED_OK`; `--verify-publication` imprime `NOTION_PUBLICATION_OK` somente se a porta completa passar | `1`, com `NOTION_PREPARATION_FAILED: <mensagem>`; atualmente a prova de unicidade bloqueia a publicação quando depende só de Search |
 | `setup.py` | `0` | `1` |
 | `prepare_baselines.py` | `0` quando conclui | outro código ou traceback se a execução não concluir |
 | `export_process_for_llm.py` | `0`, com `LLM_EXPORT_OK` e quatro caminhos absolutos: bundle, delta Markdown, delta JSON e diretório por tipo | `1`, com `LLM_EXPORT_FAILED: <mensagem sanitizada>`; a geração anterior é preservada |

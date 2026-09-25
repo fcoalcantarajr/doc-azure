@@ -145,10 +145,12 @@ uv run python verify.py --require-publication
 ```
 
 A porta rigorosa exige reconciliação das revisões, identidades e títulos exatos,
-pai comum, ausência de duplicatas, ordem temporal válida entre atualização e
-releitura, hashes dos recibos brutos e equivalência semântica de todos os
-achados ordenados. Somente a releitura bem-sucedida justifica o estado atual
-“publicado”.
+pai comum, ordem temporal válida entre atualização e releitura, hashes dos
+recibos brutos e equivalência semântica de todos os achados ordenados. Search
+não é exaustivo; nem zero resultados nem um único resultado provam ausência de
+duplicatas. Como o conector atual não fornece um inventário independente
+comprovadamente completo, a porta de unicidade permanece bloqueada. A releitura
+semântica, isoladamente, não justifica o estado atual “publicado”.
 
 ## Cópias de revisão em Staging
 
@@ -166,12 +168,20 @@ revisado. Não use `notion_update_page` nos IDs-fonte. Antes de substituir o
 conteúdo, confira no fetch que a cópia está completa e não tem páginas-filhas
 que seriam removidas.
 
-Registre as identidades fonte/cópia, o resultado bruto da duplicação, o fetch
-inicial da fonte e da cópia, os recibos de atualização e os read-backs em
-`out/notion/draft/`. Essa árvore é ignorada pelo Git e tem schema próprio. A
-porta de rascunho exige IDs distintos dos originais, cópia semântica inicial
-igual à fonte, destino sob Staging, revisão atual, atualização direcionada à
-cópia, read-back semântico e doze buscas exatas dentro de Staging.
+Depois de atualizar todas as cópias, faça novo fetch de cada fonte para
+confirmar que ID, título, pai, corpo e horário de última edição continuam
+iguais ao estado inicial. Registre as identidades fonte/cópia, o resultado
+bruto da duplicação, os fetches inicial e final da fonte, o fetch pré-edição da
+cópia, os recibos de atualização e os read-backs em `out/notion/draft/`. Essa
+árvore é ignorada pelo Git e tem schema próprio. A porta de rascunho exige IDs
+distintos dos originais, cópia semântica inicial igual à fonte, destino sob
+Staging, fetch pré-edição anterior à atualização, fontes preservadas após todas
+as atualizações, read-back semântico e doze buscas dentro de Staging. As buscas
+podem detectar correspondências retornadas, mas Search não garante todos os
+resultados nem indexação imediata; como falta prova independente no schema
+atual, a porta de unicidade permanece bloqueada mesmo quando cada busca retorna
+somente a cópia esperada. Respostas vazias podem ser preservadas como evidência
+bruta, mas também bloqueiam a porta.
 
 Execute o gate completo do modo de cópia:
 
@@ -179,6 +189,7 @@ Execute o gate completo do modo de cópia:
 uv run python verify.py --require-draft-publication
 ```
 
-`--require-publication` continua verificando a publicação canônica nos quatro
-IDs originais. Um sucesso do modo de rascunho comprova somente as cópias em
-Staging; não significa que as páginas canônicas foram atualizadas.
+`--require-publication` verifica a publicação canônica nos quatro IDs
+originais. Se uma futura revisão do contrato permitir prova independente de
+unicidade, um sucesso do modo de rascunho comprovará somente as cópias em
+Staging; não significará que as páginas canônicas foram atualizadas.

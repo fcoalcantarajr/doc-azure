@@ -140,12 +140,18 @@ browser_result_path, browser_result_sha256, findings
 ```
 
 Use `schema_version: 1`, `effort: "maximum"` e
-`surface: "chatgpt-integrated-browser"`. `verdict` é exatamente `PASS` ou
-`NEEDS_FIXES`; para passar a porta, os dois recibos e a primeira linha não
-vazia de cada resposta devem ser exatamente `PASS`. `NEEDS_FIXES` bloqueia a
-publicação. Cada item de `findings` tem exatamente `id`, `severity` e
-`summary`, todos textos não vazios. Os caminhos são relativos ao repositório.
-Os hashes da resposta salva e do navegador bruto devem corresponder aos arquivos.
+`surface: "chatgpt-integrated-browser"`. A resposta deve ser somente um objeto
+JSON válido com exatamente `verdict`, `findings`, `unverifiable_gaps`,
+`repository_consulted` e `packet_csv_consulted`. `verdict` é `PASS` ou
+`NEEDS_FIXES`; cada achado tem exatamente `id`, `severity`, `claim_or_page`,
+`evidence` e `proposed_correction`, todos textos não vazios. `findings` deve
+coincidir exatamente com a lista do recibo, e o veredito deve coincidir com
+`verdict`; assim o recibo não pode omitir um achado presente na resposta nem
+contradizer seu veredito. `unverifiable_gaps` é uma lista de textos e os dois
+campos `*_consulted` são booleanos. Para passar a porta, ambos os vereditos
+devem ser `PASS`. `NEEDS_FIXES` bloqueia a publicação. Os caminhos são relativos
+ao repositório. Os hashes da resposta salva e do navegador bruto devem
+corresponder aos arquivos.
 
 Se as respostas forem idênticas byte a byte ou a autodescrição de uma resposta
 conflitar com o modelo visível na interface, preserve a anomalia e repita as duas
@@ -247,10 +253,12 @@ Use `schema_version: 1`. `pages` é uma lista ordenada de quatro itens que
 corresponde ao manifesto de publicação. Cada item tem exatamente `page_id`,
 `title`, `parent_page_id` e `url`.
 
-## Provar a ausência de duplicatas
+## Registrar buscas por duplicatas
 
 Faça doze buscas no Notion limitadas à página pai: ID, título exato e marcador
-de cada uma das quatro páginas. Salve cada captura como
+de cada uma das quatro páginas. Cada chamada usa somente `query`, `page_url` e
+`page_size: 50`; não passe filtros, cursores, ordenações ou seletores adicionais
+que possam restringir os resultados. Salve cada captura como
 `raw/notion-search-<slug>-<kind>.json`, usando exatamente este envelope:
 
 ```json
@@ -268,15 +276,19 @@ de cada uma das quatro páginas. Salve cada captura como
 }
 ```
 
-Registre em `request` todos os argumentos efetivamente enviados, incluindo
-opcionais; o gate confere `query` e `page_url` com o recibo de busca e calcula
-o hash sobre o envelope inteiro. O conector não ecoa esses argumentos no
+Registre em `request` os argumentos enviados; o gate exige exatamente essas
+três chaves, compara `query` e `page_url` com o recibo e calcula o hash sobre o
+envelope inteiro. O conector não ecoa esses argumentos no
 resultado: esse envelope é uma observação capturada da sessão que associa a
 chamada à resposta salva, não uma assinatura criptográfica da plataforma. Não
 alegue autenticação além dessa associação. Preserve `response` sem alterações.
 O payload interno pode declarar `type: "workspace_search"` ou `type:
-"ai_search"` e deve conter uma lista `results`. Cada item de `results` deve
-identificar uma página com `id`,
+"ai_search"` e deve conter uma lista `results`, `has_more: false` e
+`next_cursor: null`. Uma resposta sem indicadores explícitos de paginação
+completa, com `has_more: true`, ou com `request_status.incomplete_reason` não
+nulo bloqueia a conclusão da busca. A API oficial exige `has_more` e
+`next_cursor` ([referência oficial](https://developers.notion.com/reference/post-search)); se um conector não os devolver, não infira completude pela quantidade de resultados. Mesmo com paginação encerrada, a documentação oficial informa que Search não garante todos os resultados e que a indexação pode atrasar ([limitações oficiais](https://developers.notion.com/reference/search-optimizations-and-limitations)). Portanto, esses recibos registram resultados retornados; uma lista vazia não prova ausência de duplicatas.
+Cada item de `results` deve identificar uma página com `id`,
 `title` e `url` não vazios; quando `type` estiver presente, seu valor deve ser
 `"page"`. Nas quatro buscas por marcador, o item da página esperada também deve
 conter `highlight` como texto e esse texto deve incluir o marcador exato. O
@@ -294,8 +306,18 @@ slug, kind, query, scope_parent_page_id, expected_page_id,
 matched_page_ids, searched_at, raw_search_path, raw_search_sha256
 ```
 
-Em cada item, `matched_page_ids` deve conter somente o ID fixo esperado. Nenhum
-resultado exato ou mais de um resultado exato bloqueia a publicação. Se uma busca por
+Em cada item, `matched_page_ids` registra o ID fixo esperado uma vez ou uma
+lista vazia. Mais de um resultado exato ou uma resposta vazia bloqueia a porta
+de unicidade. Respostas vazias podem se repetir entre consultas diferentes
+quando cada envelope registra a query e o parent exatos e a resposta declara
+paginação encerrada; o parser as aceita como evidência bruta, mas não como prova
+de ausência. Uma resposta não vazia com somente a página esperada tampouco
+prova unicidade. O schema atual não oferece uma prova independente; por isso,
+após validar os recibos, a porta continua bloqueada até existir evidência
+independente comprovadamente completa. Respostas não vazias reutilizadas entre
+queries distintas são rejeitadas; resultados amplos que contenham várias cópias continuam bloqueados.
+Se o resultado bruto trouxer a página esperada mas o
+título ou marcador não corresponder à consulta, a porta falha. Se uma busca por
 marcador encontrar a página mas a resposta não trouxer `highlight` contendo o
 marcador, siga o diagnóstico específico em [Solução de
 problemas](../troubleshooting.md#busca-por-marcador-do-notion-não-retorna-highlight-válido).
@@ -321,10 +343,12 @@ uv run python scripts/04_prepare_notion.py --verify-publication
 uv run python verify.py --require-publication
 ```
 
-Os marcadores obrigatórios finais são `NOTION_PUBLICATION_OK` e `GATE_OK`. Se qualquer
-comando falhar, procure a mensagem exata em [Solução de
-problemas](../troubleshooting.md), preserve toda a evidência e não declare que
-os relatórios atuais estão publicados.
+No estado atual, não espere os marcadores `NOTION_PUBLICATION_OK` e `GATE_OK`
+com `--require-publication`: ambos os gates rejeitam Search como prova de
+unicidade porque falta inventário independente comprovadamente completo. O
+primeiro comando imprime `NOTION_PREPARATION_FAILED` e o segundo `GATE_FAIL`.
+Preserve os recibos e não declare que os relatórios atuais estão publicados.
+O `GATE_OK` sem opção de publicação cobre somente a porta local.
 
 ## Verificar publicação somente em cópias
 
@@ -349,7 +373,8 @@ na mesma ordem do manifesto de publicação. Cada item tem exatamente:
 slug, source_page_id, source_title, page_id, title, parent_page_id, url,
 marker, prepared_path, body_sha256, semantic_sha256, duplicated_at,
 duplicate_result_path, duplicate_result_sha256, source_fetch_path,
-source_fetch_sha256, copy_fetch_path, copy_fetch_sha256
+source_fetch_sha256, source_final_fetch_path, source_final_fetch_sha256,
+copy_fetch_path, copy_fetch_sha256
 ```
 
 `source_page_id` e `source_title` são os valores do manifesto canônico.
@@ -359,11 +384,14 @@ de todo ID-fonte e de todos os outros destinos. O título final é
 bruto da duplicação deve identificar exatamente `page_id` e `url`.
 
 `source_fetch_path` registra o original antes da duplicação;
-`copy_fetch_path` registra a cópia antes de qualquer edição. O gate verifica que
-o original tem ID, título, URL e pai esperados, e que a cópia inicial tem ID
-próprio, começa sob o mesmo pai do original e mantém a mesma semântica. O
-horário do fetch da fonte precede a duplicação; o fetch da cópia e a atualização
-vêm depois. Confira manualmente `truncated`, `unknown_block_count` e
+`copy_fetch_path` registra a cópia antes de qualquer edição; e
+`source_final_fetch_path` registra o original após todas as atualizações. O gate
+verifica que ID, título, URL, pai, corpo e horário de última edição da fonte
+continuam iguais entre os dois fetches. A cópia inicial tem ID próprio, começa
+sob o mesmo pai do original e mantém a mesma semântica. A ordem exigida é
+`source_fetch ≤ duplicação ≤ copy_fetch ≤ atualização ≤ read-back`; cada fetch
+final da fonte ocorre depois da última atualização das cópias. Confira
+manualmente `truncated`, `unknown_block_count` e
 `unknown_block_ids` antes da edição; fetch incompleto bloqueia a operação.
 
 Os recibos finais `<slug>.json` e corpos `<slug>.md` usam o mesmo schema do
@@ -378,5 +406,8 @@ Execute:
 uv run python verify.py --require-draft-publication
 ```
 
-O marcador `GATE_OK` com esse argumento comprova somente os quatro rascunhos.
-Use `--require-publication` para a porta canônica; os dois modos são exclusivos.
+Com Search como única evidência de unicidade, esse comando retorna `GATE_FAIL`
+porque falta inventário independente comprovadamente completo. Se vier a
+retornar `GATE_OK` após uma mudança futura no contrato de evidência, ele
+comprovará somente os quatro rascunhos. Use `--require-publication` para a
+porta canônica; os dois modos são exclusivos.
