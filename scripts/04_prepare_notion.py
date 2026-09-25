@@ -47,7 +47,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--repository-url",
-        help="private GitHub repository bound into the adversarial review packet",
+        help="GitHub repository URL bound into the adversarial review packet",
+    )
+    parser.add_argument(
+        "--review-base-sha",
+        help="full base commit SHA for an exact code review range",
+    )
+    parser.add_argument(
+        "--review-head-sha",
+        help="full head commit SHA for an exact code review range",
     )
     return parser.parse_args(argv)
 
@@ -64,6 +72,8 @@ def main(argv: list[str] | None = None) -> int:
             manifest = prepare_notion(
                 arguments.root,
                 repository_url=arguments.repository_url,
+                review_base_sha=arguments.review_base_sha,
+                review_head_sha=arguments.review_head_sha,
             )
             print(arguments.root / "out" / "notion" / "publication-manifest.json")
             for entry in manifest.entries:

@@ -20,7 +20,9 @@ from delta.notion_semantics import (
 )
 
 
-NOTION_PARENT_PAGE_ID = "2a1412e0-8c26-803b-a988-dc619a396e45"
+NOTION_AZURE_PAGE_ID = "2a1412e0-8c26-803b-a988-dc619a396e45"
+NOTION_PARENT_PAGE_ID = "66b81130-f72c-4864-9e1e-534c7459d620"
+NOTION_DRAFT_PARENT_PAGE_ID = "2d5412e0-8c26-803d-9e30-ec56c88af85f"
 _PAGE_METADATA = {
     "leiame": {
         "title": "Delta — Leiame × Processo-Agil implementado",
@@ -126,10 +128,27 @@ def prepare_notion(
     root: Path,
     *,
     repository_url: str | None = None,
+    review_base_sha: str | None = None,
+    review_head_sha: str | None = None,
 ) -> PublicationManifest:
     """Validate all sources, then atomically stage four exact delta bodies."""
 
     repository_root = Path(root)
+    if repository_url is None and (
+        review_base_sha is not None or review_head_sha is not None
+    ):
+        raise NotionPublicationError(
+            "repository_url is required when binding a review commit range"
+        )
+    if repository_url is not None:
+        from delta.notion_gate import _validate_review_request
+
+        _validate_review_request(
+            repository_url,
+            review_base_sha,
+            review_head_sha,
+            NotionPublicationError,
+        )
     manifest, bodies, semantics = _collect_entries_and_bodies(repository_root)
     notion_root = repository_root / "out" / "notion"
     for entry, body in zip(manifest.entries, bodies, strict=True):
@@ -143,6 +162,8 @@ def prepare_notion(
             manifest,
             semantics,
             repository_url,
+            review_base_sha,
+            review_head_sha,
             NotionPublicationError,
         )
     return manifest
@@ -216,6 +237,14 @@ def verify_publication_gate(root: Path) -> None:
     """Verify reviews, publication receipts, and semantic read-back."""
 
     from delta.notion_gate import verify_publication_gate as verify
+
+    verify(Path(root), NotionPublicationError)
+
+
+def verify_draft_publication_gate(root: Path) -> None:
+    """Verify reviewed copies in Staging without accepting canonical-page edits."""
+
+    from delta.notion_draft_gate import verify_draft_publication_gate as verify
 
     verify(Path(root), NotionPublicationError)
 

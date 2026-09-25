@@ -97,13 +97,14 @@ def _fetch_connector_result(
     body: str,
     as_of: str,
     last_edited: str,
+    parent_title: str = "IA, automações & sessões",
 ) -> str:
     parent = ""
     if parent_id is not None:
         parent = (
             "<ancestor-path>\n"
             f'<parent-page url="https://app.notion.com/p/{parent_id.replace("-", "")}" '
-            'title="Azure"/>\n'
+            f'title="{parent_title}"/>\n'
             "</ancestor-path>\n"
         )
     return _connector_result(
@@ -159,15 +160,58 @@ def test_prepare_notion_uses_the_existing_full_titles(tmp_path: Path) -> None:
     assert all(entry.title.startswith("Delta —") for entry in manifest.entries)
 
 
-def test_prepare_review_packet_is_deterministic_and_mentions_private_github(
+@pytest.mark.parametrize(
+    ("base_sha", "head_sha"),
+    (
+        ("a" * 40, None),
+        ("not-a-sha", "b" * 40),
+        ("a" * 40, "a" * 40),
+    ),
+)
+def test_prepare_notion_rejects_invalid_review_range_before_writing_artifacts(
+    tmp_path: Path, base_sha: str | None, head_sha: str | None
+) -> None:
+    _seed_reports(tmp_path)
+
+    with pytest.raises(NotionPublicationError, match="review range"):
+        prepare_notion(
+            tmp_path,
+            repository_url="https://github.com/example/doc-azure",
+            review_base_sha=base_sha,
+            review_head_sha=head_sha,
+        )
+
+    assert not (tmp_path / "out" / "notion" / "publication-manifest.json").exists()
+
+
+def test_prepare_notion_requires_repository_url_for_review_range(
     tmp_path: Path,
 ) -> None:
     _seed_reports(tmp_path)
-    assert "repository_url" in inspect.signature(prepare_notion).parameters
+
+    with pytest.raises(NotionPublicationError, match="repository_url is required"):
+        prepare_notion(tmp_path, review_base_sha="a" * 40, review_head_sha="b" * 40)
+
+    assert not (tmp_path / "out" / "notion" / "publication-manifest.json").exists()
+
+
+def test_prepare_review_packet_is_deterministic_without_presuming_github_access(
+    tmp_path: Path,
+) -> None:
+    _seed_reports(tmp_path)
+    parameters = inspect.signature(prepare_notion).parameters
+    assert "repository_url" in parameters
+    assert "review_base_sha" in parameters
+    assert "review_head_sha" in parameters
+
+    base_sha = "a" * 40
+    head_sha = "b" * 40
 
     first = prepare_notion(
         tmp_path,
         repository_url="https://github.com/example/doc-azure",
+        review_base_sha=base_sha,
+        review_head_sha=head_sha,
     )
     review_root = tmp_path / "out" / "notion" / "review"
     first_bytes = {
@@ -178,6 +222,8 @@ def test_prepare_review_packet_is_deterministic_and_mentions_private_github(
     second = prepare_notion(
         tmp_path,
         repository_url="https://github.com/example/doc-azure",
+        review_base_sha=base_sha,
+        review_head_sha=head_sha,
     )
 
     assert second == first
@@ -187,8 +233,19 @@ def test_prepare_review_packet_is_deterministic_and_mentions_private_github(
         if path.is_file()
     }
     prompt = (review_root / "prompt.txt").read_text(encoding="utf-8")
+    review_manifest = json.loads(
+        (review_root / "review-manifest.json").read_text(encoding="utf-8")
+    )
     assert "https://github.com/example/doc-azure" in prompt
-    assert "acesso ao GitHub" in prompt
+    assert f"base `{base_sha}`" in prompt
+    assert f"HEAD exato `{head_sha}`" in prompt
+    assert review_manifest["review_base_sha"] == base_sha
+    assert review_manifest["review_head_sha"] == head_sha
+    assert "Não presuma que você tem acesso ao GitHub" in prompt
+    assert "Se a interface ou as ferramentas disponíveis permitirem" in prompt
+    assert "Se não permitirem, marque esse escopo como não verificado" in prompt
+    assert "declare explicitamente que não consultou" in prompt
+    assert "repositório privado" not in prompt
     for required in (
         "tente falsificar",
         "falsos MATCH",
@@ -514,7 +571,7 @@ def _seed_publication_gate(root: Path) -> object:
     hub_raw = raw_root / "hub-fetch.json"
     parent_raw.write_text(
         _fetch_connector_result(
-            title="Azure",
+        title="IA, automações & sessões",
             url=(
                 "https://app.notion.com/p/"
                 + manifest.parent_page_id.replace("-", "")
@@ -541,7 +598,7 @@ def _seed_publication_gate(root: Path) -> object:
     hierarchy = {
         "schema_version": 1,
         "parent_page_id": manifest.parent_page_id,
-        "parent_title": "Azure",
+        "parent_title": "IA, automações & sessões",
         "hub_page_id": "3c3412e0-8c26-809d-8e12-e5498b5fde60",
         "fetched_at": (update_time + timedelta(minutes=2)).isoformat(),
         "parent_fetch_path": str(parent_raw.relative_to(root)),
@@ -604,6 +661,314 @@ def _seed_publication_gate(root: Path) -> object:
         encoding="utf-8",
     )
     return manifest
+
+
+def _seed_draft_publication_gate(root: Path) -> object:
+    manifest = _seed_review_gate(root)
+    notion_root = root / "out" / "notion"
+    draft_root = notion_root / "draft"
+    raw_root = draft_root / "raw"
+    fetched_root = draft_root / "fetched"
+    raw_root.mkdir(parents=True)
+    fetched_root.mkdir()
+    draft_parent_id = "2d5412e0-8c26-803d-9e30-ec56c88af85f"
+    azure_parent_id = "2a1412e0-8c26-803b-a988-dc619a396e45"
+    base_time = datetime(2026, 9, 25, 15, 0, tzinfo=timezone.utc)
+    parent_raw = raw_root / "staging-parent-fetch.json"
+    parent_raw.write_text(
+        _fetch_connector_result(
+            title="Staging — duplicatas pra conferir",
+            url=f"https://app.notion.com/p/{draft_parent_id.replace('-', '')}",
+            parent_id=azure_parent_id,
+            body="Draft destination",
+            as_of=(base_time + timedelta(minutes=2)).isoformat(),
+            last_edited=(base_time + timedelta(minutes=2)).isoformat(),
+            parent_title="Azure DevOps",
+        ),
+        encoding="utf-8",
+    )
+    draft_entries = []
+    for index, entry in enumerate(manifest.entries, start=1):
+        copy_id = f"5a3412e0-8c26-8020-9000-00000000000{index}"
+        copy_url = f"https://app.notion.com/p/{copy_id.replace('-', '')}"
+        prepared_body = (root / entry.prepared_path).read_text(encoding="utf-8")
+        source_raw = raw_root / f"source-{entry.slug}.json"
+        source_raw.write_text(
+            _fetch_connector_result(
+                title=entry.title,
+                url=entry.url,
+                parent_id=entry.parent_page_id,
+                body=prepared_body,
+                as_of=(base_time - timedelta(minutes=4)).isoformat(),
+                last_edited=(base_time - timedelta(minutes=4)).isoformat(),
+            ),
+            encoding="utf-8",
+        )
+        copy_raw = raw_root / f"copy-before-edit-{entry.slug}.json"
+        copy_raw.write_text(
+            _fetch_connector_result(
+                title=f"Cópia de {entry.title}",
+                url=copy_url,
+                parent_id=entry.parent_page_id,
+                body=prepared_body,
+                as_of=(base_time + timedelta(seconds=30)).isoformat(),
+                last_edited=(base_time + timedelta(seconds=30)).isoformat(),
+            ),
+            encoding="utf-8",
+        )
+        duplicate_raw = raw_root / f"duplicate-{entry.slug}.json"
+        duplicate_raw.write_text(
+            _connector_result(
+                {"page_id": copy_id, "url": copy_url, "status": "duplicated"}
+            ),
+            encoding="utf-8",
+        )
+        update_time = base_time + timedelta(minutes=1)
+        target_title = f"Rascunho — {entry.title}"
+        target_fetch_raw = raw_root / f"target-fetch-{entry.slug}.json"
+        target_fetch_raw.write_text(
+            _fetch_connector_result(
+                title=target_title,
+                url=copy_url,
+                parent_id=draft_parent_id,
+                body=prepared_body,
+                as_of=(update_time + timedelta(minutes=1)).isoformat(),
+                last_edited=(update_time + timedelta(minutes=1)).isoformat(),
+            ),
+            encoding="utf-8",
+        )
+        update_raw = raw_root / f"target-update-{entry.slug}.json"
+        update_raw.write_text(
+            _connector_result(
+                {"page_id": copy_id, "url": copy_url, "status": "updated"}
+            ),
+            encoding="utf-8",
+        )
+        (fetched_root / f"{entry.slug}.md").write_text(
+            prepared_body, encoding="utf-8"
+        )
+        target_receipt = {
+            "schema_version": 1,
+            "slug": entry.slug,
+            "title": target_title,
+            "page_id": copy_id,
+            "parent_page_id": draft_parent_id,
+            "url": copy_url,
+            "marker": entry.marker,
+            "updated_at": update_time.isoformat(),
+            "fetched_at": (update_time + timedelta(minutes=1)).isoformat(),
+            "connector_as_of": (update_time + timedelta(minutes=1)).isoformat(),
+            "last_edited_available": True,
+            "last_edited_time": (update_time + timedelta(minutes=1)).isoformat(),
+            "semantic_sha256": entry.semantic_sha256,
+            "raw_fetch_path": str(target_fetch_raw.relative_to(root)),
+            "raw_fetch_sha256": _sha(target_fetch_raw),
+            "update_receipt_path": str(update_raw.relative_to(root)),
+            "update_receipt_sha256": _sha(update_raw),
+        }
+        (fetched_root / f"{entry.slug}.json").write_text(
+            json.dumps(target_receipt, indent=2), encoding="utf-8"
+        )
+        draft_entries.append(
+            {
+                "slug": entry.slug,
+                "source_page_id": entry.page_id,
+                "source_title": entry.title,
+                "page_id": copy_id,
+                "title": target_title,
+                "parent_page_id": draft_parent_id,
+                "url": copy_url,
+                "marker": entry.marker,
+                "prepared_path": entry.prepared_path,
+                "body_sha256": entry.body_sha256,
+                "semantic_sha256": entry.semantic_sha256,
+                "duplicated_at": base_time.isoformat(),
+                "duplicate_result_path": str(duplicate_raw.relative_to(root)),
+                "duplicate_result_sha256": _sha(duplicate_raw),
+                "source_fetch_path": str(source_raw.relative_to(root)),
+                "source_fetch_sha256": _sha(source_raw),
+                "copy_fetch_path": str(copy_raw.relative_to(root)),
+                "copy_fetch_sha256": _sha(copy_raw),
+            }
+        )
+    searches = []
+    for entry in draft_entries:
+        for kind, query in (
+            ("page_id", entry["page_id"]),
+            ("title", entry["title"]),
+            ("marker", entry["marker"]),
+        ):
+            raw_path = raw_root / f"search-{entry['slug']}-{kind}.json"
+            raw_path.write_text(
+                _connector_result(
+                    {
+                        "results": [
+                            {
+                                "id": entry["page_id"],
+                                "title": entry["title"],
+                                "url": entry["url"],
+                                "type": "page",
+                                "highlight": entry["marker"],
+                            }
+                        ],
+                        "type": "workspace_search",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            searches.append(
+                {
+                    "slug": entry["slug"],
+                    "kind": kind,
+                    "query": query,
+                    "scope_parent_page_id": draft_parent_id,
+                    "expected_page_id": entry["page_id"],
+                    "matched_page_ids": [entry["page_id"]],
+                    "searched_at": (base_time + timedelta(minutes=3)).isoformat(),
+                    "raw_search_path": str(raw_path.relative_to(root)),
+                    "raw_search_sha256": _sha(raw_path),
+                }
+            )
+    (fetched_root / "duplicate-search.json").write_text(
+        json.dumps({"schema_version": 1, "searches": searches}, indent=2),
+        encoding="utf-8",
+    )
+    (draft_root / "targets.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "draft_parent_page_id": draft_parent_id,
+                "draft_parent_fetch_path": str(parent_raw.relative_to(root)),
+                "draft_parent_fetch_sha256": _sha(parent_raw),
+                "entries": draft_entries,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return manifest
+
+
+def test_draft_publication_gate_accepts_copies_with_readback_and_source_proof(
+    tmp_path: Path,
+) -> None:
+    _seed_reports(tmp_path)
+    _seed_draft_publication_gate(tmp_path)
+
+    _function("verify_draft_publication_gate")(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("source_id", "metadata"),
+        ("same_id", "differ from source"),
+        ("duplicate_result", "duplicate result is invalid"),
+        ("initial_copy", "initial copy differs"),
+        ("child_pages", "contains child pages or databases"),
+        ("duplicate_id", "IDs must be distinct"),
+        ("updated_source", "publication page_id"),
+        ("duplicate_search", "duplicate raw search"),
+        ("stale_search", "search predates the copy updates"),
+    ),
+)
+def test_draft_publication_gate_rejects_invalid_copy_provenance(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    _seed_reports(tmp_path)
+    manifest = _seed_draft_publication_gate(tmp_path)
+    draft_root = tmp_path / "out" / "notion" / "draft"
+    targets_path = draft_root / "targets.json"
+    targets = json.loads(targets_path.read_text(encoding="utf-8"))
+    entry = targets["entries"][0]
+    if mutation == "source_id":
+        entry["source_page_id"] = "wrong-source"
+    elif mutation == "same_id":
+        entry["page_id"] = entry["source_page_id"]
+    elif mutation == "duplicate_id":
+        targets["entries"][1]["page_id"] = entry["page_id"]
+    elif mutation == "duplicate_result":
+        path = tmp_path / entry["duplicate_result_path"]
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        result = json.loads(raw["content"][0]["text"])
+        result["page_id"] = "6b3412e0-8c26-8020-9000-000000000001"
+        raw["content"][0]["text"] = json.dumps(result)
+        path.write_text(json.dumps(raw), encoding="utf-8")
+        entry["duplicate_result_sha256"] = _sha(path)
+    elif mutation == "initial_copy":
+        path = tmp_path / entry["copy_fetch_path"]
+        original = manifest.entries[0]
+        wrong_body = (tmp_path / original.prepared_path).read_text(
+            encoding="utf-8"
+        ).replace("limite leiame", "limite alterado")
+        copy_id = entry["page_id"]
+        path.write_text(
+            _fetch_connector_result(
+                title=f"Cópia de {original.title}",
+                url=f"https://app.notion.com/p/{copy_id.replace('-', '')}",
+                parent_id=original.parent_page_id,
+                body=wrong_body,
+                as_of="2026-09-25T15:00:30+00:00",
+                last_edited="2026-09-25T15:00:30+00:00",
+            ),
+            encoding="utf-8",
+        )
+        entry["copy_fetch_sha256"] = _sha(path)
+    elif mutation == "child_pages":
+        path = tmp_path / entry["copy_fetch_path"]
+        original = manifest.entries[0]
+        copy_id = entry["page_id"]
+        body = (tmp_path / original.prepared_path).read_text(encoding="utf-8")
+        body += '\n<page url="https://app.notion.com/p/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">\nChild\n</page>'
+        path.write_text(
+            _fetch_connector_result(
+                title=f"Cópia de {original.title}",
+                url=f"https://app.notion.com/p/{copy_id.replace('-', '')}",
+                parent_id=original.parent_page_id,
+                body=body,
+                as_of="2026-09-25T15:00:30+00:00",
+                last_edited="2026-09-25T15:00:30+00:00",
+            ),
+            encoding="utf-8",
+        )
+        entry["copy_fetch_sha256"] = _sha(path)
+    elif mutation == "updated_source":
+        receipt_path = draft_root / "fetched" / "leiame.json"
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipt["page_id"] = entry["source_page_id"]
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    elif mutation == "duplicate_search":
+        fetched_root = draft_root / "fetched"
+        search_path = fetched_root / "duplicate-search.json"
+        searches = json.loads(search_path.read_text(encoding="utf-8"))
+        row = searches["searches"][2]
+        raw_path = tmp_path / row["raw_search_path"]
+        raw = json.loads(raw_path.read_text(encoding="utf-8"))
+        result = json.loads(raw["content"][0]["text"])
+        result["results"].append(
+            {
+                "id": manifest.entries[0].page_id,
+                "title": entry["title"],
+                "url": manifest.entries[0].url,
+                "type": "page",
+                "highlight": entry["marker"],
+            }
+        )
+        raw["content"][0]["text"] = json.dumps(result)
+        raw_path.write_text(json.dumps(raw), encoding="utf-8")
+        row["raw_search_sha256"] = _sha(raw_path)
+        search_path.write_text(json.dumps(searches), encoding="utf-8")
+    else:
+        search_path = draft_root / "fetched" / "duplicate-search.json"
+        searches = json.loads(search_path.read_text(encoding="utf-8"))
+        searches["searches"][0]["searched_at"] = "2026-09-25T15:00:00+00:00"
+        search_path.write_text(json.dumps(searches), encoding="utf-8")
+    targets_path.write_text(json.dumps(targets), encoding="utf-8")
+
+    with pytest.raises(NotionPublicationError, match=message):
+        _function("verify_draft_publication_gate")(tmp_path)
 
 
 def test_publication_gate_accepts_semantic_readback_and_external_provenance(

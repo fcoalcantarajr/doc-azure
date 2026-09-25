@@ -1407,3 +1407,23 @@ status totals remain unchanged: `leiame` 2/2/6/4, `politicas` 12/6/19/0,
 The complete suite passed with `454 passed in 12.62s`; `uv run python
 verify.py` returned `GATE_OK`; and `git diff --check` was clean. This receipt
 precedes the final exact-SHA Kimi review of the follow-up commit.
+
+### Review range preflight regression
+
+The new invalid-range cases were run before implementation with
+`uv run pytest -q tests/test_notion_publication_gate.py -k
+'invalid_review_range_before_writing_artifacts or
+requires_repository_url_for_review_range'`. RED output: `3 failed, 1 passed,
+33 deselected`; all three malformed or partial SHA ranges raised the expected
+error only after `publication-manifest.json` had already been written. The
+missing-repository case passed and produced no artifact. The preflight change
+must reject an incomplete, malformed, or identical range before writing local
+publication artifacts.
+
+After the preflight validation was added, the same range cases plus the
+deterministic prompt test passed: `5 passed, 32 deselected in 0.53s`. The
+Notion entrypoint checks passed with the added base/head options:
+`2 passed, 9 deselected in 0.41s`.
+
+The full regression suite passed with `474 passed in 90.07s`; the complete
+repository gate returned `GATE_OK`; and `git diff --check` was clean.

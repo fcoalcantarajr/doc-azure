@@ -9,6 +9,7 @@ import pytest
 from delta.notion_external_evidence import (
     ExternalEvidenceError,
     parse_browser_review_result,
+    parse_notion_duplicate_result,
     parse_notion_fetch_result,
     parse_notion_search_result,
     parse_notion_update_result,
@@ -16,7 +17,7 @@ from delta.notion_external_evidence import (
 
 
 PAGE_ID = "3c3412e0-8c26-813c-ad9c-d57026cfd566"
-PARENT_ID = "2a1412e0-8c26-803b-a988-dc619a396e45"
+PARENT_ID = "66b81130-f72c-4864-9e1e-534c7459d620"
 PAGE_URL = "https://app.notion.com/p/3c3412e08c26813cad9cd57026cfd566"
 TITLE = "Delta — Leiame × Processo-Agil implementado"
 BODY = "DELTA-AUDIT-MARKER-leiame\n\n## Resumo"
@@ -41,7 +42,7 @@ def _fetch_payload(*, page_id: str = PAGE_ID, parent_id: str = PARENT_ID) -> dic
             f'<page url="{PAGE_URL}">\n'
             "<ancestor-path>\n"
             f'<parent-page url="https://app.notion.com/p/{parent_id.replace("-", "")}" '
-            'title="Azure"/>\n'
+            'title="IA, automações &amp; sessões"/>\n'
             "</ancestor-path>\n"
             "<properties>\n"
             f'{{"title":{json.dumps(TITLE, ensure_ascii=False)}}}\n'
@@ -71,6 +72,20 @@ def test_fetch_result_rejects_receipt_identity_not_present_in_raw_result() -> No
         parse_notion_fetch_result(_tool_result(_fetch_payload(parent_id="wrong")))
 
 
+@pytest.mark.parametrize(
+    "field_value",
+    (("truncated", True), ("unknown_block_count", 1), ("unknown_block_ids", ["block"])),
+)
+def test_fetch_result_rejects_incomplete_or_unknown_blocks(
+    field_value: tuple[str, object],
+) -> None:
+    payload = _fetch_payload()
+    payload[field_value[0]] = field_value[1]
+
+    with pytest.raises(ExternalEvidenceError, match="incomplete"):
+        parse_notion_fetch_result(_tool_result(payload))
+
+
 def test_fetch_result_accepts_title_prefixed_by_verified_page_emoji() -> None:
     payload = _fetch_payload()
     payload["title"] = f"⛵ {TITLE}"
@@ -97,6 +112,31 @@ def test_update_result_requires_success_and_exact_page_identity() -> None:
                     "isError": True,
                 }
             ).encode()
+        )
+
+
+def test_duplicate_result_cross_checks_page_id_and_url() -> None:
+    page_id = "5a3412e0-8c26-8020-9000-000000000001"
+    page_url = f"https://app.notion.com/p/{page_id.replace('-', '')}"
+
+    evidence = parse_notion_duplicate_result(
+        _tool_result({"page_id": page_id, "url": page_url, "status": "duplicated"})
+    )
+
+    assert evidence.page_id == page_id
+    assert evidence.url == page_url
+    with pytest.raises(ExternalEvidenceError, match="inconsistent"):
+        parse_notion_duplicate_result(
+            _tool_result(
+                {
+                    "page_id": page_id,
+                    "url": "https://app.notion.com/p/6b3412e08c2680209000000000000001",
+                }
+            )
+        )
+    with pytest.raises(ExternalEvidenceError, match="status"):
+        parse_notion_duplicate_result(
+            _tool_result({"page_id": page_id, "url": page_url, "status": {}})
         )
 
 

@@ -105,8 +105,9 @@ def test_prepare_notion_renders_deltas_and_writes_deterministic_manifest(
 
     manifest_path = tmp_path / "out" / "notion" / "publication-manifest.json"
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest.parent_page_id == "66b81130-f72c-4864-9e1e-534c7459d620"
+    assert payload["parent_page_id"] == "66b81130-f72c-4864-9e1e-534c7459d620"
     assert manifest.parent_page_id == NOTION_PARENT_PAGE_ID
-    assert payload["parent_page_id"] == NOTION_PARENT_PAGE_ID
     assert [entry.slug for entry in manifest.entries] == list(DELTA_BODIES)
     for entry in manifest.entries:
         prepared = tmp_path / "out" / "notion" / "prepared" / f"{entry.slug}.md"

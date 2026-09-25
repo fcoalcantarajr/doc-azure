@@ -13,11 +13,13 @@ bruto para fazê-lo passar.
 
 Identidades fixas da hierarquia:
 
-- página pai: `2a1412e0-8c26-803b-a988-dc619a396e45`;
+- página Azure DevOps ancestral: `2a1412e0-8c26-803b-a988-dc619a396e45`;
+- pai direto dos relatórios e do hub: `66b81130-f72c-4864-9e1e-534c7459d620`;
 - hub de auditoria Azure: `3c3412e0-8c26-809d-8e12-e5498b5fde60`.
 
-O hub e a página pai são páginas diferentes. O hub e as quatro páginas fixas de
-relatório são filhos diretos da página pai; o hub é irmão dos relatórios.
+O hub e os quatro relatórios são filhos diretos de `IA, automações & sessões`;
+essa página e `Staging — duplicatas pra conferir` são filhas da página Azure
+DevOps. O verificador confere o pai direto em cada modo.
 
 ## Antes de qualquer atualização externa
 
@@ -66,11 +68,25 @@ out/notion/
 │   ├── notion-fetch-parent.json              capturado
 │   ├── notion-fetch-hub.json                 capturado
 │   └── notion-search-<slug>-<kind>.json       capturado, doze arquivos
-└── fetched/
+├── fetched/
     ├── <slug>.md                             capturado, quatro arquivos
     ├── <slug>.json                           registrado, quatro arquivos
     ├── hierarchy.json                        registrado
     └── duplicate-search.json                 registrado
+└── draft/
+    ├── targets.json                           registrado
+    ├── raw/
+    │   ├── staging-parent-fetch.json          capturado
+    │   ├── duplicate-<slug>.json              capturado
+    │   ├── source-<slug>.json                 capturado, quatro arquivos
+    │   ├── copy-before-edit-<slug>.json       capturado, quatro arquivos
+    │   ├── target-fetch-<slug>.json            capturado, quatro arquivos
+    │   ├── target-update-<slug>.json           capturado, quatro arquivos
+    │   └── search-<slug>-<kind>.json           capturado, doze arquivos
+    └── fetched/
+        ├── <slug>.md                           capturado, quatro arquivos
+        ├── <slug>.json                          registrado, quatro arquivos
+        └── duplicate-search.json                registrado
 ```
 
 `<slug>` é exatamente `leiame`, `politicas`, `changelog` ou `apendice`.
@@ -278,3 +294,58 @@ Os marcadores obrigatórios finais são `NOTION_PUBLICATION_OK` e `GATE_OK`. Se 
 comando falhar, procure a mensagem exata em [Solução de
 problemas](../troubleshooting.md), preserve toda a evidência e não declare que
 os relatórios atuais estão publicados.
+
+## Verificar publicação somente em cópias
+
+Use este modo quando a atualização tiver sido autorizada em cópias. Ele não
+altera a porta canônica. Os quatro originais continuam identificados no
+`publication-manifest.json`; os destinos de rascunho ficam somente em
+`draft/targets.json`.
+
+O objeto de topo de `draft/targets.json` tem exatamente:
+
+```text
+schema_version, draft_parent_page_id, draft_parent_fetch_path,
+draft_parent_fetch_sha256, entries
+```
+
+`schema_version` é `1`; `draft_parent_page_id` é o Staging
+`2d5412e0-8c26-803d-9e30-ec56c88af85f`. O fetch capturado para esse pai deve
+mostrar Staging sob Azure DevOps. `entries` contém exatamente os quatro slugs,
+na mesma ordem do manifesto de publicação. Cada item tem exatamente:
+
+```text
+slug, source_page_id, source_title, page_id, title, parent_page_id, url,
+marker, prepared_path, body_sha256, semantic_sha256, duplicated_at,
+duplicate_result_path, duplicate_result_sha256, source_fetch_path,
+source_fetch_sha256, copy_fetch_path, copy_fetch_sha256
+```
+
+`source_page_id` e `source_title` são os valores do manifesto canônico.
+`page_id` vem do resultado bruto de `notion_duplicate_page`, deve ser diferente
+de todo ID-fonte e de todos os outros destinos. O título final é
+`Rascunho — <título original>` e `parent_page_id` é o ID de Staging. O resultado
+bruto da duplicação deve identificar exatamente `page_id` e `url`.
+
+`source_fetch_path` registra o original antes da duplicação;
+`copy_fetch_path` registra a cópia antes de qualquer edição. O gate verifica que
+o original tem ID, título, URL e pai esperados, e que a cópia inicial tem ID
+próprio, começa sob o mesmo pai do original e mantém a mesma semântica. O
+horário do fetch da fonte precede a duplicação; o fetch da cópia e a atualização
+vêm depois. Confira manualmente `truncated`, `unknown_block_count` e
+`unknown_block_ids` antes da edição; fetch incompleto bloqueia a operação.
+
+Os recibos finais `<slug>.json` e corpos `<slug>.md` usam o mesmo schema do
+modo canônico, mas ficam em `draft/fetched/`. Os recibos devem identificar o ID
+de cópia, o título `Rascunho — ...` e o pai Staging. As buscas por ID, título e
+marcador também são limitadas ao Staging e devem retornar somente a cópia
+esperada.
+
+Execute:
+
+```sh
+uv run python verify.py --require-draft-publication
+```
+
+O marcador `GATE_OK` com esse argumento comprova somente os quatro rascunhos.
+Use `--require-publication` para a porta canônica; os dois modos são exclusivos.

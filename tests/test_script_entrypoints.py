@@ -100,4 +100,20 @@ def test_notion_entrypoint_exposes_review_and_strict_publication_modes() -> None
 
     assert completed.returncode == 0, completed.stderr
     assert "--repository-url" in completed.stdout
+    assert "--review-base-sha" in completed.stdout
+    assert "--review-head-sha" in completed.stdout
     assert "--verify-publication" in completed.stdout
+
+
+def test_verify_help_exposes_separate_canonical_and_draft_gates() -> None:
+    completed = subprocess.run(
+        (sys.executable, "verify.py", "--help"),
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        env={"PATH": str(Path(sys.executable).parent)},
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "--require-publication" in completed.stdout
+    assert "--require-draft-publication" in completed.stdout

@@ -59,6 +59,14 @@ class NotionUpdateEvidence:
 
 
 @dataclass(frozen=True)
+class NotionDuplicateEvidence:
+    """New page identity returned by one successful duplicate operation."""
+
+    page_id: str
+    url: str
+
+
+@dataclass(frozen=True)
 class NotionSearchEvidence:
     """Exact-match projection of a raw Notion workspace search."""
 
@@ -110,6 +118,17 @@ def parse_notion_fetch_result(raw: bytes) -> NotionFetchEvidence:
     """Parse one raw Notion fetch CallToolResult without trusting a side receipt."""
 
     payload = _tool_payload(raw, "fetch")
+    unknown_block_count = payload.get("unknown_block_count", 0)
+    unknown_block_ids = payload.get("unknown_block_ids", [])
+    if (
+        payload.get("truncated", False) is not False
+        or not isinstance(unknown_block_count, int)
+        or isinstance(unknown_block_count, bool)
+        or unknown_block_count != 0
+        or not isinstance(unknown_block_ids, list)
+        or unknown_block_ids
+    ):
+        raise ExternalEvidenceError("fetch page content is incomplete or unknown")
     if payload.get("metadata") != {"type": "page"}:
         raise ExternalEvidenceError("fetch metadata is invalid")
     title = _required_text(payload.get("title"), "fetch title")
@@ -189,6 +208,52 @@ def parse_notion_update_result(raw: bytes) -> NotionUpdateEvidence:
     if _notion_id_from_url(url, "update URL") != page_id:
         raise ExternalEvidenceError("update page identity is inconsistent")
     return NotionUpdateEvidence(page_id=page_id, url=_canonical_page_url(url, page_id))
+
+
+def parse_notion_duplicate_result(raw: bytes) -> NotionDuplicateEvidence:
+    """Require a successful duplicate result with one exact new page identity."""
+
+    payload = _tool_payload(raw, "duplicate")
+    page = payload.get("page")
+    identity = page if isinstance(page, dict) else payload
+    raw_id = identity.get("page_id", identity.get("id"))
+    raw_url = identity.get("url", identity.get("page_url"))
+    if raw_id is None and raw_url is None:
+        raise ExternalEvidenceError("duplicate result has no page identity")
+    page_id = (
+        _normalize_notion_id(raw_id, "duplicate page")
+        if raw_id is not None
+        else _notion_id_from_url(
+            _required_text(raw_url, "duplicate URL"), "duplicate page"
+        )
+    )
+    url = (
+        _required_text(raw_url, "duplicate URL")
+        if raw_url is not None
+        else f"https://app.notion.com/p/{page_id.replace('-', '')}"
+    )
+    if _notion_id_from_url(url, "duplicate URL") != page_id:
+        raise ExternalEvidenceError("duplicate page identity is inconsistent")
+    status = payload.get("status")
+    if status is not None and (
+        not isinstance(status, str)
+        or status
+        not in {
+            "accepted",
+            "completed",
+            "created",
+            "duplicate",
+            "duplicated",
+            "pending",
+            "success",
+            "succeeded",
+        }
+    ):
+        raise ExternalEvidenceError("duplicate result status is invalid")
+    return NotionDuplicateEvidence(
+        page_id=page_id,
+        url=_canonical_page_url(url, page_id),
+    )
 
 
 def parse_notion_search_result(raw: bytes) -> NotionSearchEvidence:

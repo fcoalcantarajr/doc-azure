@@ -26,6 +26,7 @@ from delta.notion_semantics import ReportSemantic, parse_notion_semantics
 
 
 _HASH = re.compile(r"^[0-9a-f]{64}$")
+_REVIEW_SHA = re.compile(r"^[0-9a-f]{40}$")
 _SENSITIVE = re.compile(
     r"(?i)(authorization\s*:|bearer\s+|azdo_pat|github_pat_|ghp_|"
     r"(?:^|[/\\])\.env(?:$|\s|[/\\])|password\s*[:=])"
@@ -59,14 +60,18 @@ def prepare_review_artifacts(
     manifest: object,
     semantics: tuple[ReportSemantic, ...],
     repository_url: str,
+    review_base_sha: str | None,
+    review_head_sha: str | None,
     error_type: type[ValueError],
 ) -> None:
     """Write one deterministic, secret-screened review packet and prompt."""
 
     repository_root = Path(root)
-    _validate_repository_url(repository_url, error_type)
+    _validate_review_request(
+        repository_url, review_base_sha, review_head_sha, error_type
+    )
     packet = _render_packet(manifest, semantics)
-    prompt = _render_prompt(repository_url)
+    prompt = _render_prompt(repository_url, review_base_sha, review_head_sha)
     if _SENSITIVE.search(packet) or _SENSITIVE.search(prompt):
         raise error_type("review artifacts contain sensitive content")
     review_root = repository_root / "out" / "notion" / "review"
@@ -75,6 +80,8 @@ def prepare_review_artifacts(
     review_manifest = {
         "schema_version": 1,
         "repository_url": repository_url,
+        "review_base_sha": review_base_sha,
+        "review_head_sha": review_head_sha,
         "packet_path": "out/notion/review/packet.csv",
         "packet_sha256": _sha256(packet_bytes),
         "prompt_path": "out/notion/review/prompt.txt",
@@ -106,6 +113,8 @@ def verify_review_gate(root: Path, error_type: type[ValueError]) -> None:
     expected_review_fields = {
         "schema_version",
         "repository_url",
+        "review_base_sha",
+        "review_head_sha",
         "packet_path",
         "packet_sha256",
         "prompt_path",
@@ -117,6 +126,11 @@ def verify_review_gate(root: Path, error_type: type[ValueError]) -> None:
     ) != 1:
         raise error_type("review manifest schema is invalid")
     _validate_repository_url(str(review_manifest["repository_url"]), error_type)
+    _validate_review_range(
+        review_manifest.get("review_base_sha"),
+        review_manifest.get("review_head_sha"),
+        error_type,
+    )
     for kind in ("packet", "prompt"):
         _verify_bound_file(
             repository_root,
@@ -262,16 +276,33 @@ def _render_packet(manifest: object, semantics: tuple[ReportSemantic, ...]) -> s
     return stream.getvalue()
 
 
-def _render_prompt(repository_url: str) -> str:
+def _render_prompt(
+    repository_url: str,
+    review_base_sha: str | None,
+    review_head_sha: str | None,
+) -> str:
+    code_review_scope = ""
+    if review_base_sha is not None and review_head_sha is not None:
+        compare_url = (
+            f"{repository_url.rstrip('/')}/compare/"
+            f"{review_base_sha}...{review_head_sha}"
+        )
+        code_review_scope = (
+            f"\nEscopo adicional de código: revise exatamente o diff entre a base "
+            f"`{review_base_sha}` e o HEAD exato `{review_head_sha}` no remoto. "
+            f"Consulte {compare_url}, confirme o SHA final da comparação e não "
+            "substitua essa revisão por uma branch atual ou pelo checkout local.\n"
+        )
     return f"""Faça uma revisão adversarial e independente do delta entre as quatro páginas da Wiki e o Processo-Agil implementado no Azure DevOps.
 
-Você está no Notion AI e tem acesso ao GitHub. Use esse acesso para ler diretamente o repositório privado {repository_url} e conferir código, testes, documentação, relatórios e apontadores do pacote CSV anexado. Não presuma que a conclusão local está correta: tente falsificar a conclusão.
+URL do repositório: {repository_url}. Não presuma que você tem acesso ao GitHub. Se a interface ou as ferramentas disponíveis permitirem, consulte diretamente esse repositório e declare quais fontes conseguiu ler. Se não permitirem, marque esse escopo como não verificado e declare explicitamente que não consultou o repositório. Revise também o pacote CSV fornecido junto da mensagem. Não presuma que a conclusão local está correta: tente falsificar a conclusão.
+{code_review_scope}
 
 Procure, no mínimo: falsos MATCH e falsos deltas; gaps de cobertura; claims ou WITs novos/removidos; seletores que deixam de resolver; respostas parciais; heurísticas frágeis; dependências ocultas de IA; falhas fail-open; problemas de segurança; não determinismo; proveniência fraca; e qualquer classificação sem evidência. Verifique cobertura das afirmações documentais, correspondência entre status, conteúdo e evidências, omissões ou extrapolações, escopo dos WITs ativos/desabilitados, reprodutibilidade e equivalência semântica dos quatro corpos preparados para o Notion. O runtime obrigatoriamente deve funcionar sem IA, LLM, embeddings, prompts ou agentes. Não solicite nem reproduza segredos, o arquivo .env ou dados pessoais brutos.
 
-Os revisores designados são Kimi K3 e Opus 5, cada um com esforço máximo, em chats independentes no navegador integrado ao ChatGPT. Não substitua esses modelos, não trate concordância como prova e declare explicitamente se consultou o repositório privado e o CSV.
+Os revisores designados são Kimi K3 e Opus 5, cada um com esforço máximo, em chats independentes no navegador integrado ao ChatGPT. Não substitua esses modelos, não trate concordância como prova e declare explicitamente se consultou o repositório e o CSV.
 
-Responda em português com: (1) veredito PASS ou NEEDS_FIXES; (2) achados numerados, cada um com severidade, claim/page, evidência concreta e correção proposta; (3) lacunas não verificáveis; e (4) declaração explícita de que consultou ou não o repositório privado e o CSV.
+Responda em português com: (1) veredito PASS ou NEEDS_FIXES; (2) achados numerados, cada um com severidade, claim/page, evidência concreta e correção proposta; (3) lacunas não verificáveis; e (4) declaração explícita de que consultou ou não o repositório e o pacote CSV.
 """
 
 
@@ -673,7 +704,38 @@ def _validate_repository_url(url: str, error_type: type[ValueError]) -> None:
         or parsed.fragment
         or len([part for part in parsed.path.split("/") if part]) != 2
     ):
-        raise error_type("repository_url must identify one private GitHub repository")
+        raise error_type("repository_url must identify one GitHub repository")
+
+
+def _validate_review_request(
+    repository_url: str,
+    review_base_sha: object,
+    review_head_sha: object,
+    error_type: type[ValueError],
+) -> None:
+    """Validate review scope before any artifacts are written."""
+
+    _validate_repository_url(repository_url, error_type)
+    _validate_review_range(review_base_sha, review_head_sha, error_type)
+
+
+def _validate_review_range(
+    review_base_sha: object,
+    review_head_sha: object,
+    error_type: type[ValueError],
+) -> None:
+    """Accept either no code range or two distinct full Git commit IDs."""
+
+    if review_base_sha is None and review_head_sha is None:
+        return
+    if (
+        not isinstance(review_base_sha, str)
+        or not isinstance(review_head_sha, str)
+        or _REVIEW_SHA.fullmatch(review_base_sha) is None
+        or _REVIEW_SHA.fullmatch(review_head_sha) is None
+        or review_base_sha == review_head_sha
+    ):
+        raise error_type("review range must contain two distinct full Git SHAs")
 
 
 def _verify_bound_file(

@@ -35,6 +35,7 @@ from delta.notion import (
     NotionPublicationError,
     expected_publication_manifest,
     load_publication_manifest,
+    verify_draft_publication_gate,
     verify_fetched_notion,
     verify_publication_gate,
 )
@@ -358,11 +359,23 @@ def verify_read_allowlist() -> None:
         raise VerificationError("a mutating or non-query Azure route is allowlisted")
 
 
-def verify_notion_artifacts(root: Path, *, require_fetched: bool = False) -> None:
-    """Check fixed page identities, current hashes, and optional read-back receipts."""
+def verify_notion_artifacts(
+    root: Path,
+    *,
+    require_fetched: bool = False,
+    require_draft_publication: bool = False,
+) -> None:
+    """Check canonical artifacts or the separately gated draft-copy publication."""
 
     repository_root = Path(root)
     try:
+        if require_fetched and require_draft_publication:
+            raise VerificationError(
+                "canonical and draft publication gates are mutually exclusive"
+            )
+        if require_draft_publication:
+            verify_draft_publication_gate(repository_root)
+            return
         if require_fetched:
             verify_publication_gate(repository_root)
             return
@@ -416,18 +429,22 @@ def verify_layout(root: Path) -> None:
         "src/delta/build.py",
         "src/delta/render.py",
         "src/delta/notion.py",
+        "src/delta/notion_draft_gate.py",
+        "src/delta/notion_external_evidence.py",
         "src/delta/notion_gate.py",
         "src/delta/notion_semantics.py",
         "tests/test_delta_builder.py",
         "tests/test_delta_render.py",
         "tests/test_prepare_notion.py",
         "tests/test_notion_publication_gate.py",
+        "tests/test_notion_external_evidence.py",
         "tests/test_script_entrypoints.py",
         "tests/test_process_export.py",
         "tests/test_verify.py",
         "docs/reference/delta-method.md",
         "docs/decisions.md",
         "docs/notion-publication.md",
+        "docs/reference/notion-evidence.md",
         "docs/guides/export-process-for-llm.md",
         "docs/archive/session-2026-08-26.md",
         *(f"deltas/{slug}.md" for slug in FIXED_SLUGS),
@@ -515,7 +532,12 @@ def verify_script_entrypoints(root: Path) -> None:
         run_checked((sys.executable, f"scripts/{name}", "--help"), repository_root)
 
 
-def verify_repository(root: Path, *, require_fetched: bool = False) -> None:
+def verify_repository(
+    root: Path,
+    *,
+    require_fetched: bool = False,
+    require_draft_publication: bool = False,
+) -> None:
     """Run every non-mutating repository gate in dependency order."""
 
     repository_root = Path(root)
@@ -527,7 +549,11 @@ def verify_repository(root: Path, *, require_fetched: bool = False) -> None:
     verify_documented_contract(repository_root)
     verify_secret_literals(repository_root)
     verify_reports(repository_root)
-    verify_notion_artifacts(repository_root, require_fetched=require_fetched)
+    verify_notion_artifacts(
+        repository_root,
+        require_fetched=require_fetched,
+        require_draft_publication=require_draft_publication,
+    )
     verify_script_entrypoints(repository_root)
     run_checked(("uv", "run", "pytest", "-q"), repository_root)
 
@@ -632,13 +658,19 @@ def _is_nonempty_regular_file(path: Path) -> bool:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse the optional final-publication requirement."""
+    """Parse an optional strict gate for canonical or draft page targets."""
 
     parser = argparse.ArgumentParser(description="Verify the complete doc-azure audit.")
-    parser.add_argument(
+    publication_modes = parser.add_mutually_exclusive_group()
+    publication_modes.add_argument(
         "--require-publication",
         action="store_true",
         help="require exact connector-fetched receipts for all four Notion pages",
+    )
+    publication_modes.add_argument(
+        "--require-draft-publication",
+        action="store_true",
+        help="require reviewed, verified copies under the Notion Staging page",
     )
     return parser.parse_args(argv)
 
@@ -651,6 +683,7 @@ def main(argv: list[str] | None = None) -> int:
         verify_repository(
             PROJECT_ROOT,
             require_fetched=arguments.require_publication,
+            require_draft_publication=arguments.require_draft_publication,
         )
     except (OSError, UnicodeError, VerificationError, SnapshotError) as error:
         print(f"GATE_FAIL: {error}", file=sys.stderr)

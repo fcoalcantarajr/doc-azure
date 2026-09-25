@@ -406,3 +406,19 @@ def test_require_publication_delegates_to_the_strict_external_gate(
     verify_notion_artifacts(tmp_path, require_fetched=True)
 
     assert calls == [tmp_path]
+
+
+def test_require_draft_publication_delegates_to_the_copy_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[Path] = []
+    monkeypatch.setattr(
+        "verify.verify_draft_publication_gate",
+        lambda root: calls.append(Path(root)),
+        raising=False,
+    )
+
+    verify_notion_artifacts(tmp_path, require_draft_publication=True)
+
+    assert calls == [tmp_path]

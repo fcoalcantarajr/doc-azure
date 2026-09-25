@@ -2,16 +2,19 @@
 
 ## Localização e identidades das páginas existentes
 
-Os quatro relatórios permanecem filhos diretos da página pai fixa. A publicação
-deve atualizar essas páginas no lugar; é proibido criar substitutas ou duplicatas.
+Os quatro relatórios canônicos são páginas fixas. A publicação canônica deve
+atualizá-las no lugar; substitutas e duplicatas não fazem parte desse fluxo.
 
-ID da página pai: `2a1412e0-8c26-803b-a988-dc619a396e45`
+Página ancestral Azure DevOps: `2a1412e0-8c26-803b-a988-dc619a396e45`
+
+Pai direto dos relatórios e do hub: `66b81130-f72c-4864-9e1e-534c7459d620`
+(`IA, automações & sessões`), filho da página Azure DevOps acima.
 
 ID do hub de auditoria Azure: `3c3412e0-8c26-809d-8e12-e5498b5fde60`
 
-O hub é outro filho da página pai acima, ao lado das quatro páginas de
-relatório. Ele não é pai delas. A porta rigorosa de evidências busca tanto a
-página pai quanto esse hub irmão.
+O hub é irmão das quatro páginas de relatório sob `IA, automações & sessões`.
+A página Azure DevOps é o ancestral seguinte. A porta canônica rigorosa busca o
+pai direto e o hub.
 
 | Slug | Título existente | ID da página existente | URL | Marcador |
 | --- | --- | --- | --- | --- |
@@ -146,3 +149,36 @@ pai comum, ausência de duplicatas, ordem temporal válida entre atualização e
 releitura, hashes dos recibos brutos e equivalência semântica de todos os
 achados ordenados. Somente a releitura bem-sucedida justifica o estado atual
 “publicado”.
+
+## Cópias de revisão em Staging
+
+Quando houver autorização para editar cópias, use um fluxo separado da
+publicação canônica. Primeiro conclua e reconcilie as revisões Kimi K3 e Opus 5
+do pacote atual. Depois, duplique cada página-fonte pelo conector Notion e
+preserve o resultado bruto da duplicação. Faça fetch da fonte e da cópia ainda
+antes de editar; os IDs devem ser diferentes e a semântica da cópia deve
+coincidir com a da fonte.
+
+Mova somente as cópias para `Staging — duplicatas pra conferir`
+(`2d5412e0-8c26-803d-9e30-ec56c88af85f`), renomeie cada uma como
+`Rascunho — <título original>` e substitua o conteúdo da cópia pelo corpo
+revisado. Não use `notion_update_page` nos IDs-fonte. Antes de substituir o
+conteúdo, confira no fetch que a cópia está completa e não tem páginas-filhas
+que seriam removidas.
+
+Registre as identidades fonte/cópia, o resultado bruto da duplicação, o fetch
+inicial da fonte e da cópia, os recibos de atualização e os read-backs em
+`out/notion/draft/`. Essa árvore é ignorada pelo Git e tem schema próprio. A
+porta de rascunho exige IDs distintos dos originais, cópia semântica inicial
+igual à fonte, destino sob Staging, revisão atual, atualização direcionada à
+cópia, read-back semântico e doze buscas exatas dentro de Staging.
+
+Execute o gate completo do modo de cópia:
+
+```sh
+uv run python verify.py --require-draft-publication
+```
+
+`--require-publication` continua verificando a publicação canônica nos quatro
+IDs originais. Um sucesso do modo de rascunho comprova somente as cópias em
+Staging; não significa que as páginas canônicas foram atualizadas.
