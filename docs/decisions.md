@@ -1392,8 +1392,9 @@ still said the rule had not been observed in the current snapshot. After both
 limit changes, the same command passed: `1 passed in 0.15s`.
 
 The official `scripts/prepare_baselines.py` produced candidate generation
-`51bf90b2e5694a73920834138666e6a9`. Both versioned baselines match their
-candidates except for the new catalog digest
+`51bf90b2e5694a73920834138666e6a9`. Both versioned baseline files are
+byte-for-byte identical to those candidates. Compared with the immediately
+preceding baselines, each changed only `catalog_sha256`, now
 `ee1a107cb9eb9f05a8facf6aa91419e5f1031e1cf985320113cc814a5518d32c`. The
 process baseline still has 41,543 fingerprints and source generation
 `e1445692d82e4ed688a637cb34c1ebc0`, `full_api`, manifest SHA-256
