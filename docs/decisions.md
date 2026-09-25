@@ -1035,3 +1035,90 @@ four remaining RED tests (baseline-invalid and predecessor semantics for B2,
 B3, B4 and the N9 baseline-limit assertion) await their production
 implementation, which is preserved in `.opencode/salvage/n3-wip.patch` for the
 next lane. Atomic per-finding commits resume after this salvage commit.
+
+## 2026-09-24 — CLI UX review: default network visibility
+
+Classification: CLI-L3, dual human and automation use. The reviewed surface
+includes the standalone Wiki/process collectors, the complete audit, local
+export, Notion preparation/verification, baseline preparation, and
+`verify.py`. Azure remains read-only and all collection modes stay unchanged.
+
+### Baseline scores
+
+| Criterion | Score | Evidence |
+| --- | ---: | --- |
+| DOC-CLI-01 — semantic state/result | 4 | `run_audit.py` emits named status plus logical hash and `CURRENT`; `test_audit_runtime.py` covers CLEAN, DELTAS, COVERAGE_GAP, acquisition validation, and internal failure. |
+| DOC-CLI-02 — project language/model | 3 | Operator docs use audit, snapshot, generation, delta, baseline, publication, and evidence terms; `docs/reference/exit-codes.md` preserves contractual status tokens. |
+| DOC-CLI-03 — explicit network/effects | 2 | `--offline` and `--refresh` are explicit, but help omits that a missing source cache triggers read-only REST collection; see F1. |
+| DOC-CLI-04 — consistency without destructive uniformity | 3 | Wiki/process collectors share `--refresh`; audit adds `--offline`; Notion retains mutually exclusive verification modes and separate output markers. |
+| DOC-CLI-05 — prevention/fail-closed | 4 | Argparse rejects conflicting modes; collector and snapshot tests cover invalid generations, cache reuse, atomic refresh, and prior-generation preservation. |
+| DOC-CLI-06 — safe diagnosis/recovery | 3 | Audit and export errors are sanitized and mapped to documented recovery; direct fetcher failures remain generic and do not print exception data. |
+| DOC-CLI-07 — recognition/help | 3 | All nine user-facing `--help` commands exited 0 with no environment credentials; three collection entrypoints omit their default cache/network behavior; see F1. |
+| DOC-CLI-08 — human and automation | 4 | Entry points use argparse and non-interactive output; subprocess tests cover standalone execution and export without network. |
+| DOC-CLI-09 — output contracts | 4 | Audit status/hash/path and export marker/path contracts have dedicated runtime tests; invalid audit and Notion modes report usage on stderr. |
+| DOC-CLI-10 — help/docs/tests/runtime agreement | 3 | `configuration.md` and `guides/run-audit.md` describe cache-miss collection, but the installed help does not; see F1. |
+
+### Finding F1
+
+- Criterion: DOC-CLI-03, DOC-CLI-07, DOC-CLI-10.
+- Scenario: `uv run python scripts/01_fetch_wiki.py --help`,
+  `uv run python scripts/02_fetch_process.py --help`, and
+  `uv run python scripts/run_audit.py --help`.
+- Expected: help distinguishes cache reuse, an initial collection when a
+  source snapshot is absent, `--offline`, and explicit `--refresh`.
+- Observed: the collector help only describes `--refresh`; audit help says
+  `--offline` requires snapshots and `--refresh` collects, but does not explain
+  that the default mode collects missing sources through REST.
+- Evidence: `_acquire` in `src/doc_azure/audit.py` invokes the collectors when
+  either source cache is absent; both standalone collectors load settings and
+  collect when their cache is absent. `docs/configuration.md` and
+  `docs/guides/run-audit.md` already describe this behavior.
+- Severity: S2 — the operator can misread a cache miss as a local-only run and
+  initiate an unexpected read-only Azure request.
+- Minimal correction: clarify the default cache-miss behavior in the three
+  help descriptions and pin those statements with a credential-free subprocess
+  test. Do not change flags, defaults, network calls, or output markers.
+
+### Minimal implementation plan
+
+1. Add a parameterized help test for both fetchers and `run_audit.py`.
+2. Observe the expected RED and record its output before changing entrypoints.
+3. Update only those three help descriptions; keep operational documentation
+   and runtime semantics unchanged because they already match the code.
+4. Run focused CLI/runtime regressions, the full suite, `verify.py`, and an
+   adversarial compatibility pass.
+
+### RED receipt (R4)
+
+Command (local paths normalized): `UV_PROJECT_ENVIRONMENT=<project-venv>
+uv run --project <worktree-root> --no-sync pytest
+tests/test_script_entrypoints.py::test_collection_help_explains_default_network_behavior -v`.
+
+RED output: `3 failed in 0.28s`. The three subprocess cases failed at the
+required-help-terms assertion: the Wiki and process help omitted `by default`,
+`cached snapshot`, `no snapshot`, and `read-only rest`; audit help omitted `by
+default` and `missing source snapshots`. Each failed for the intended missing
+network-semantics text, not import or argument errors.
+
+### Final scores and verification
+
+| Criterion | Final score |
+| --- | ---: |
+| DOC-CLI-01 — semantic state/result | 4 |
+| DOC-CLI-02 — project language/model | 3 |
+| DOC-CLI-03 — explicit network/effects | 4 |
+| DOC-CLI-04 — consistency without destructive uniformity | 3 |
+| DOC-CLI-05 — prevention/fail-closed | 4 |
+| DOC-CLI-06 — safe diagnosis/recovery | 3 |
+| DOC-CLI-07 — recognition/help | 4 |
+| DOC-CLI-08 — human and automation | 4 |
+| DOC-CLI-09 — output contracts | 4 |
+| DOC-CLI-10 — help/docs/tests/runtime agreement | 4 |
+
+The new help regression is green (`3 passed`), the focused CLI and runtime
+contract suite is green (`144 passed`), and the full suite is green
+(`439 passed`). `verify.py` was also run in the isolated worktree, but cannot
+rebuild the reports because that worktree has no source snapshots; its result
+is `GATE_FAIL: verified report rebuild failed: snapshot validation failed:
+snapshot root is missing`. The snapshot-specific gate therefore remains
+unverified in this worktree.

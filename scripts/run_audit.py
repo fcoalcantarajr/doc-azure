@@ -1,5 +1,10 @@
 #!/usr/bin/env -S uv run python
-"""Execute the complete deterministic audit without any AI service."""
+"""Execute the complete deterministic audit without any AI service.
+
+By default, complete local snapshots are reused; missing source snapshots are
+collected with read-only REST. Use --offline to prohibit network access or
+--refresh to recollect both sources.
+"""
 
 from __future__ import annotations
 
@@ -21,8 +26,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--document-baseline", type=Path)
     parser.add_argument("--process-baseline", type=Path)
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--offline", action="store_true", help="require complete local snapshots")
-    mode.add_argument("--refresh", action="store_true", help="collect current sources with read-only REST")
+    mode.add_argument(
+        "--offline",
+        action="store_true",
+        help="require complete local snapshots and never use the network",
+    )
+    mode.add_argument(
+        "--refresh",
+        action="store_true",
+        help="recollect both source snapshots with read-only REST",
+    )
     args = parser.parse_args(argv)
     try:
         result = asyncio.run(run_audit(

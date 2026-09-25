@@ -1,5 +1,10 @@
 #!/usr/bin/env -S uv run python
-"""Collect the complete Processo-Agil definition into an atomic snapshot."""
+"""Collect the complete Processo-Agil definition into an atomic snapshot.
+
+By default, a cached snapshot is reused. If no snapshot is found, the command
+performs an initial read-only REST collection. Use --refresh to recollect and
+atomically replace the snapshot.
+"""
 
 from __future__ import annotations
 

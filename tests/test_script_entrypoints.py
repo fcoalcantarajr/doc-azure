@@ -13,6 +13,59 @@ PROJECT_ROOT = Path(__file__).parents[1]
 
 
 @pytest.mark.parametrize(
+    ("script", "required_terms"),
+    (
+        (
+            "01_fetch_wiki.py",
+            (
+                "by default",
+                "cached snapshot",
+                "no snapshot",
+                "read-only rest",
+                "--refresh",
+            ),
+        ),
+        (
+            "02_fetch_process.py",
+            (
+                "by default",
+                "cached snapshot",
+                "no snapshot",
+                "read-only rest",
+                "--refresh",
+            ),
+        ),
+        (
+            "run_audit.py",
+            (
+                "by default",
+                "complete local snapshots",
+                "missing source snapshots",
+                "read-only rest",
+                "--offline",
+                "--refresh",
+            ),
+        ),
+    ),
+)
+def test_collection_help_explains_default_network_behavior(
+    script: str, required_terms: tuple[str, ...]
+) -> None:
+    completed = subprocess.run(
+        (sys.executable, f"scripts/{script}", "--help"),
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        env={"PATH": str(Path(sys.executable).parent)},
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    help_text = " ".join(completed.stdout.split()).casefold()
+    missing = [term for term in required_terms if term not in help_text]
+    assert not missing, f"{script} help omits cache/network behavior: {missing}"
+
+
+@pytest.mark.parametrize(
     "script",
     (
         "setup.py",
