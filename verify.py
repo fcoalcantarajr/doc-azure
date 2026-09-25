@@ -22,9 +22,15 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from delta.build import BuildError, FIXED_SLUGS, build_all_reports
 from delta.catalog import CatalogError, load_catalog
-from delta.document_coverage import CoverageError, _load_baseline, assess_documents
+from delta.document_coverage import (
+    CoverageError,
+    _load_baseline,
+    _unique_object,
+    assess_documents,
+)
 from delta.process_coverage import _validate_inventory
 from doc_azure.audit import _process_gaps
+from doc_azure.baselines import validate_process_coverage_source
 from delta.notion import (
     NotionPublicationError,
     expected_publication_manifest,
@@ -223,14 +229,17 @@ def verify_coverage_baselines(root: Path) -> None:
     try:
         claims = load_catalog(catalog_path)
         _load_baseline(document_path, catalog_path, claims)
-        payload = json.loads(process_path.read_bytes())
+        payload = json.loads(
+            process_path.read_bytes(), object_pairs_hook=_unique_object
+        )
         if not isinstance(payload, dict) or set(payload) != {
-            "schema_version", "catalog_sha256", "entries"
-        } or type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
+            "schema_version", "catalog_sha256", "source", "entries"
+        } or type(payload["schema_version"]) is not int or payload["schema_version"] != 2:
             raise VerificationError("process coverage baseline schema is invalid")
         if payload["catalog_sha256"] != hashlib.sha256(catalog_path.read_bytes()).hexdigest():
             raise VerificationError("process coverage baseline catalog hash differs")
         _validate_inventory(payload["entries"])
+        validate_process_coverage_source(repository_root, payload)
         wiki_current = (repository_root / "out" / "wiki" / "CURRENT").exists()
         process_current = (repository_root / "out" / "process" / "CURRENT").exists()
         if wiki_current:
@@ -241,7 +250,15 @@ def verify_coverage_baselines(root: Path) -> None:
             gaps, _ = _process_gaps(repository_root, catalog_path, process_path)
             if gaps:
                 raise VerificationError("current process snapshot differs from coverage baseline")
-    except (CatalogError, CoverageError, OSError, UnicodeError, ValueError, TypeError) as error:
+    except (
+        CatalogError,
+        CoverageError,
+        SnapshotError,
+        OSError,
+        UnicodeError,
+        ValueError,
+        TypeError,
+    ) as error:
         if isinstance(error, VerificationError):
             raise
         raise VerificationError(f"coverage baseline is invalid: {type(error).__name__}") from None

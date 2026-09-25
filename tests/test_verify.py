@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from subprocess import CompletedProcess
@@ -29,6 +30,8 @@ from verify import (
     verify_coverage_baselines,
     verify_secret_literals,
 )
+from tests.test_audit_runtime import seed_run
+from tests.test_process_collector import expected_artifacts, seed_process_snapshot
 
 
 PAGES = ((35, "leiame"), (10, "politicas"), (9, "changelog"), (37, "apendice"))
@@ -268,6 +271,81 @@ def test_verify_reports_rejects_a_symlink_even_with_identical_bytes(
 def test_verify_coverage_baselines_rejects_missing_versioned_contract(tmp_path):
     seed_verified_repository(tmp_path)
     with pytest.raises(VerificationError, match="coverage baseline"):
+        verify_coverage_baselines(tmp_path)
+
+
+def seed_versioned_coverage_baselines(root: Path) -> Path:
+    catalog, documents, process = seed_run(root)
+    config = root / "config"
+    config.mkdir()
+    (config / "wiki_claims.json").write_bytes(catalog.read_bytes())
+    (config / "document-coverage.json").write_bytes(documents.read_bytes())
+    process_path = config / "process-coverage.json"
+    process_path.write_bytes(process.read_bytes())
+    return process_path
+
+
+def test_verify_coverage_baselines_rejects_missing_process_source(tmp_path):
+    process_path = seed_versioned_coverage_baselines(tmp_path)
+    payload = json.loads(process_path.read_bytes())
+    del payload["source"]
+    process_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(VerificationError, match="process coverage baseline schema"):
+        verify_coverage_baselines(tmp_path)
+
+
+@pytest.mark.parametrize("corruption", ["manifest_hash", "entries"])
+def test_verify_coverage_baselines_rejects_unverifiable_process_source(
+    tmp_path, corruption
+):
+    process_path = seed_versioned_coverage_baselines(tmp_path)
+    payload = json.loads(process_path.read_bytes())
+    if corruption == "manifest_hash":
+        payload["source"]["manifest_sha256"] = "0" * 64
+    else:
+        first_entry = next(iter(payload["entries"]))
+        payload["entries"][first_entry] = "0" * 64
+    process_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(VerificationError, match="coverage baseline is invalid"):
+        verify_coverage_baselines(tmp_path)
+
+
+def test_verify_coverage_baselines_uses_matching_full_api_current_after_clone(
+    tmp_path,
+):
+    process_path = seed_versioned_coverage_baselines(tmp_path)
+    source_generation = json.loads(process_path.read_bytes())["source"]["generation_id"]
+    seed_process_snapshot(tmp_path, collection_mode="full_api")
+    current_generation = resolve_snapshot_root(tmp_path / "out" / "process").name
+    assert current_generation != source_generation
+    shutil.rmtree(tmp_path / "out" / "process" / "snapshots" / source_generation)
+
+    verify_coverage_baselines(tmp_path)
+
+
+@pytest.mark.parametrize("current_mode", ["cache_assisted", "content_drift"])
+def test_verify_coverage_baselines_rejects_unverifiable_clone_current(
+    tmp_path, current_mode
+):
+    process_path = seed_versioned_coverage_baselines(tmp_path)
+    source_generation = json.loads(process_path.read_bytes())["source"]["generation_id"]
+    custom_text = None
+    if current_mode == "content_drift":
+        changed_process = expected_artifacts()["process.json"]
+        changed_process["unmappedProperty"] = "new"
+        custom_text = {"process.json": json.dumps(changed_process)}
+    seed_process_snapshot(
+        tmp_path,
+        collection_mode=(
+            "cache_assisted" if current_mode == "cache_assisted" else "full_api"
+        ),
+        custom_text=custom_text,
+    )
+    shutil.rmtree(tmp_path / "out" / "process" / "snapshots" / source_generation)
+
+    with pytest.raises(VerificationError, match="coverage baseline is invalid"):
         verify_coverage_baselines(tmp_path)
 
 

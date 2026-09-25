@@ -12,7 +12,12 @@ from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
-from doc_azure.azure_client import AzureReadClient, AzureReadError, RequestRecord
+from doc_azure.azure_client import (
+    AzureReadClient,
+    AzureReadError,
+    RequestRecord,
+    is_allowlisted_read,
+)
 from doc_azure.snapshot import (
     SnapshotManifest,
     SnapshotWriter,
@@ -339,13 +344,34 @@ async def collect_process(
 
         new_requests = client.request_records[first_request:]
         prior_requests = () if prior_state is None else prior_state.manifest.requests
+        collection_mode = "cache_assisted"
+        if prior_state is None:
+            expected_routes = _expected_process_routes(process_id, plan)
+            observed_routes = {
+                (record.method, record.path) for record in new_requests
+            }
+            if (
+                observed_routes != expected_routes
+                or any(
+                    not is_allowlisted_read(record.method, record.path)
+                    for record in new_requests
+                )
+            ):
+                raise ProcessCollectionError(
+                    "fresh process API request route coverage is incomplete"
+                )
+            collection_mode = "full_api"
         requests = tuple(
             sorted(
                 (*prior_requests, *new_requests),
                 key=lambda record: (record.path, record.method),
             )
         )
-        return writer.commit_manifest(collected_at=now(), requests=requests)
+        return writer.commit_manifest(
+            collected_at=now(),
+            requests=requests,
+            collection_mode=collection_mode,
+        )
     except BaseException:
         writer.abort()
         raise
@@ -376,6 +402,46 @@ def read_validated_process_manifest(snapshot_root: Path) -> SnapshotManifest:
     except _IncompleteSnapshot as error:
         raise ProcessCollectionError(str(error)) from None
     return state.manifest
+
+
+def validate_process_request_routes(snapshot_root: Path) -> SnapshotManifest:
+    """Require exact GET receipts for every route in one complete snapshot."""
+
+    manifest = read_validated_process_manifest(snapshot_root)
+    resolved_root = resolve_snapshot_root(Path(snapshot_root))
+    processes = json.loads(read_snapshot_artifact(resolved_root, "processes.json"))
+    process_id = select_process_id(processes)
+    index = json.loads(read_snapshot_artifact(resolved_root, "workitemtypes.json"))
+    plan = ProcessCollectionPlan.from_index(index)
+    expected_routes = _expected_process_routes(process_id, plan)
+    observed_routes = {(record.method, record.path) for record in manifest.requests}
+    if (
+        observed_routes != expected_routes
+        or any(
+            not is_allowlisted_read(record.method, record.path)
+            for record in manifest.requests
+        )
+    ):
+        raise ProcessCollectionError(
+            "process API request route coverage is incomplete or unexpected"
+        )
+    return manifest
+
+
+def _expected_process_routes(
+    process_id: str,
+    plan: ProcessCollectionPlan,
+) -> set[tuple[str, str]]:
+    return {
+        ("GET", "/_apis/work/processes"),
+        ("GET", f"/_apis/work/processes/{process_id}"),
+        ("GET", f"/_apis/work/processes/{process_id}/workitemtypes"),
+        ("GET", f"/_apis/work/processes/{process_id}/behaviors"),
+        *(
+            ("GET", request.api_path(process_id))
+            for request in plan.requests
+        ),
+    }
 
 
 def _validate_snapshot_state(state: _SnapshotState) -> None:

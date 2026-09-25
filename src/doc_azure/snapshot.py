@@ -50,11 +50,12 @@ class SnapshotManifest:
     collected_at: str
     requests: tuple[RequestRecord, ...]
     artifacts: tuple[SnapshotArtifact, ...]
+    collection_mode: str | None = None
 
     def as_dict(self) -> dict[str, object]:
         """Return the deterministic JSON-compatible manifest representation."""
 
-        return {
+        payload: dict[str, object] = {
             "schema_version": self.schema_version,
             "complete": self.complete,
             "collected_at": self.collected_at,
@@ -67,6 +68,9 @@ class SnapshotManifest:
                 for artifact in self.artifacts
             ],
         }
+        if self.collection_mode is not None:
+            payload["collection_mode"] = self.collection_mode
+        return payload
 
 
 _CURRENT = "CURRENT"
@@ -132,6 +136,7 @@ class SnapshotWriter:
         *,
         collected_at: datetime | str,
         requests: Iterable[RequestRecord],
+        collection_mode: str | None = None,
     ) -> SnapshotManifest:
         """Publish a complete generation with lock-protected compare-and-swap."""
 
@@ -139,6 +144,11 @@ class SnapshotWriter:
         request_records = tuple(requests)
         if any(not isinstance(record, RequestRecord) for record in request_records):
             raise SnapshotError("manifest requests must be sanitized RequestRecord values")
+        if collection_mode is not None and (
+            not isinstance(collection_mode, str)
+            or collection_mode not in {"full_api", "cache_assisted"}
+        ):
+            raise SnapshotError("manifest collection mode is invalid")
         timestamp = _format_collected_at(collected_at)
 
         with _snapshot_lock(self._root):
@@ -150,11 +160,12 @@ class SnapshotWriter:
                 self._staging, self._registered_paths
             )
             manifest = SnapshotManifest(
-                schema_version=1,
+                schema_version=2 if collection_mode is not None else 1,
                 complete=True,
                 collected_at=timestamp,
                 requests=request_records,
                 artifacts=artifacts,
+                collection_mode=collection_mode,
             )
             manifest_bytes = (
                 json.dumps(manifest.as_dict(), ensure_ascii=False, indent=2) + "\n"
@@ -540,17 +551,34 @@ def _parse_snapshot_manifest(manifest_bytes: bytes) -> SnapshotManifest:
         payload = json.loads(manifest_bytes)
     except (UnicodeError, ValueError):
         raise SnapshotError("snapshot manifest is malformed") from None
+    if not isinstance(payload, dict):
+        raise SnapshotError("snapshot manifest is incomplete")
+    schema_version = payload.get("schema_version")
+    base_fields = {
+        "schema_version",
+        "complete",
+        "collected_at",
+        "requests",
+        "artifacts",
+    }
+    collection_mode = None
+    if type(schema_version) is int and schema_version == 2:
+        mode = payload.get("collection_mode")
+        if (
+            set(payload) != base_fields | {"collection_mode"}
+            or not isinstance(mode, str)
+            or mode not in {"full_api", "cache_assisted"}
+        ):
+            raise SnapshotError("snapshot manifest collection mode is invalid")
+        collection_mode = mode
+    elif (
+        type(schema_version) is not int
+        or schema_version != 1
+        or set(payload) != base_fields
+    ):
+        raise SnapshotError("snapshot manifest is incomplete")
     if (
-        not isinstance(payload, dict)
-        or set(payload) != {
-            "schema_version",
-            "complete",
-            "collected_at",
-            "requests",
-            "artifacts",
-        }
-        or payload.get("schema_version") != 1
-        or payload.get("complete") is not True
+        payload.get("complete") is not True
         or not isinstance(payload.get("collected_at"), str)
         or not payload["collected_at"].strip()
         or not isinstance(payload.get("requests"), list)
@@ -592,6 +620,7 @@ def _parse_snapshot_manifest(manifest_bytes: bytes) -> SnapshotManifest:
         collected_at=payload["collected_at"],
         requests=tuple(requests),
         artifacts=tuple(artifacts),
+        collection_mode=collection_mode,
     )
 
 

@@ -224,6 +224,7 @@ def seed_process_snapshot(
     *,
     omitted: frozenset[str] = frozenset(),
     custom_text: Mapping[str, str] | None = None,
+    collection_mode: str | None = None,
 ) -> None:
     writer = SnapshotWriter(project_root / "out" / "process")
     records: list[RequestRecord] = []
@@ -236,7 +237,11 @@ def seed_process_snapshot(
             writer.write_json(path, payload)
     for route in fixture_payloads():
         records.append(RequestRecord("GET", route))
-    writer.commit_manifest(collected_at=COLLECTED_AT, requests=records)
+    writer.commit_manifest(
+        collected_at=COLLECTED_AT,
+        requests=records,
+        collection_mode=collection_mode or ("cache_assisted" if omitted else "full_api"),
+    )
 
 
 def snapshot_bytes(root: Path) -> dict[str, bytes]:
@@ -385,6 +390,7 @@ def test_collection_preserves_raw_payloads_mapping_and_behavior_ranks(
         collect_process(tmp_path, client, refresh=False, now=fixed_now)
     )
 
+    assert manifest.collection_mode == "full_api"
     resolved = resolve_snapshot_root(tmp_path / "out" / "process")
     for artifact_path, expected in expected_artifacts().items():
         assert load_json(resolved / artifact_path) == expected
@@ -418,6 +424,7 @@ def test_complete_cache_returns_before_client_and_clock_are_required(
     )
 
     assert manifest.complete is True
+    assert manifest.collection_mode == "full_api"
     assert snapshot_bytes(logical_root) == before
 
 
@@ -482,8 +489,11 @@ def test_partial_cache_fetches_only_missing_artifacts_and_seeds_bytes_verbatim(
     )
     client = FixtureClient()
 
-    asyncio.run(collect_process(tmp_path, client, refresh=False, now=fixed_now))
+    manifest = asyncio.run(
+        collect_process(tmp_path, client, refresh=False, now=fixed_now)
+    )
 
+    assert manifest.collection_mode == "cache_assisted"
     expected_routes = {
         request.api_path(PROCESS_ID)
         for request in plan.requests
@@ -838,6 +848,48 @@ def test_entry_point_cache_hit_precedes_settings_client_and_asyncio(
     assert read_cached_process_manifest(tmp_path) is not None
 
 
+def test_entry_point_root_option_targets_explicit_project_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script()
+    selected_root = tmp_path / "selected-root"
+    alternate_root = tmp_path / "alternate-root"
+    seed_process_snapshot(selected_root)
+    observed_settings_roots: list[Path] = []
+    observed_collection_roots: list[Path] = []
+
+    def load_settings(root: Path) -> Settings:
+        observed_settings_roots.append(root)
+        return Settings(
+            organization="fixture",
+            project="fixture",
+            page_ids=(35, 10, 9, 37),
+            process_name=PROCESS_NAME,
+            api_version="7.1",
+            pat="fixture-only-pat",
+            output_root=root / "out",
+            wiki_id="fixture-wiki-id",
+        )
+
+    async def collect(root: Path, settings: Settings, **kwargs: object):
+        observed_collection_roots.append(root)
+        manifest = read_cached_process_manifest(root)
+        assert manifest is not None
+        return manifest, len(manifest.requests)
+
+    monkeypatch.setattr(module, "_collect_with_settings", collect)
+    result = module.main(
+        ["--refresh", "--root", str(selected_root)],
+        project_root=alternate_root,
+        settings_loader=load_settings,
+    )
+
+    assert result == 0
+    assert observed_settings_roots == [selected_root]
+    assert observed_collection_roots == [selected_root]
+
+
 def test_cache_reader_does_not_follow_artifact_swapped_after_resolution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -876,7 +928,43 @@ def test_refresh_requests_every_global_and_per_wit_artifact(tmp_path: Path) -> N
     seed_process_snapshot(tmp_path)
     client = FixtureClient()
 
-    asyncio.run(collect_process(tmp_path, client, refresh=True, now=fixed_now))
+    manifest = asyncio.run(
+        collect_process(tmp_path, client, refresh=True, now=fixed_now)
+    )
 
+    assert manifest.collection_mode == "full_api"
     assert set(client.calls) == set(fixture_payloads())
     assert len(client.calls) == 14
+
+
+def test_full_api_collection_preserves_a_retry_get_receipt(tmp_path: Path) -> None:
+    first_route = next(iter(fixture_payloads()))
+
+    class RetryReceiptClient(FixtureClient):
+        retried = False
+
+        async def request_json(
+            self,
+            method: str,
+            path: str,
+            *,
+            query: Mapping[str, object] | None = None,
+            body: Mapping[str, object] | None = None,
+        ) -> dict[str, object]:
+            payload = await super().request_json(
+                method, path, query=query, body=body
+            )
+            if path == first_route and not self.retried:
+                self._request_records.append(RequestRecord("GET", path))
+                self.retried = True
+            return payload
+
+    manifest = asyncio.run(
+        collect_process(
+            tmp_path, RetryReceiptClient(), refresh=True, now=fixed_now
+        )
+    )
+
+    assert manifest.collection_mode == "full_api"
+    assert len(manifest.requests) == 15
+    assert len({(record.method, record.path) for record in manifest.requests}) == 14

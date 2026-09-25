@@ -1122,3 +1122,99 @@ rebuild the reports because that worktree has no source snapshots; its result
 is `GATE_FAIL: verified report rebuild failed: snapshot validation failed:
 snapshot root is missing`. The snapshot-specific gate therefore remains
 unverified in this worktree.
+
+## 2026-09-25 — Process baseline source provenance
+
+The process coverage baseline must be tied to one complete, intact process
+snapshot generation. Candidate preparation and verification must validate the
+snapshot's exact artifact set and hashes, complete GET receipt coverage for
+every planned process route, the source generation and manifest digest, and
+the candidate fingerprints against both that immutable source and active
+`CURRENT`. This remains a reviewable candidate workflow; collection and audit
+must never accept a baseline implicitly.
+
+Process manifests now distinguish `full_api` (no prior process state and all
+planned routes called in that collection) from `cache_assisted` (any reuse of
+prior process state). Schema-1 manifests remain readable for existing snapshot
+consumers and current-snapshot comparison, but cannot source a new process
+baseline. Current `cache_assisted` snapshots remain usable only when route
+coverage is exact and their fingerprints match the accepted baseline. Retry
+attempts remain in the request receipt list; validation compares the unique
+method-route set and permits repeated allowlisted GET attempts.
+
+The verifier checks the recorded generation and exact manifest digest while
+that generation exists. Since `out/` is ignored, a clean clone may instead
+prove the same baseline against its own `CURRENT` only when that generation is
+`full_api`, its artifact hashes and route set validate, and its fingerprints
+equal the accepted entries. A present but invalid historical generation never
+falls back. Tests cover this clone path and reject a cache-assisted or changed
+replacement snapshot.
+
+### RED receipt (R4)
+
+Command (local paths normalized):
+`UV_PROJECT_ENVIRONMENT=<project-venv> uv run --project <worktree-root>
+--no-sync pytest tests/test_prepare_baselines.py::test_candidate_rejects_process_snapshot_with_missing_get_receipt -q`.
+
+The test removed one request receipt from an otherwise complete fixture
+manifest. RED output: `Failed: DID NOT RAISE ValueError`; the focused run ended
+`1 failed in 0.21s`. The failure is the intended acceptance of incomplete GET
+route provenance by `prepare_baselines()`.
+
+### Full collection and drift review
+
+The updated worktree entrypoint was run against the main checkout with
+`scripts/02_fetch_process.py --root <main-root> --refresh`; it exited 0. The
+new `CURRENT` is generation `e1445692d82e4ed688a637cb34c1ebc0`, collected at
+`2026-09-25T01:51:36.130901+00:00`. Its schema-2 manifest is `full_api`, has
+115 artifacts, and records 114 unique allowlisted GET routes. The manifest
+SHA-256 is
+`dffc602b1263e3d7009c6d24b917f8880b2c5324b18088ca0ffa0ae840f48c35`.
+Independent validation confirmed the pointer, exact artifact set and hashes,
+route set, and source digest before candidate preparation.
+
+The generated candidate changes the prior inventory from 40,559 to 41,543
+fingerprints: 1,112 additions, 128 removals, and 886 changed nodes (2,126
+total). The drift spans artifact-map (112), work item type data (33),
+behaviors (10), fields (497), layout (516), rules (901), and states (57).
+The raw index has one additional active work item type (21 to 22 total; 15 to
+16 active; 6 disabled in both snapshots); there are no removals or changes to
+the names, disabled states, or customization types of common work item types.
+
+`config/process-coverage.json` is updated from this candidate. This is a
+technical reference to the observed full API state for future drift checks;
+it does not validate the business intent or correctness of the 901 changed
+rule nodes. The REST snapshot alone cannot establish that. That distinction
+is recorded so the baseline change is not presented as domain approval.
+
+The first report gate against the main root found real content drift, not only
+new provenance timestamps. The repository guide requires official offline
+reconstruction from current snapshots and the reviewed document baseline, so
+the four versioned reports were rebuilt in the worktree with
+`scripts/03_build_delta.py`; no report status was weakened. `leiame.md` now
+classifies the documented 12-WIT inventory as divergent against 13 observed
+business WITs (including one new active WIT), and updates the technical field
+count from 214 to 215. `apendice.md` changes 2 claims from confirmed to
+divergent: BUG rules are 141 versus 139 documented, and the active WIT count
+differs; INCIDENTE rules are now 3 versus 17 documented (still divergent).
+`politicas.md` keeps its status totals but reflects the current AE state order,
+with Aguardando Desenvolvimento second. `changelog.md` keeps its status
+totals; the inspected INCIDENTE layout group now contains four date controls
+instead of the prior two co-executor controls, while the claim remains
+ambiguous under its existing limit about scope and omission. The reports
+retain their limitations: API configuration does not prove production use,
+historical causation, or the authorization and business correctness of these
+changes. No email or credential patterns were found in the rebuilt reports.
+
+The initial `verify_repository(main-root)` attempt used the worktree verifier
+with the still-unmodified main `config/process-coverage.json` schema 1 and
+therefore stopped at the expected schema mismatch; it was not a verification
+of the candidate branch. The separate report check did expose the substantive
+drift above, which was resolved by the documented builder rather than by
+changing the gate.
+
+An additional RED used the fixture's exact 14 unique GET routes, all valid for
+its two-WIT plan, but with no persisted collection-mode marker. The focused
+test failed with `Failed: DID NOT RAISE ValueError` (`1 failed in 0.26s`). This
+isolates the missing full-collection attestation from route cardinality: exact
+receipts can still be cache-aggregated.

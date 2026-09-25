@@ -18,7 +18,14 @@ from delta.models import AuditResult
 from delta.process_coverage import compare_inventory, fingerprint_json
 from delta.render import render_report
 from doc_azure.azure_client import AzureReadClient, AzureReadError
-from doc_azure.process_collector import ProcessCollectionError, collect_process, read_cached_process_manifest
+from doc_azure.baselines import validate_process_coverage_source
+from doc_azure.process_collector import (
+    ProcessCollectionError,
+    collect_process,
+    read_cached_process_manifest,
+    read_validated_process_manifest,
+    validate_process_request_routes,
+)
 from doc_azure.settings import Settings
 from doc_azure.snapshot import SnapshotError, SnapshotWriter, read_snapshot_artifact, resolve_snapshot_root
 from doc_azure.wiki_collector import WikiCollectionError, collect_wiki_pages, read_cached_wiki_manifest
@@ -45,16 +52,24 @@ def _process_gaps(root: Path, catalog: Path, baseline: Path) -> tuple[list[dict]
         payload = json.loads(baseline.read_bytes(), object_pairs_hook=_unique_object)
     except (OSError, ValueError):
         raise CoverageError("process coverage baseline is missing or malformed") from None
-    if not isinstance(payload, dict) or set(payload) != {"schema_version", "catalog_sha256", "entries"}:
+    if not isinstance(payload, dict) or set(payload) != {
+        "schema_version", "catalog_sha256", "source", "entries"
+    }:
         raise CoverageError("invalid process coverage schema")
-    if type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
+    if type(payload["schema_version"]) is not int or payload["schema_version"] != 2:
         raise CoverageError("unsupported process coverage schema")
     if payload["catalog_sha256"] != hashlib.sha256(catalog.read_bytes()).hexdigest():
         raise CoverageError("process coverage catalog hash differs")
-    manifest = read_cached_process_manifest(root)
-    if manifest is None:
-        raise ValueError("complete process snapshot is required")
-    generation = resolve_snapshot_root(root / "out/process")
+    try:
+        validate_process_coverage_source(root, payload)
+    except (OSError, UnicodeError, TypeError, ValueError, ProcessCollectionError):
+        raise CoverageError("process coverage baseline source is invalid") from None
+    generation = resolve_snapshot_root(root / "out" / "process")
+    manifest = read_validated_process_manifest(generation)
+    try:
+        validate_process_request_routes(generation)
+    except ProcessCollectionError:
+        raise CoverageError("process API request route coverage is incomplete") from None
     artifacts = {entry.path: json.loads(read_snapshot_artifact(generation, entry.path),
                                      object_pairs_hook=_unique_object)
                  for entry in manifest.artifacts}
@@ -63,6 +78,8 @@ def _process_gaps(root: Path, catalog: Path, baseline: Path) -> tuple[list[dict]
         changes = compare_inventory(payload["entries"], current)
     except ValueError:
         raise CoverageError("invalid process coverage inventory") from None
+    if resolve_snapshot_root(root / "out" / "process") != generation:
+        raise ValueError("process snapshot changed during baseline comparison")
     return [{**asdict(change), "status": "PROCESS_INVENTORY_CHANGE"} for change in changes], current
 
 

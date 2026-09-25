@@ -10,8 +10,7 @@ from pathlib import Path
 
 from doc_azure import audit
 from doc_azure import baselines
-from delta.process_coverage import fingerprint_json
-from doc_azure.snapshot import read_snapshot_artifact, read_snapshot_manifest
+from doc_azure.snapshot import read_snapshot_artifact
 from tests.test_process_collector import expected_artifacts, seed_process_snapshot
 from tests.test_process_collector import fixture_payloads
 from tests.test_wiki_collector import seed_complete_wiki_snapshot, load_page_payloads
@@ -34,13 +33,10 @@ def seed_run(root):
                        "limit": "A API não representa esta dimensão."})
     catalog.write_text(json.dumps({"schema_version": 1, "claims": claims}))
     documents = seed_baseline(root, catalog)
-    logical = root / "out/process"
-    artifacts = {entry.path: json.loads(read_snapshot_artifact(logical, entry.path))
-                 for entry in read_snapshot_manifest(logical).artifacts}
     inventory = root / "inventory.json"
-    inventory.write_text(json.dumps({"schema_version": 1,
-                                    "catalog_sha256": hashlib.sha256(catalog.read_bytes()).hexdigest(),
-                                    "entries": fingerprint_json(artifacts)}))
+    inventory.write_text(json.dumps(
+        baselines.prepare_baselines(root, catalog)["process-coverage.json"]
+    ))
     return catalog, documents, inventory
 
 
@@ -65,6 +61,18 @@ def test_offline_run_never_constructs_http_transport(tmp_path, monkeypatch):
     inputs = seed_run(tmp_path)
     monkeypatch.setattr(audit.httpx, "AsyncClient", lambda **kwargs: (_ for _ in ()).throw(AssertionError("network")))
     assert run(tmp_path, inputs).exit_code == 1
+
+
+def test_cache_assisted_current_snapshot_matches_full_api_baseline(tmp_path):
+    inputs = seed_run(tmp_path)
+    seed_process_snapshot(tmp_path, collection_mode="cache_assisted")
+
+    result = run(tmp_path, inputs)
+
+    assert result.exit_code == 1
+    summary = json.loads(read_snapshot_artifact(tmp_path / "out/audit", "run.json"))
+    assert summary["coverage_complete"] is True
+    assert summary["gaps"] == []
 
 
 def test_run_unknown_document_prose_is_explicit_gap(tmp_path):

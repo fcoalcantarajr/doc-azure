@@ -95,11 +95,17 @@ def main(
         action="store_true",
         help="fetch and atomically replace the complete process snapshot",
     )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        help="project root that receives the process snapshot",
+    )
     args = parser.parse_args(argv)
+    root = args.root or project_root
 
     if not args.refresh:
         try:
-            cached_manifest = read_cached_process_manifest(project_root)
+            cached_manifest = read_cached_process_manifest(root)
         except Exception:
             print(
                 "ERROR: cached process snapshot failed validation",
@@ -111,10 +117,10 @@ def main(
             return 0
 
     try:
-        settings = settings_loader(project_root)
+        settings = settings_loader(root)
         manifest, request_count = asyncio.run(
             _collect_with_settings(
-                project_root,
+                root,
                 settings,
                 refresh=args.refresh,
                 http_client_factory=http_client_factory,
