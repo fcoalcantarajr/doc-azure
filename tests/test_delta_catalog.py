@@ -284,3 +284,28 @@ def test_production_catalog_covers_all_fixed_pages_and_material_checks() -> None
         "37-OTHER-BLOCK-BUG-001",
     ):
         assert by_id[identifier].check.kind == "field_alternative"
+
+
+def test_reviewed_production_limits_do_not_repeat_superseded_observations() -> None:
+    claims = {claim.id: claim for claim in load_catalog(PRODUCTION_CATALOG)}
+
+    assert claims["37-RULE-009"].limit == (
+        "A comparação observa apenas a quantidade configurada; não avalia o "
+        "conteúdo, a validade ou a execução das regras."
+    )
+    assert claims["37-RULE-INCIDENT-BLOCK-001"].limit == (
+        "A regra de Motivo do Bloqueio não foi observada no snapshot de "
+        "Incidente; isso não determina a execução em produção."
+    )
+    assert claims["10-STATE-AE-001"].limit == (
+        "A comparação verifica os nomes e a ordem configurados; não registra "
+        "quando Aguardando Desenvolvimento foi incluído nem comprova seu uso "
+        "pelas squads."
+    )
+    assert claims["9-COEXEC-INCIDENTE-001"].finding == (
+        "Campos de Co-executor 1 e 2 documentados para Incidente"
+    )
+    assert claims["9-COEXEC-INCIDENTE-001"].limit == (
+        "O grupo inspecionado contém quatro controles de data; isso não "
+        "determina se campos de coexecutor existem em outra área do layout."
+    )

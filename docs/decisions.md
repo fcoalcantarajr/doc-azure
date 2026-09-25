@@ -1135,20 +1135,33 @@ must never accept a baseline implicitly.
 
 Process manifests now distinguish `full_api` (no prior process state and all
 planned routes called in that collection) from `cache_assisted` (any reuse of
-prior process state). Schema-1 manifests remain readable for existing snapshot
-consumers and current-snapshot comparison, but cannot source a new process
-baseline. Current `cache_assisted` snapshots remain usable only when route
+prior process state). Schema-1 manifests remain readable by generic snapshot
+consumers, but they do not establish `full_api` provenance and cannot satisfy
+process-coverage validation or source a new process baseline. Where the
+accepted source generation is absent, validation fails closed unless `CURRENT`
+is a valid schema-2 `full_api` snapshot with the accepted fingerprints.
+Current schema-2 `cache_assisted` snapshots remain usable only when route
 coverage is exact and their fingerprints match the accepted baseline. Retry
 attempts remain in the request receipt list; validation compares the unique
 method-route set and permits repeated allowlisted GET attempts.
+
+The `full_api` marker and hashes attest consistency inside the local snapshot;
+they are not a cryptographic statement from Azure. An actor able to rewrite
+the ignored local snapshot can rewrite its manifest and hashes as well. The
+reviewed-candidate workflow assumes that local evidence store is trusted and
+does not claim protection against its owner.
 
 The verifier checks the recorded generation and exact manifest digest while
 that generation exists. Since `out/` is ignored, a clean clone may instead
 prove the same baseline against its own `CURRENT` only when that generation is
 `full_api`, its artifact hashes and route set validate, and its fingerprints
 equal the accepted entries. A present but invalid historical generation never
-falls back. Tests cover this clone path and reject a cache-assisted or changed
-replacement snapshot.
+falls back. Tests cover this baseline-source fallback and reject a
+cache-assisted or changed replacement snapshot. The full repository gate also
+validates the exact snapshot generations cited by the versioned reports, so a
+clean clone needs those ignored source generations to verify the unchanged
+reports; a different collection requires rebuilding the reports and reviewing
+any resulting tracked changes.
 
 ### RED receipt (R4)
 
@@ -1201,7 +1214,8 @@ differs; INCIDENTE rules are now 3 versus 17 documented (still divergent).
 with Aguardando Desenvolvimento second. `changelog.md` keeps its status
 totals; the inspected INCIDENTE layout group now contains four date controls
 instead of the prior two co-executor controls, while the claim remains
-ambiguous under its existing limit about scope and omission. The reports
+ambiguous and now states that the inspected group does not determine whether
+co-executor controls exist elsewhere in the layout. The reports
 retain their limitations: API configuration does not prove production use,
 historical causation, or the authorization and business correctness of these
 changes. No email or credential patterns were found in the rebuilt reports.
@@ -1218,3 +1232,126 @@ its two-WIT plan, but with no persisted collection-mode marker. The focused
 test failed with `Failed: DID NOT RAISE ValueError` (`1 failed in 0.26s`). This
 isolates the missing full-collection attestation from route cardinality: exact
 receipts can still be cache-aggregated.
+
+### Hostile Kimi K3 review of 9fdc372
+
+The read-only review used the existing Notion AI chat with Kimi K3 at maximum
+effort and reviewed the exact branch range `ed85ce7da6e7be549dc8850f90a3bb5e7d431c38`
+to `9fdc372373b8db8586a6fe4aac3ed12ea440a58b` (2 commits, 19 unique files).
+Kimi defined severity as S1 blocker, S2 material, and S3 minor.
+Kimi's overall conclusion was: no actionable code finding; three actionable
+content findings in generated reports. This section records its findings and
+their disposition before changing the catalog.
+
+| Review item | Kimi classification and exact claim | Disposition before correction |
+| --- | --- | --- |
+| F1 — `deltas/apendice.md`, `37-RULE-009`, about line 51 | S2. The row reports 3 configured INCIDENTE rules while its limit says “O processo atual retorna zero regras”. Kimi says the defect is in `config/wiki_claims.json`; rebuilding the report cannot detect the semantic contradiction because the gate compares deterministic output bytes. | Confirmed content contradiction; non-blocking; correct the catalog and rebuild. |
+| F2 — `deltas/politicas.md`, `10-STATE-AE-001`, about line 57 | S2. The observed Atendimento Expresso sequence places `Aguardando Desenvolvimento` second, while the limit says it was added after homologation. | Confirmed stale limitation; non-blocking; correct the catalog and rebuild. |
+| F3 — `deltas/changelog.md`, `9-COEXEC-INCIDENTE-001`, about line 109 | S3. The inspected layout group now contains four `DateTimeControl` controls (`CreatedDate`, `StartDate`, `TargetDate`, `ClosedDate`) rather than the two documented co-executor controls. Kimi considers `AMBIGUO` defensible because Incidente is outside the mandatory scope at lines 524–532, but says the row should disclose the changed observation. | Confirmed presentation gap; non-blocking; preserve `AMBIGUO`, clarify the finding title and limitation. |
+| Related claim — `37-RULE-INCIDENT-BLOCK-001` | Not separately numbered by Kimi. Its limit also says the process returns zero rules for INCIDENTE, although the same snapshot returns three rules. | Confirmed related contradiction; non-blocking; correct together with F1. |
+| P1 — `src/doc_azure/audit.py`, `_acquire` | Kimi labels this a pre-existing P1: it alleges the URL is written as `f"{{https://dev.azure.com/{settings.organization}}}"`, producing a literal-brace URL and breaking `run_audit`. | False positive. Both base and reviewed HEAD contain `f"https://dev.azure.com/{settings.organization}"`, ordinary f-string interpolation. No fix is warranted. |
+| P2 | Exit code 1 in `test_cache_assisted_current_snapshot_matches_full_api_baseline` is `DELTAS`; the fixture intentionally has non-confirmed findings, while the tested condition is `gaps == []`. | Correctly rejected as a defect; expected status semantics. |
+| P3 | The help test replaces `PATH`, but the project already uses Unix-only `fcntl` and `sys.executable` is absolute. | Non-blocking; not a practical portability regression. |
+| P4 | Fallback check `request_count < unique_routes` is redundant/asymmetric but conservative; artifact fingerprints still bind the data. | Non-blocking implementation observation; no acceptance bypass identified. |
+| P5 | `SnapshotError` in the `verify.py` exception handler might be an undefined name. | False positive; the import predates this diff and is present in HEAD. |
+| P6 | The absent-source fallback does not compare the new snapshot's manifest digest or generation ID to the baseline. | Non-blocking by design: a clean checkout may use a new generation when its validated artifact fingerprints equal the accepted entries. |
+
+Kimi also recorded these non-blocking design or operations limits:
+
+1. `collection_mode` is a local manifest assertion, not cryptographic remote
+   attestation. A person who can rewrite ignored `out/` files can rewrite the
+   manifest and its hashes too. The workflow still requires a separately
+   reviewed candidate and validates route receipts, artifact sets, bytes, and
+   fingerprints; it does not defend against a hostile local filesystem owner.
+2. Verification needs local source snapshots. Because `out/` is ignored, a
+   clean checkout needs the exact generations cited by unchanged reports. A
+   different collection can verify the baseline only when its fingerprints
+   match, but the reports must then be rebuilt and any tracked changes reviewed
+   before the full provenance gate passes. This is an intentional fail-closed
+   operational requirement, not a code blocker.
+3. A legacy schema-1 `CURRENT` cannot establish `full_api` source provenance;
+   where the referenced source generation is absent, coverage validation must
+   fail until an eligible collection is made. The earlier phrase “current-
+   snapshot comparison” did not state this gate condition precisely and will
+   be clarified.
+4. Request receipts record `(method, path)`, not query parameters. This is a
+   provenance-granularity limit; the artifacts themselves are hashed and
+   validated. It is not evidence that this collection used an incorrect query.
+5. Kimi said `--root` exists only on `02_fetch_process.py`, not `01_fetch_wiki.py`
+   or `run_audit.py`. The first half is true; the second is a false positive:
+   `run_audit.py` also defines `--root`. This is not a regression finding.
+6. The report sources are not contemporaneous: the wiki snapshot is from
+   `2026-09-15T17:38:39.995018+00:00`, and the process snapshot is from
+   `2026-09-25T01:51:36.130901+00:00` (about 9 days and 8 hours apart). The
+   process evidence is current to its collection time; wiki edits after the
+   earlier snapshot are outside this report's evidence. This task does not
+   refresh or publish wiki content.
+
+The review also listed evidence it could not independently obtain: the full
+41.5k-entry process fingerprint block and ignored snapshots (`G1`, `G2`),
+secondary schema-2 consumers (`G3`), a final test/gate receipt (`G4`), and
+report rows outside the changed hunks (`G5`). These are review evidence gaps,
+not asserted product defects. The local source generation is available in the
+main checkout and is independently verifiable here; final test and gate
+receipts are recorded below. Kimi's summary was that the new code was
+technically solid, with the actionable issues confined to the three
+report-content findings above.
+
+### RED receipt for reviewed report-content corrections (R4)
+
+Command: `uv run pytest
+tests/test_delta_catalog.py::test_reviewed_production_limits_do_not_repeat_superseded_observations
+-q`.
+
+RED output: `AssertionError` at `tests/test_delta_catalog.py:292`; the actual
+`37-RULE-009` limit was “O processo atual retorna zero regras; presença e ação
+documentadas são avaliadas em achados separados.” The test failed because the
+claim still contradicted the refreshed process snapshot, as intended.
+
+### Review reconciliation and local evidence
+
+The catalog now limits `37-RULE-009` to the configured rule count and does not
+claim to validate rule content or execution. The separate block-rule claim
+states that the specific rule was not observed in the INCIDENTE snapshot and
+that this does not prove production execution. `10-STATE-AE-001` now limits
+its conclusion to configured names and order, without claiming chronology or
+squad use. The co-executor finding title now describes what the wiki
+documents; its limitation reports the four observed date controls and does
+not infer absence from other layout groups. Its status remains `AMBIGUO`.
+
+The official baseline preparation produced candidate generation
+`c9eb4e3a8cee40afbc31d67751735e23`. Both accepted baseline files exactly match
+that candidate. Their `catalog_sha256` is
+`d1711deb7df98e02614de1730539c6f0700d2da1cacc2a072b4fe0ff2026977b`; the
+process baseline retains all 41,543 fingerprints and the same `full_api`
+source generation `e1445692d82e4ed688a637cb34c1ebc0`, manifest SHA-256
+`dffc602b1263e3d7009c6d24b917f8880b2c5324b18088ca0ffa0ae840f48c35`, 115
+artifacts, and 114 request receipts. The four reports were rebuilt by the
+official builder from those source snapshots. Their row status counts match
+the pre-correction reports; no status was weakened.
+
+Local inspection resolved Kimi's evidence gaps as follows. The exact wiki and
+process `CURRENT` generations cited by the reports are present in the worktree
+and their manifest hashes match the main checkout. The 41,543-entry candidate
+was recomputed from those artifacts and matched the accepted candidate. The
+named export paths use the shared snapshot reader, which parses schema 1 and
+2; the export suite contains schema compatibility coverage, and the full
+suite passes. The final test and gate receipts appear in the following
+section.
+
+The Kimi allegation about literal braces in the Azure URL and its claim that
+`run_audit.py` lacks `--root` were false positives confirmed by source
+inspection. The other open design observations remain as documented limits:
+local manifests are not remote cryptographic attestation, request receipts
+omit query parameters, and the wiki/process sources are about 9 days and 8
+hours apart. Those limits were not represented as evidence of incorrect
+collection or as approval of the configured process.
+
+### Pre-review verification receipt
+
+After correcting the catalog, updating both candidate baselines, and
+rebuilding the four reports, `uv run pytest -q` completed with `454 passed in
+22.28s`. A complete `uv run python verify.py` run returned `GATE_OK` using the
+worktree's exact wiki and process source generations. `git diff --check` was
+clean. The report status totals were independently compared before and after
+the content corrections and are unchanged for all four pages.

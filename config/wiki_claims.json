@@ -2612,7 +2612,7 @@
         "wit": "Processo-Agil.Incidente",
         "expected": 17
       },
-      "limit": "O processo atual retorna zero regras; presença e ação documentadas são avaliadas em achados separados."
+      "limit": "A comparação observa apenas a quantidade configurada; não avalia o conteúdo, a validade ou a execução das regras."
     },
     {
       "id": "37-STATE-010",
@@ -3692,7 +3692,7 @@
           "Descartado"
         ]
       },
-      "limit": "O processo acrescenta Aguardando Desenvolvimento depois das etapas de homologação."
+      "limit": "A comparação verifica os nomes e a ordem configurados; não registra quando Aguardando Desenvolvimento foi incluído nem comprova seu uso pelas squads."
     },
     {
       "id": "10-STATE-INCIDENTE-001",
@@ -4630,7 +4630,7 @@
       "id": "9-COEXEC-INCIDENTE-001",
       "page_id": 9,
       "slug": "changelog",
-      "finding": "Controles atuais de Co-executor 1 e 2 em Incidente",
+      "finding": "Campos de Co-executor 1 e 2 documentados para Incidente",
       "doc": {
         "path": "out/wiki/changelog.md",
         "line": 491,
@@ -4643,7 +4643,7 @@
         "artifact": "workitemtypes/Processo-Agil.Incidente/layout.json",
         "pointer": "/layout/pages/0/sections/1/groups/2/controls"
       },
-      "limit": "Incidente não é nomeado no escopo obrigatório das linhas 524–532; a presença atual é contexto, e a omissão documental não exige ausência."
+      "limit": "O grupo inspecionado contém quatro controles de data; isso não determina se campos de coexecutor existem em outra área do layout."
     },
     {
       "id": "9-COEXEC-HU-1-001",
@@ -5995,7 +5995,7 @@
         "rule": "Motivo do Bloqueio",
         "expected": true
       },
-      "limit": "O processo retorna zero regras para Incidente."
+      "limit": "A regra de Motivo do Bloqueio não foi observada no snapshot de Incidente; isso não determina a execução em produção."
     },
     {
       "id": "37-RULE-AE-COPY-001",
