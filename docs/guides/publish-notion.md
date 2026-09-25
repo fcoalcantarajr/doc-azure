@@ -1,20 +1,30 @@
 # Publicar no Notion
 
-Prepare, revise, atualize e prove as quatro páginas fixas do Notion. O Python prepara e valida a evidência; as operações externas são executadas no Codex com o conector Notion e o navegador integrado.
+Prepare e revise os quatro relatórios para publicação canônica nas páginas fixas
+do Notion ou para edição de cópias sob Staging. O Python prepara e valida a
+evidência; as operações externas são executadas no Codex com o conector Notion
+e o navegador integrado. O gate atual de ambos os modos continua bloqueado
+quando Search é a única prova de unicidade.
 
-Este fluxo modifica páginas externas. Confirme autorização para a publicação imediatamente antes da primeira atualização. Nunca crie páginas substitutas.
+Este fluxo modifica páginas externas. Confirme autorização para o destino
+escolhido imediatamente antes da primeira atualização. Não crie páginas
+substitutas fora do fluxo formal de cópias em Staging.
 
 ## Antes de começar
 
 Você precisa de:
 
 - quatro relatórios oficiais já construídos em `deltas/`;
-- acesso ao repositório privado no GitHub;
+- acesso ao repositório `fcoalcantarajr/doc-azure` no GitHub;
 - Codex com o conector Notion conectado e o navegador integrado autenticado no Notion AI;
 - Kimi K3 e Opus 5 disponíveis com esforço máximo;
 - autorização para atualizar as quatro páginas existentes.
 
 As identidades fixas e a hierarquia estão no [contrato de publicação](../notion-publication.md#localização-e-identidades-das-páginas-existentes). Os formatos exatos dos recibos estão na [referência de evidências](../reference/notion-evidence.md).
+
+Para revisar alterações de código ou documentação, use o fluxo distinto de
+[revisão adversarial do repositório](verify-repository.md#revisao-adversarial-de-mudancas).
+Essa revisão não satisfaz as revisões Kimi K3 e Opus 5 deste contrato.
 
 ## 1. Preparar o pacote local
 
@@ -61,7 +71,13 @@ Revise este pacote em dois chats novos e separados do Notion AI: Kimi K3 e Opus 
 
 ## 3. Reconciliar e repetir
 
-Leia os dois pareceres. Para cada achado, registre em `out/notion/review/reconciliation.json` uma decisão `accepted`, `rejected` ou `deferred`, com justificativa baseada em evidência.
+Leia os dois pareceres e confirme que ambos os recibos têm veredito `PASS`; a
+porta rejeita qualquer recibo `NEEDS_FIXES`. Se algum revisor retornar
+`NEEDS_FIXES`, corrija as pendências e solicite novos pareceres em chats novos
+até obter dois recibos `PASS`. A reconciliação não substitui essa exigência.
+Para cada achado, registre em `out/notion/review/reconciliation.json` uma
+decisão `accepted`, `rejected` ou `deferred`, com justificativa baseada em
+evidência.
 
 - Corrija todo achado material aceito.
 - Para rejeitar, demonstre por código, teste ou contrato por que o achado não procede.
@@ -79,9 +95,7 @@ com uma resposta antiga e apenas uma revisão repetida.
 
 Prossiga somente quando cada achado dos dois modelos tiver uma decisão: todo
 achado aceito já foi corrigido e todo achado rejeitado tem justificativa baseada
-em código, teste ou contrato. Não pode restar achado material `deferred`. Um
-veredito `NEEDS_FIXES` pode ser encerrado por essa reconciliação; a porta não
-exige que o texto literal do veredito mude para `PASS`.
+em código, teste ou contrato. Não pode restar achado `deferred`.
 
 ## 4. Confirmar que a porta está fechada
 
@@ -98,6 +112,10 @@ Resultado esperado neste momento: `NOTION_PREPARATION_FAILED: ...`, porque ainda
 Confirme novamente a autorização. No Codex, use o conector Notion para substituir o corpo de cada `page_id` fixo pelo arquivo preparado do mesmo slug. Não altere título, identidade ou hierarquia e não crie página.
 
 Salve o resultado bruto de cada atualização em `out/notion/raw/notion-update-<slug>.json` exatamente como retornado. Em seguida, busque cada página pelo conector, salve a resposta em `out/notion/raw/notion-fetch-<slug>.json` e extraia o corpo integral para `out/notion/fetched/<slug>.md`.
+
+Para trabalhar somente em cópias autorizadas, siga o fluxo separado de
+[cópias em Staging](../notion-publication.md#copias-de-revisao-em-staging) e
+use `--require-draft-publication`. Não atualize IDs-fonte nesse modo.
 
 ## 6. Registrar hierarquia e buscas por duplicatas
 

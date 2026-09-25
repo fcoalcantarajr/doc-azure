@@ -35,6 +35,25 @@ R10. Language: English in code, tests, commits and agent reasoning. Brazilian Po
      material is Brazilian Portuguese; maintainer or historical material is English. If the audience
      is not unambiguous from these directory rules, update R10 to classify the path before adding it.
 
+## Adversarial review workflow
+
+For material changes to CLI behavior, evidence or baseline provenance, security boundaries,
+publication gates, or user-facing contracts, run a hostile read-only review with OpenCode using
+oh-my-opencode-slim and the `9router` preset when available. Start OpenCode from the exact project
+checkout being reviewed; do not reuse a session whose working directory points to another project.
+Bind the request to `https://github.com/fcoalcantarajr/doc-azure`, the base and head SHAs when
+available, and the complete working-tree diff. Ask for standards and specification findings with
+file and line references. The reviewer must not edit files, run external API calls, or publish.
+
+Treat failed delegated reviewers, provider errors, and unavailable credits as missing review
+coverage, not as clean findings. Report an orchestrator-only pass as such; do not call it an
+independent specialist review. Do not buy credits or silently change the model or preset. Re-review
+the final diff after any accepted correction.
+
+This code/document review is separate from the Notion publication gate. It does not replace the
+Kimi K3 and Opus 5 receipts required by the current Notion publication contract in
+`docs/notion-publication.md`.
+
 ## Delta Model
 
 Each report row evaluates one explicit, versioned catalog claim. The status is

@@ -1524,3 +1524,13 @@ verify.py` returned `GATE_OK` for the local repository mode; and `git diff
 --check` had no output. Publication-flagged modes remain blocked by the
 non-exhaustive Search limitation until independent inventory evidence is
 available.
+
+## Repository visibility update — 2026-09-25
+
+The 2026-09-09 decision above binds its review artifacts to the repository as
+private because that was the observed state at the time. Treat that visibility
+statement as historical. Current operating documentation refers to the
+canonical repository and requires operators to confirm access when needed,
+without assuming that visibility remains private or public. The dated
+completion record in `docs/archive/completion-audit-2026-09-09.md` remains
+unchanged as evidence of the state observed during that audit.

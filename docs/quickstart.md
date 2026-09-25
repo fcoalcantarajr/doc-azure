@@ -29,20 +29,14 @@ Você não precisa instalar o Python separadamente. O projeto solicita Python 3.
 
 ## 2. Clonar o repositório
 
-O caminho recomendado é o GitHub CLI. Instale-o a partir das [instruções oficiais](https://cli.github.com/), depois execute:
+Clone o repositório por HTTPS:
 
 ```sh
-gh auth login
-```
-
-Escolha GitHub.com, HTTPS, autenticação no navegador e permita que o GitHub CLI configure as credenciais do Git. Confirme que a conta tem acesso ao repositório privado, depois clone:
-
-```sh
-gh repo clone fcoalcantarajr/doc-azure
+git clone https://github.com/fcoalcantarajr/doc-azure.git
 cd doc-azure
 ```
 
-Se sua organização proíbe o GitHub CLI, use o token HTTPS aprovado ou o método SSH do [guia de autenticação do GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github). Uma senha de conta não é aceita para operações Git via HTTPS. Nunca coloque um token do GitHub na URL de clone.
+Se o Git solicitar autenticação por causa das permissões atuais do repositório, use o GitHub CLI instalado a partir das [instruções oficiais](https://cli.github.com/) e execute `gh auth login`, ou configure SSH seguindo o [guia de autenticação do GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github). Uma senha de conta não é aceita para operações Git via HTTPS. Nunca coloque um token do GitHub na URL de clone.
 
 Já tem a pasta? Abra um terminal nela e confirme:
 

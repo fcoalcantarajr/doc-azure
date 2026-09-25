@@ -35,7 +35,10 @@ a claim:
 1. collect a fresh read-only Wiki snapshot;
 2. write the smallest deterministic check and exact Azure JSON pointer;
 3. add a fixture regression that fails when the predicate or pointer is broken;
-4. run `scripts/prepare_baselines.py` and review both resulting candidates;
+4. collect process source with `scripts/02_fetch_process.py --refresh`, then run
+   `scripts/prepare_baselines.py` and review both candidates; the process
+   candidate is valid only when its immutable source is `full_api` and all
+   planned GET routes and artifact hashes validate;
 5. update the catalog and baselines in one audited change;
 6. run the full gate and inspect the generated evidence.
 
@@ -66,7 +69,11 @@ hashes and pointers, not raw Azure response bodies, but names and selectors can
 still be sensitive. Review before publication. A local receipt proves what the
 client captured; it cannot cryptographically attest to a remote server response.
 The process inventory is intentionally conservative about metadata/order changes.
-Notion publication and external adversarial reviews are separate, explicit gates.
+Material code and documentation changes receive a read-only adversarial review
+with OpenCode, OMO-Slim, and the `9router` preset from the exact project
+checkout, as described in the [verification guide](guides/verify-repository.md#revisao-adversarial-de-mudancas).
+This review is separate from the Notion publication gate: it does not provide
+the Kimi K3 and Opus 5 receipts required to publish the Notion pages.
 
 ## Derived process-only LLM export
 
@@ -96,8 +103,8 @@ intent, governance, actual use, or configuration correctness.
 
 ## Handoff checklist
 
-Use the canonical command, then rebuild four versioned reports and prepare the
-Notion packet. Before claiming completion, verify all 19 objective requirements,
-run the strict external-review/publication gate, read back the four canonical
-Notion pages under the common parent, scan reachable Git history for secrets, and
-push only the intended branch to the private repository.
+For a material change, review the final diff and record unresolved coverage in
+the [verification guide](guides/verify-repository.md#revisao-adversarial-de-mudancas).
+Run the local repository gate and report its exact result. Only run a Notion
+publication mode when that separate external publication is in scope; the local
+gate, code review, and report preparation do not prove that pages were published.

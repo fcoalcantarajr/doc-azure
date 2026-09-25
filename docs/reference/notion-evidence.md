@@ -3,7 +3,9 @@
 Use esta referência somente ao publicar os quatro relatórios preparados. A
 auditoria Azure normal não exige esses arquivos. O fluxo de publicação usa o
 conector Notion e o navegador integrado ao ChatGPT; a aplicação Python prepara
-e verifica a evidência, mas não atualiza externamente o Notion.
+e verifica a evidência, mas não atualiza externamente o Notion. OpenCode com
+OMO-Slim e `9router` é usado para revisão de código/documentação e não produz
+nem substitui os recibos Kimi K3 e Opus 5 exigidos para este gate de publicação.
 
 O verificador rigoroso rejeita campos ausentes ou extras, capturas internamente
 inconsistentes, horários obsoletos, hashes divergentes, IDs de chat reutilizados,

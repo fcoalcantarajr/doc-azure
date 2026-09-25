@@ -111,8 +111,10 @@ parses the four versioned reports into a canonical semantic model, renders
 Notion enhanced-Markdown tables, binds the output to the fixed existing page
 identities, and records both byte and semantic hashes. With `--repository-url`,
 it also creates a deterministic, secret-screened CSV and identical adversarial
-review prompt bound to the private GitHub repository. It never creates or
-updates a Notion page.
+review prompt bound to the specified GitHub repository. The project repository
+is `https://github.com/fcoalcantarajr/doc-azure`. This Notion-report review
+packet is distinct from OpenCode review of code or documentation changes. The
+Python preparation script never creates or updates a Notion page.
 
 The legacy local identity check remains available for diagnosis:
 

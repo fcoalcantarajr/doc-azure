@@ -22,12 +22,12 @@ O analisador de argumentos também retorna `2` antes da auditoria quando uma op�
 
 ## Porta do repositório
 
-`uv run python verify.py [--require-publication]`
+`uv run python verify.py [--require-publication | --require-draft-publication]`
 
 | Código | Saída | Significado |
 | --- | --- | --- |
 | `0` | `GATE_OK` | Os invariáveis do modo local passaram; modos de publicação só retornam isso quando todas as evidências exigidas passam. |
-| `1` | `GATE_FAIL: <mensagem>` | O primeiro invariável indicado falhou. No estado atual, `--require-publication` e `--require-draft-publication` bloqueiam Search como prova de unicidade por falta de inventário independente. |
+| `1` | `GATE_FAIL: <mensagem>` | O primeiro invariável indicado falhou. No estado atual, `--require-publication` e `--require-draft-publication` bloqueiam Search como prova de unicidade por falta de inventário independente. `current process snapshot differs from coverage baseline` indica drift contra a fonte aceita, não autorização para atualizar a baseline. |
 
 Esta porta executa `uv run pytest -q` como última etapa. Se a saída mencionar `subprocess 'uv' failed`, rode os testes separadamente para ver o detalhe que a porta suprime. Não altere expressões internas nem regenere evidência para silenciar a falha. Siga a mensagem e o [guia da porta](../guides/verify-repository.md).
 

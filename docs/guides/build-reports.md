@@ -33,6 +33,15 @@ Resultado esperado, nesta ordem:
 
 O comando retorna `0`. Cada relatório contém procedência, resumo e achados com um dos quatro status: `CONFIRMADO`, `DIVERGENTE`, `NAO_VERIFICAVEL_API_PROCESSO` ou `AMBIGUO`.
 
+O construtor consome as baselines versionadas; não cria nem aprova uma baseline.
+Para preparar uma nova baseline de processo, use somente o snapshot imutável
+`full_api` coletado por `scripts/02_fetch_process.py --refresh`, com todos os
+GETs planejados e hashes de artefato validados. `scripts/prepare_baselines.py`
+gera candidatos locais sem rede e sem alterar `config/`; revise o drift antes
+de versionar qualquer candidato. Um snapshot `cache_assisted` só é válido para
+auditoria com a baseline existente quando o inventário permanece exatamente
+igual. Nunca transforme uma divergência observada em aprovação automática.
+
 Não remova `--coverage-baseline` para contornar `UNMAPPED_DOC_CHANGE`. A execução sem baseline existe para diagnóstico e testes internos, mas não prova cobertura e não deve alimentar commit ou publicação.
 
 O destino padrão é `deltas/`: uma construção bem-sucedida substitui atomicamente os quatro relatórios versionados. Depois de executar, confira `git status --short` e `git diff -- deltas/` antes de commitar. Para experimentar sem tocar nos relatórios oficiais, use `--output-dir` com um diretório temporário fora de `deltas/`.

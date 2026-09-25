@@ -142,13 +142,43 @@ Esse caso é diferente de `RUN_OUTPUT_FAILED`: em `INTERNAL_ERROR`, o bundle exi
 
 Texto típico inclui `verified report rebuild failed`, `provenance is unverifiable`, `snapshot root has no complete CURRENT` ou `snapshot validation failed`.
 
-Causa: `verify.py` é uma porta de procedência para mantenedores. Ela requer as gerações exatas de Wiki e processo ignoradas nomeadas dentro dos relatórios versionados atuais em `deltas/`. O Git não distribui esses snapshots, e um refresh novo cria IDs de geração diferentes.
+Causa: `verify.py` é uma porta de procedência para mantenedores. A reconstrução
+dos relatórios requer as gerações exatas de Wiki e processo nomeadas dentro dos
+relatórios versionados em `deltas/`. O Git não distribui esses snapshots, e um
+refresh novo cria IDs de geração diferentes. A validação da baseline de processo
+tem uma alternativa mais restrita: se a geração de origem arquivada estiver
+ausente, somente um `CURRENT` íntegro `full_api`, com rotas completas e
+impressões exatamente iguais às aprovadas, pode comprovar a mesma baseline.
+Essa alternativa não substitui as gerações necessárias à reconstrução dos
+relatórios.
 
 - Na máquina de auditoria com evidência, confirme que as gerações nomeadas ainda existem sob `out/wiki/snapshots/` e `out/process/snapshots/`, depois repita.
 - Em um clone sem essas gerações retidas, execute `uv run pytest -q` como verificação de saúde portátil do código. Não chame esse resultado de `GATE_OK`.
 - Se a prova de procedência completa for necessária, obtenha as gerações históricas aprovadas pelo processo de transferência privada de evidências da organização.
 
 Nunca fabrique ou renomeie uma geração para combinar com um relatório.
+
+## `current process snapshot differs from coverage baseline`
+
+Causa: o snapshot de processo disponível não tem as mesmas impressões da
+baseline aprovada. Isso é uma divergência de evidência, não apenas ausência de
+um diretório histórico. Confira `source.collection_mode` em
+`config/process-coverage.json` e o modo, manifesto, hashes e rotas de
+`out/process/CURRENT`.
+
+Uma nova baseline só pode vir de um snapshot completo `full_api`, produzido
+sem reutilizar estado anterior e com todos os GETs planejados registrados. Se
+uma atualização for necessária, execute:
+
+```sh
+uv run python scripts/02_fetch_process.py --refresh
+uv run python scripts/prepare_baselines.py
+```
+
+O segundo comando gera candidatos locais sem alterar `config/`. Revise o drift
+e aprove explicitamente qualquer mudança junto com os relatórios
+correspondentes. Nunca copie o inventário atual para a baseline só para liberar
+a porta; um snapshot `cache_assisted` nunca é origem válida de baseline.
 
 ## `GATE_FAIL: Notion verification failed: ...`
 

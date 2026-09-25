@@ -22,7 +22,7 @@ Use somente um destes comandos:
 | --- | --- |
 | Coletar o estado atual do Azure | `uv run python scripts/run_audit.py --refresh` |
 | Reusar snapshots locais completos, sem rede | `uv run python scripts/run_audit.py --offline` |
-| Reusar a cache e buscar somente o que faltar | `uv run python scripts/run_audit.py` |
+| Reusar a cache completa e buscar pela API o que faltar | `uv run python scripts/run_audit.py` |
 
 Para a primeira auditoria ou quando as fontes podem ter mudado, use:
 
@@ -41,7 +41,7 @@ O código do shell pode ser `0`, `1`, `2` ou `3`; cada um é um resultado classi
 
 Há uma exceção antes de a auditoria começar: erro de uso da linha de comando também retorna `2`. Nesse caso, o terminal mostra `usage:` e uma mensagem de argumento no stderr, mas não imprime a linha `<STATUS>: <hash>` nem o caminho de `CURRENT`. Corrija as opções e execute novamente; não interprete esse `2` como `COVERAGE_GAP`.
 
-`--offline` e `--refresh` são incompatíveis. Se não houver snapshots locais completos, o modo offline termina com `ACQUISITION_VALIDATION_FAILED`.
+`--offline` e `--refresh` são incompatíveis. O modo padrão pode acessar Azure quando faltar uma fonte ou artefato; somente `--offline` garante zero chamadas de rede. Se não houver snapshots locais completos, o modo offline termina com `ACQUISITION_VALIDATION_FAILED`.
 
 ## Como ler o resultado
 

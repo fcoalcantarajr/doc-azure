@@ -1,5 +1,12 @@
 # Contrato de publicação no Notion
 
+Este contrato governa a publicação externa dos relatórios, não a revisão de
+mudanças no repositório. Revisões de código e documentação usam OpenCode com
+OMO-Slim e preset `9router`; elas não substituem os recibos Kimi K3 e Opus 5
+descritos abaixo. A porta atual de publicação canônica e a porta de cópias em
+Staging falham fechadas enquanto Notion Search for a única evidência de
+unicidade.
+
 ## Localização e identidades das páginas existentes
 
 Os quatro relatórios canônicos são páginas fixas. A publicação canônica deve
@@ -56,7 +63,7 @@ Em toda nova execução, `out/notion/review/review-manifest.json` é a única fo
 autoritativa para `packet_sha256` e `prompt_sha256`. O hash do prompt também
 depende do valor exato informado em `--repository-url`.
 
-## Porta obrigatória de revisão adversarial
+## Porta obrigatória de revisão dos relatórios para publicação
 
 Antes de atualizar qualquer página, revise os relatórios preparados em dois
 chats independentes do Notion AI:

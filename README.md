@@ -22,11 +22,11 @@ Se for sua primeira visita, siga o início rápido em ordem. Não inicie com um 
 ## O que você precisa
 
 - Um computador com macOS ou Linux e um terminal. No Windows, execute o aplicativo dentro do WSL; o Windows nativo não é suportado porque o bloqueio de snapshots usa a interface Unix `fcntl`.
-- Git e `uv`. O GitHub CLI (`gh`) é o caminho recomendado para clonar o repositório, mas HTTPS com token aprovado e SSH também funcionam. O projeto requer Python 3.11+; o `uv` instala e seleciona a versão necessária, então uma instalação Python separada é opcional.
+- Git e `uv`. Clone por HTTPS ou SSH; o GitHub CLI (`gh`) é opcional. O projeto requer Python 3.11+; o `uv` instala e seleciona a versão necessária, então uma instalação Python separada é opcional.
 - Acesso de leitura à organização, projeto, Wiki e processo herdado do Azure DevOps.
 - Um Personal Access Token (PAT) do Azure DevOps, de curta duração e com permissões mínimas, com escopos **Wiki: Read** e **Work Items: Read**.
-- Acesso ao repositório privado.
-- Somente para publicação: workspace do Notion, Notion AI, Codex com o conector
+- Acesso ao repositório no GitHub.
+- Somente para publicação no Notion: workspace do Notion, Notion AI, Codex com o conector
   Notion conectado, navegador integrado autenticado e os modelos Kimi K3 e
   Opus 5 disponíveis com esforço máximo. Veja todos os pré-requisitos no
   [guia de publicação](docs/guides/publish-notion.md#antes-de-começar).
@@ -49,7 +49,7 @@ O cliente Azure falha fechado fora da lista de permissões explícita. A coleta 
 
 Mantenha `.env` e tudo em `out/` privado. São ignorados pelo Git porque evidências podem incluir dados de funcionários e `.env` contém um segredo. Nunca cole um PAT em um comando, issue, chat, log, relatório ou página do Notion. Antes de commitar ou publicar arquivos regenerados em `deltas/`, inspecione-os por nomes de funcionários, detalhes de contato, identificadores, credenciais ou outro conteúdo não aprovado para o repositório e as quatro páginas de destino.
 
-A publicação no Notion é separada da auditoria principal. Ela atualiza apenas quatro páginas fixas existentes após revisões independentes de Kimi K3 e Opus 5, reconciliação, releitura pelo conector e a porta de publicação rigorosa. Preparar arquivos locais do Notion não publica nada.
+A publicação no Notion é separada da auditoria principal. A publicação canônica atualiza quatro páginas fixas; o modo de rascunho trabalha em cópias sob Staging. Ambos têm gates próprios e continuam bloqueados quando o Notion Search é a única prova de unicidade. As revisões Kimi K3 e Opus 5 fazem parte desse contrato de publicação; a revisão hostil de código e documentação usa OpenCode com OMO-Slim e preset `9router`, conforme o [guia de verificação](docs/guides/verify-repository.md#revisao-adversarial-de-mudancas). Uma revisão não substitui a outra. Preparar arquivos locais do Notion não publica nada.
 
 ## O que o aplicativo produz
 
@@ -57,6 +57,6 @@ A publicação no Notion é separada da auditoria principal. Ela atualiza apenas
 - `out/audit/`: bundles de diagnóstico e resultado por execução, ignorados.
 - `out/process-llm/`: snapshots e deltas processo-apenas para LLM, ignorados e independentes da Wiki.
 - `deltas/`: quatro relatórios em português brasileiro versionados.
-- `out/notion/`: corpos de publicação, pacotes de revisão e recibos, ignorados.
+- `out/notion/`: corpos preparados, pacotes de revisão e recibos canônicos ou de rascunho, ignorados.
 
 A auditoria avalia 222 reivindicações explícitas. Cada conclusão tem um ponteiro de fonte Wiki exato; achados comparáveis também têm um ponteiro de evidência de processo exato. Consulte [Método delta comprovado por evidências](docs/reference/delta-method.md) para as regras técnicas.

@@ -62,7 +62,7 @@ PAT na linha de comando ou no histórico do shell. Se o shell já tiver
 
 Você precisa de todos estes itens antes de uma execução de rede:
 
-- Acesso ao repositório privado `fcoalcantarajr/doc-azure` no GitHub.
+- Acesso ao repositório `fcoalcantarajr/doc-azure` no GitHub.
 - Membro da organização `bancodonordeste` no Azure DevOps.
 - Acesso de leitura ao projeto `Torre CCR - Concessão de Crédito`.
 - Acesso de leitura às páginas de Wiki aprovadas e ao processo `Processo-Agil`.
@@ -124,7 +124,11 @@ O primeiro comando deve listar os dois ponteiros. O segundo valida manifests, ha
 uv run python scripts/run_audit.py
 ```
 
-Reusa evidências em cache completas e busca apenas partes faltantes. Use `--refresh` quando a decisão requer estado atual do Azure. Use `--offline` quando o acesso à rede é proibido. Use sem modo apenas para recuperação ou diagnóstico com cache.
+Reusa evidências em cache completas e busca pela API Azure as partes faltantes. Portanto, omitir `--refresh` não garante execução sem rede. Use `--offline` quando nenhuma conexão for permitida; esse modo exige snapshots locais completos e nunca acessa a rede. Use `--refresh` quando a decisão requer uma nova coleta completa das duas fontes.
+
+### Procedência da baseline de processo
+
+Uma nova baseline de processo só pode ser preparada a partir de um snapshot imutável `full_api`, coletado sem reutilizar estado anterior e com todos os GETs planejados presentes no manifesto. `scripts/prepare_baselines.py` não chama a API: valida o snapshot já coletado, grava candidatos ignorados em `out/baseline-candidate/` e não altera `config/`. Para gerar uma nova fonte candidata, use `uv run python scripts/02_fetch_process.py --refresh`; depois revise as diferenças antes de aceitar qualquer mudança na baseline. Um snapshot `cache_assisted` pode atender às execuções normais quando seu inventário corresponde exatamente à baseline aprovada, mas nunca pode ser usado para criar ou substituir essa baseline. Não atualize a baseline automaticamente para transformar drift em aprovação.
 
 ## Validação da configuração
 
