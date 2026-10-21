@@ -42,6 +42,7 @@ from doc_azure.snapshot import (
     SnapshotSelectionValidationError,
     SnapshotWriter,
     StaleSnapshotWriterError,
+    current_snapshot_generation,
     read_snapshot_artifact,
     read_snapshot_manifest_with_sha256,
     resolve_snapshot_root,
@@ -89,6 +90,7 @@ class ProcessExportResult:
     work_item_types_root: Path
     source_generation: str
     reused: bool
+    baseline_unavailable: bool = False
 
 
 _KNOWN_BY_FAMILY = {
@@ -146,7 +148,9 @@ _KNOWN_NESTED = frozenset(
 )
 
 
-def export_process_for_llm(root: Path) -> ProcessExportResult:
+def export_process_for_llm(
+    root: Path, *, refresh: bool = False
+) -> ProcessExportResult:
     """Export the fixed generation selected by ``out/process/CURRENT``."""
 
     project_root = Path(root)
@@ -174,6 +178,16 @@ def export_process_for_llm(root: Path) -> ProcessExportResult:
         process_name=process_name,
     )
     export_root = project_root / EXPORT_ROOT
+    if refresh:
+        return _refresh_export(
+            project_root,
+            export_root,
+            source_root,
+            source_manifest.collected_at,
+            model,
+            provenance,
+        )
+
     baseline_export_generation = _selected_generation(export_root)
     baseline_model = _load_previous_model(
         project_root,
@@ -230,6 +244,121 @@ def export_process_for_llm(root: Path) -> ProcessExportResult:
             "concurrent export published a different process source"
         )
     return _result(published, source_root.name, reused=False)
+
+
+def _refresh_export(
+    project_root: Path,
+    export_root: Path,
+    source_root: Path,
+    collected_at: str,
+    model: ProcessExportModel,
+    provenance: dict[str, object],
+) -> ProcessExportResult:
+    """Publish a fresh export while retaining pointer CAS, not old contents."""
+
+    baseline_generation = _selected_generation(
+        export_root, validate_snapshot=False
+    )
+    try:
+        writer = SnapshotWriter(
+            export_root, validate_existing_snapshot=False
+        )
+    except SnapshotError as error:
+        raise ProcessExportError(
+            f"export CURRENT is invalid: {error}"
+        ) from None
+
+    baseline_unavailable = False
+    try:
+        _require_current_generation(export_root, baseline_generation)
+        baseline_model, baseline_unavailable = _refresh_baseline_model(
+            project_root,
+            export_root,
+            baseline_generation,
+            current_identity=SnapshotIdentity.from_model(model),
+        )
+
+        delta = build_process_delta(model, baseline_model)
+        rendered_artifacts = _render_artifacts(model, provenance, delta)
+        _require_current_generation(export_root, baseline_generation)
+        for path, content in rendered_artifacts.items():
+            writer.write_text(path, content)
+        writer.commit_manifest(collected_at=collected_at, requests=())
+    except BaseException as error:
+        writer.abort()
+        if isinstance(error, StaleSnapshotWriterError):
+            raise ProcessExportError(
+                "concurrent export published a different process source"
+            ) from None
+        if isinstance(error, (KeyboardInterrupt, SystemExit)):
+            raise
+        if isinstance(error, ProcessExportError):
+            raise
+        if isinstance(error, SnapshotError):
+            raise ProcessExportError(f"export write failure: {error}") from None
+        raise ProcessExportError(f"export write failure: {error}") from None
+
+    published = _matching_current_export(
+        export_root, provenance, rendered_artifacts
+    )
+    if published is None:
+        raise ProcessExportError(
+            "concurrent export published a different process source"
+        )
+    return _result(
+        published,
+        source_root.name,
+        reused=False,
+        baseline_unavailable=baseline_unavailable,
+    )
+
+
+def _refresh_baseline_model(
+    project_root: Path,
+    export_root: Path,
+    generation: str | None,
+    *,
+    current_identity: SnapshotIdentity,
+) -> tuple[ProcessExportModel | None, bool]:
+    if generation is None:
+        return None, False
+
+    try:
+        _require_current_generation(export_root, generation)
+        selected = resolve_snapshot_root(export_root)
+        if selected.name != generation:
+            raise ProcessExportError(
+                "concurrent export published a different process source"
+            )
+        baseline = _load_previous_model(
+            project_root,
+            export_root,
+            generation,
+            current_identity=current_identity,
+        )
+        _require_current_generation(export_root, generation)
+        selected_after_read = resolve_snapshot_root(export_root)
+        if selected_after_read.name != generation:
+            raise ProcessExportError(
+                "concurrent export published a different process source"
+            )
+        return baseline, False
+    except (SnapshotError, ProcessExportBaselineInvalid):
+        _require_current_generation(export_root, generation)
+        return None, True
+
+
+def _require_current_generation(root: Path, expected: str | None) -> None:
+    try:
+        actual = _selected_generation(root, validate_snapshot=False)
+    except ProcessExportError:
+        raise ProcessExportError(
+            "concurrent export changed its CURRENT pointer"
+        ) from None
+    if actual != expected:
+        raise ProcessExportError(
+            "concurrent export changed its CURRENT pointer"
+        )
 
 
 def _load_model(
@@ -524,11 +653,15 @@ def _matching_current_export(
     )
 
 
-def _selected_generation(root: Path) -> str | None:
+def _selected_generation(
+    root: Path, *, validate_snapshot: bool = True
+) -> str | None:
     if not os.path.lexists(root / "CURRENT"):
         return None
     try:
-        return resolve_snapshot_root(root).name
+        if validate_snapshot:
+            return resolve_snapshot_root(root).name
+        return current_snapshot_generation(root, validate_complete=False)
     except SnapshotError as error:
         raise ProcessExportError(f"export CURRENT is invalid: {error}") from None
 
@@ -555,7 +688,13 @@ def _matching_generation(
         return False
 
 
-def _result(root: Path, source_generation: str, *, reused: bool) -> ProcessExportResult:
+def _result(
+    root: Path,
+    source_generation: str,
+    *,
+    reused: bool,
+    baseline_unavailable: bool = False,
+) -> ProcessExportResult:
     return ProcessExportResult(
         generation_root=root.resolve(),
         bundle_path=(root / "bundle.md").resolve(),
@@ -564,6 +703,7 @@ def _result(root: Path, source_generation: str, *, reused: bool) -> ProcessExpor
         work_item_types_root=(root / "work-item-types").resolve(),
         source_generation=source_generation,
         reused=reused,
+        baseline_unavailable=baseline_unavailable,
     )
 
 

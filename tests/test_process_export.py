@@ -335,6 +335,28 @@ def test_changed_process_reports_exact_previous_and_current_evidence(
     assert first.generation_root.is_dir()
 
 
+def test_refresh_keeps_delta_when_the_previous_export_is_valid(
+    tmp_path: Path,
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    first_source = publish_source(tmp_path)
+    first = export_process_for_llm(tmp_path)
+    process = expected_artifacts()["process.json"]
+    process["isDefault"] = False
+    second_source = publish_source(tmp_path, mutation=("process.json", process))
+
+    second = export_process_for_llm(tmp_path, refresh=True)
+
+    delta = json.loads(second.delta_json_path.read_text())
+    assert second.reused is False
+    assert second.generation_root != first.generation_root
+    assert delta["status"] == "COM_ALTERACOES"
+    assert delta["baseline"]["source_generation"] == first_source.name
+    assert delta["current"]["source_generation"] == second_source.name
+    assert delta["summary"]["changed"] == 1
+
+
 def test_new_source_with_identical_semantics_reports_no_changes_and_reuses(
     tmp_path: Path,
 ) -> None:
@@ -1228,6 +1250,86 @@ def test_cli_failure_is_sanitized(tmp_path: Path, capsys: pytest.CaptureFixture[
     )
 
 
+def test_cli_refresh_logs_sanitized_azure_failure_details(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from doc_azure.process_collector import ProcessArtifactError
+
+    script = load_script()
+
+    async def fail_collection(*args: object, **kwargs: object) -> None:
+        raise ProcessArtifactError(
+            "fields artifact failed: GET "
+            "/_apis/work/processes/{processId}/workitemtypes/"
+            "{witRefName}/fields HTTP 401"
+        )
+
+    monkeypatch.setattr(script, "collect_process_with_settings", fail_collection)
+
+    assert script.main(
+        ["--refresh"],
+        project_root=tmp_path,
+        settings_loader=lambda root: object(),
+    ) == 1
+
+    assert capsys.readouterr().err == (
+        "LLM_EXPORT_FAILED: a exportação falhou com segurança; "
+        "consulte o troubleshooting\n"
+        "LLM_EXPORT_DIAGNOSTIC: stage=process_refresh "
+        "exception_type=ProcessArtifactError detail=fields artifact failed: GET "
+        "/_apis/work/processes/{processId}/workitemtypes/"
+        "{witRefName}/fields HTTP 401\n"
+    )
+
+
+def test_cli_diagnostic_does_not_log_unknown_exception_message(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    script = load_script()
+
+    def fail_settings(root: Path) -> object:
+        raise RuntimeError("fixture-secret-must-not-be-logged")
+
+    assert script.main(
+        ["--refresh"],
+        project_root=tmp_path,
+        settings_loader=fail_settings,
+    ) == 1
+
+    error = capsys.readouterr().err
+    assert "LLM_EXPORT_DIAGNOSTIC: stage=settings exception_type=RuntimeError" in error
+    assert "fixture-secret-must-not-be-logged" not in error
+
+
+def test_cli_refresh_logs_safe_snapshot_error_details(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from doc_azure.snapshot import SnapshotError
+
+    script = load_script()
+
+    async def fail_collection(*args: object, **kwargs: object) -> None:
+        raise SnapshotError("snapshot root could not be created safely")
+
+    monkeypatch.setattr(script, "collect_process_with_settings", fail_collection)
+
+    assert script.main(
+        ["--refresh"],
+        project_root=tmp_path,
+        settings_loader=lambda root: object(),
+    ) == 1
+
+    assert capsys.readouterr().err.endswith(
+        "LLM_EXPORT_DIAGNOSTIC: stage=process_refresh "
+        "exception_type=SnapshotError "
+        "detail=snapshot root could not be created safely\n"
+    )
+
+
 def test_cli_names_invalid_export_current_and_documented_recovery_works(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1295,6 +1397,11 @@ def test_cli_refresh_uses_only_process_get_routes(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     script = load_script()
+    seed_process_snapshot(tmp_path)
+    process_root = tmp_path / "out" / "process"
+    previous_generation = resolve_snapshot_root(process_root)
+    sidecar = previous_generation / "._process.json"
+    sidecar.write_bytes(b"unregistered local sidecar")
     payloads = fixture_payloads()
     requests: list[httpx.Request] = []
 
@@ -1329,6 +1436,66 @@ def test_cli_refresh_uses_only_process_get_routes(
     assert all("/_apis/work/processes" in request.url.path for request in requests)
     assert all("wiki" not in request.url.path.lower() for request in requests)
     assert capsys.readouterr().out.startswith("LLM_EXPORT_OK\n")
+    current_generation = resolve_snapshot_root(process_root)
+    assert current_generation != previous_generation
+    assert sidecar.read_bytes() == b"unregistered local sidecar"
+
+
+def test_cli_refresh_replaces_invalid_previous_export(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from doc_azure.process_export import export_process_for_llm
+
+    seed_process_snapshot(tmp_path)
+    previous_export = export_process_for_llm(tmp_path)
+    sidecar = previous_export.generation_root / "._local-sidecar"
+    sidecar.write_bytes(b"unregistered local sidecar")
+    process_export_root = tmp_path / "out" / "process-llm"
+    previous_export_current = (process_export_root / "CURRENT").read_text().strip()
+    script = load_script()
+    payloads = fixture_payloads()
+    requests: list[httpx.Request] = []
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        route = request.url.path.removeprefix("/bancodonordeste")
+        return httpx.Response(200, json=payloads[route], request=request)
+
+    def http_client_factory() -> httpx.AsyncClient:
+        return httpx.AsyncClient(transport=httpx.MockTransport(transport))
+
+    settings = Settings(
+        organization="bancodonordeste",
+        project="Torre CCR - Concessão de Crédito",
+        page_ids=(35, 10, 9, 37),
+        process_name="Processo-Agil",
+        api_version="7.1",
+        pat="fixture-only-pat",
+        output_root=tmp_path / "out",
+        wiki_id="fixture-wiki-id",
+    )
+
+    assert script.main(
+        ["--refresh"],
+        project_root=tmp_path,
+        settings_loader=lambda root: settings,
+        http_client_factory=http_client_factory,
+        now=lambda: COLLECTED_AT,
+    ) == 0
+
+    current_export = resolve_snapshot_root(process_export_root)
+    delta = json.loads((current_export / "delta.json").read_text())
+    assert current_export.name != previous_export_current
+    assert sidecar.read_bytes() == b"unregistered local sidecar"
+    assert delta["status"] == "SEM_BASELINE"
+    assert requests
+    assert {request.method for request in requests} == {"GET"}
+    captured = capsys.readouterr()
+    assert captured.out.startswith("LLM_EXPORT_OK\n")
+    assert captured.err == (
+        "LLM_EXPORT_WARNING: baseline anterior inválido; "
+        "refresh concluído sem comparação\n"
+    )
 
 
 def test_real_cli_smoke_exports_without_network(tmp_path: Path) -> None:

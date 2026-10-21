@@ -18,6 +18,8 @@ from doc_azure.process_export import (  # noqa: E402
     ProcessExportResult,
     export_process_for_llm,
 )
+from doc_azure.azure_client import AzureReadError
+from doc_azure.process_collector import ProcessArtifactError
 from doc_azure.process_runtime import (  # noqa: E402
     Clock,
     HttpClientFactory,
@@ -25,7 +27,8 @@ from doc_azure.process_runtime import (  # noqa: E402
     make_http_client,
     utc_now,
 )
-from doc_azure.settings import Settings  # noqa: E402
+from doc_azure.settings import Settings, SettingsError  # noqa: E402
+from doc_azure.snapshot import SnapshotError
 
 
 SettingsLoader = Callable[[Path], Settings]
@@ -58,11 +61,16 @@ def main(
         metavar="DIRETORIO",
         help="raiz do projeto (padrão: repositório deste script)",
     )
+    stage = "arguments"
+    refresh_requested = False
     try:
         args = parser.parse_args(argv)
+        refresh_requested = args.refresh
         root = (args.root if args.root is not None else Path(project_root)).resolve()
         if args.refresh:
+            stage = "settings"
             settings = settings_loader(root)
+            stage = "process_refresh"
             asyncio.run(
                 collect_process_with_settings(
                     root,
@@ -72,9 +80,15 @@ def main(
                     now=now,
                 )
             )
-        result = export_process_for_llm(root)
+        stage = "local_export"
+        if refresh_requested:
+            result = export_process_for_llm(root, refresh=True)
+        else:
+            result = export_process_for_llm(root)
     except Exception as error:
         print(f"LLM_EXPORT_FAILED: {_safe_message(error)}", file=sys.stderr)
+        if refresh_requested:
+            print(_diagnostic_line(stage, error), file=sys.stderr)
         return 1
 
     _print_result(result)
@@ -82,6 +96,12 @@ def main(
 
 
 def _print_result(result: ProcessExportResult) -> None:
+    if result.baseline_unavailable:
+        print(
+            "LLM_EXPORT_WARNING: baseline anterior inválido; "
+            "refresh concluído sem comparação",
+            file=sys.stderr,
+        )
     print("LLM_EXPORT_OK")
     print(result.bundle_path)
     print(result.delta_markdown_path)
@@ -114,6 +134,30 @@ def _safe_message(error: Exception) -> str:
             return "não foi possível publicar a exportação local com segurança"
         return "o snapshot do processo está ausente, incompleto ou inválido"
     return "a exportação falhou com segurança; consulte o troubleshooting"
+
+
+def _diagnostic_line(stage: str, error: Exception) -> str:
+    fields = [
+        "LLM_EXPORT_DIAGNOSTIC:",
+        f"stage={stage}",
+        f"exception_type={type(error).__name__}",
+    ]
+    detail = _safe_diagnostic_detail(error)
+    if detail:
+        single_line_detail = detail.replace("\r", "\\r").replace("\n", "\\n")
+        fields.append(f"detail={single_line_detail}")
+    return " ".join(fields)
+
+
+def _safe_diagnostic_detail(error: Exception) -> str:
+    if isinstance(
+        error,
+        (AzureReadError, ProcessArtifactError, SettingsError, SnapshotError),
+    ):
+        return str(error)
+    if isinstance(error, ProcessExportError):
+        return _safe_message(error)
+    return ""
 
 
 if __name__ == "__main__":

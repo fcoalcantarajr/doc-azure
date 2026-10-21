@@ -1033,8 +1033,8 @@ salvage time was `4 failed, 430 passed in 6.69s`; after applying the preserved
 B2 rendering source and test hunks it is `4 failed, 432 passed in 6.42s`. The
 four remaining RED tests (baseline-invalid and predecessor semantics for B2,
 B3, B4 and the N9 baseline-limit assertion) await their production
-implementation, which is preserved in `.opencode/salvage/n3-wip.patch` for the
-next lane. Atomic per-finding commits resume after this salvage commit.
+implementation, which is preserved in a local salvage patch for the next lane.
+Atomic per-finding commits resume after this salvage commit.
 
 ## 2026-09-24 — CLI UX review: default network visibility
 
@@ -1534,3 +1534,147 @@ canonical repository and requires operators to confirm access when needed,
 without assuming that visibility remains private or public. The dated
 completion record in `docs/archive/completion-audit-2026-09-09.md` remains
 unchanged as evidence of the state observed during that audit.
+
+## CLI failure diagnostics — 2026-10-20
+
+The process-only LLM export CLI kept its public failure marker and sanitized
+message, but did not identify which phase failed or preserve the Azure client's
+already-sanitized HTTP status and route. Add a second stderr diagnostic with
+the stage and exception type. Include detail only for known-safe settings,
+Azure-read, process-artifact, snapshot, and process-export exceptions; omit
+arbitrary exception messages.
+
+RED command: `UV_PROJECT_ENVIRONMENT=/Users/chicao/.cache/uv/venvs/doc-azure
+uv run pytest
+tests/test_process_export.py::test_cli_refresh_logs_sanitized_azure_failure_details
+tests/test_process_export.py::test_cli_diagnostic_does_not_log_unknown_exception_message -q`
+
+RED result: `2 failed in 0.30s`. Both failures showed that the CLI omitted the
+typed HTTP 401 detail and the settings-stage exception type, respectively.
+
+Snapshot-detail RED command: `UV_PROJECT_ENVIRONMENT=/Users/chicao/.cache/uv/venvs/doc-azure
+uv run pytest
+tests/test_process_export.py::test_cli_refresh_logs_safe_snapshot_error_details -q`
+
+Snapshot-detail RED result: `1 failed in 0.11s`. The diagnostic identified
+`SnapshotError` but omitted its safe reason, `snapshot root could not be
+created safely`.
+
+## Explicit refresh with a damaged previous generation — 2026-10-20
+
+An explicit process-source refresh must not require the selected old source
+generation's artifact inventory to be complete: that generation is being
+replaced, and its contents do not seed a refresh. Keep `CURRENT` a safe,
+syntactically valid pointer and compare its generation under the existing lock
+at collection start and publication. Before swapping `CURRENT`, validate the
+newly collected generation in full. A failed validation may leave an unpublished
+generation directory, while the old pointer remains unchanged; do not delete
+old or orphaned generations implicitly.
+
+RED command: `UV_PROJECT_ENVIRONMENT=/Users/chicao/.cache/uv/venvs/doc-azure
+uv run pytest
+tests/test_process_export.py::test_cli_refresh_uses_only_process_get_routes
+tests/test_snapshot.py::test_refresh_writer_rejects_a_new_generation_with_unregistered_files -q`
+
+RED result: `2 failed in 0.12s`. The refresh failed before requests with
+`SnapshotError: snapshot artifact set does not match manifest`; the post-move
+validation test also showed that `CURRENT` could point to a generation that
+acquired an unregistered file after staging enumeration.
+
+The first live refresh after the source-side change published a valid source
+generation (`115` artifacts, `114` GETs), then failed while reading the old
+derived export. Its selected generation had `29` expected files and `59`
+present, with `30` extras; `resolve_snapshot_root` reported the same artifact
+set mismatch. The derived output must therefore use the same refresh rule:
+keep pointer compare-and-swap, preserve a valid prior delta baseline when it
+validates, and fall back to `SEM_BASELINE` when the old export cannot be
+validated. Preserve the old generation; fully validate the new one before
+publishing it.
+
+Derived-export RED command: `UV_PROJECT_ENVIRONMENT=/Users/chicao/.cache/uv/venvs/doc-azure
+uv run pytest
+tests/test_process_export.py::test_cli_refresh_replaces_invalid_previous_export -q`
+
+Derived-export RED result: `1 failed in 0.19s`. The mocked Azure reads completed,
+but the CLI returned `1` with `out/process-llm/CURRENT está inválido` instead of
+publishing the fresh export.
+
+Refresh-baseline RED command: `UV_PROJECT_ENVIRONMENT=/Users/chicao/.cache/uv/venvs/doc-azure
+uv run pytest tests/test_process_export.py tests/test_snapshot.py -q`
+
+Refresh-baseline RED result: `2 failed, 99 passed in 6.42s`. Keeping the
+non-refresh CLI call byte-for-byte compatible with its one-argument interface
+is required by existing diagnostic tests; only explicit refresh should pass the
+new `refresh=True` option.
+
+Independent read-only reviewer `oracle_review` approved the scoped change and
+required preserving pointer-level compare-and-swap, safe control paths,
+post-move full validation, and explicit coverage for missing targets and
+concurrent writers. Python documents `os.replace` as atomic on POSIX when the
+rename succeeds: [official `os.replace` documentation](https://docs.python.org/3/library/os.html#os.replace).
+That source supports the pointer-swap mechanism; the local tests establish the
+snapshot-specific guarantees.
+
+The final independent read-only review found no implementation blocker and
+identified two documentation mismatches: R9 needed to distinguish old source
+contents from an old export reused as a baseline, and the `SEM_BASELINE`
+definition needed to include an invalid prior export during refresh. Both were
+corrected and confirmed against the implementation.
+
+Refresh implementation GREEN: `101 passed in 4.89s` across
+`tests/test_process_export.py` and `tests/test_snapshot.py`; full suite GREEN:
+`504 passed in 10.33s`. The real explicit refresh exited `0`, emitted
+`LLM_EXPORT_WARNING: baseline anterior inválido; refresh concluído sem comparação`
+followed by `LLM_EXPORT_OK`, and published process generation
+`4efa342c219c426380bae743eff1cb00` (115 artifacts, 114 GETs) plus export
+generation `66ab24e536b245ecbf852a5cb5a3a935` (`delta.status=SEM_BASELINE`).
+
+`uv run python verify.py` remains blocked before its test phase by
+`GATE_FAIL: coverage baseline is invalid: ValueError`. This check was already
+failing before the live refresh and was not changed or bypassed.
+
+## Agent Git discipline — 2026-10-20
+
+Add local commit enforcement for the agent-driven workflow: staged Gitleaks
+scan, Conventional Commit message validation, commit-message checks requiring
+the reason, specification reference, and `Agent:`/`Model:` trailers. Codex
+project rules forbid common explicit hook-bypass and history-rewrite commands.
+Do not modify persistent Git configuration; install hooks with pre-commit into
+the repository's `.git/hooks` directory. Keep `.opencode/`, `.codex/` and
+`.agents/` local state ignored, with a narrow exception only for the reviewed
+Codex safety rule.
+
+Ruff and strict mypy were evaluated at base `e37435bb31fcb0867c1e313ddd9e311e4f6d72f1`
+and against the candidate tree before enabling blocking hooks. The base had 170
+Ruff errors, 47 files needing formatting, and 78 strict mypy errors in 15
+modules. The candidate initially added three unused `noqa` directives and one
+redundant exception handler; these four new Ruff findings were removed. The
+candidate now has the same 170 Ruff errors, the same 47 files needing formatting,
+and the same 78 mypy errors in 15 modules as the base. Keep Ruff and mypy
+available in the `manual` hook stage until a separate scoped cleanup can repair
+that established baseline without introducing broad formatting or typing
+changes here. The checks remain available and the independent reviewer must
+sign off on this deferral under R9.
+
+The pre-commit documentation defines a `manual` stage that is not run by
+ordinary commit hooks:
+[pre-commit supported hook stages](https://pre-commit.com/#confining-hooks-to-run-at-certain-stages).
+Codex project rules are experimental and only apply to a trusted project:
+[Codex rules](https://learn.chatgpt.com/docs/agent-configuration/rules).
+The Gitleaks upstream hook uses a staged Git scan with redacted output:
+[Gitleaks pre-commit hook](https://github.com/gitleaks/gitleaks/blob/master/.pre-commit-hooks.yaml).
+
+The workflow update from a named OpenCode/OMO-Slim/`9router` invocation to a
+tool-agnostic independent reviewer follows the current repository instruction
+to use an independent read-only reviewer. It retains the hostile findings,
+base/head binding, full-diff scope, and prohibition on edits, external API calls,
+and publication; only the specific reviewer runtime is no longer prescribed.
+
+Independent read-only reviewer signoff: APPROVED on 2026-10-20 by
+`/root/git_discipline_review`, bound to
+`https://github.com/fcoalcantarajr/doc-azure`, base
+`e37435bb31fcb0867c1e313ddd9e311e4f6d72f1`, candidate HEAD at the same SHA, and
+the complete working-tree diff. The reviewer confirmed the baseline comparison,
+commit-message enforcement, local-state ignores, documented rule limitations,
+workflow reconciliation, and refresh requirements. The review was static and
+read-only; no tests, external API calls, edits, or publication were performed.

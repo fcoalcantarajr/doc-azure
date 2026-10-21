@@ -26,7 +26,16 @@ uv run python scripts/export_process_for_llm.py --refresh
 Este modo requer `AZDO_PAT` e acesso ao Azure DevOps. Ele faz somente as
 requisições GET do processo já autorizadas para `02_fetch_process.py`. Não lê
 Wiki, work items ou Notion. Depois da coleta, gera o mesmo pacote e o delta
-processo-apenas.
+processo-apenas. A geração selecionada anteriormente não é entrada do refresh:
+arquivos ausentes ou extras nela não bloqueiam a coleta. O ponteiro `CURRENT`
+continua protegido contra publicação concorrente, e a nova geração precisa
+passar pela validação completa antes de ser selecionada.
+
+O refresh também força a publicação de um novo export local. Se o export
+anterior estiver íntegro, seu delta continua sendo usado como baseline. Se a
+validação do snapshot anterior falhar, o refresh publica com `SEM_BASELINE` e
+avisa no stderr; o export antigo fica preservado para diagnóstico. Sem
+`--refresh`, a exportação offline continua exigindo um snapshot íntegro.
 
 Para operar outra cópia do projeto, acrescente `--root DIRETORIO`. Veja todas as
 opções sem credencial:
@@ -78,8 +87,9 @@ O baseline é a fonte registrada pela exportação completa selecionada em
 descobrir uma ordem cronológica pelos nomes UUID das pastas nem por horários
 mutáveis do sistema de arquivos.
 
-- `SEM_BASELINE`: não há baseline comparável (primeira exportação ou migração de
-  uma exportação antiga sem delta); o snapshot atual continua completo.
+- `SEM_BASELINE`: não há baseline comparável (primeira exportação, migração de
+  uma exportação antiga sem delta ou `--refresh` com snapshot anterior inválido);
+  o snapshot atual continua completo.
 - `SEM_ALTERACOES`: existe baseline e nenhuma diferença semântica foi observada.
 - `COM_ALTERACOES`: `delta.md` e `delta.json` enumeram adições, remoções e
   alterações.
@@ -90,15 +100,18 @@ processo voltar a uma configuração antiga, a exportação histórica não é
 reutilizada quando seu baseline for diferente; uma nova geração registra o
 caminho de volta.
 
-Exceção na primeira execução após atualizar uma instalação que já tinha uma
-exportação sem `delta.json`: essa geração antiga não registrava comparação.
-Para iniciar a cadeia de deltas sem inventar um predecessor, o comando publica
-ou reseleciona uma geração com status `SEM_BASELINE`, baseline ausente e zero
-mudanças listadas. Isso não afirma que o processo nunca mudou; significa que
-não havia um delta anterior verificável. Da execução seguinte em diante,
-repetir a fonte reutiliza essa geração.
-Se `delta.json` estiver registrado no manifesto, mas inválido, o comando falha
-em vez de tratar corrupção como migração.
+Na primeira execução após atualizar uma instalação que já tinha uma exportação
+sem `delta.json`, essa geração não registrava comparação. Para iniciar a cadeia
+de deltas sem inventar um predecessor, o comando publica ou reseleciona uma
+geração com status `SEM_BASELINE`, baseline ausente e zero mudanças listadas.
+Isso não afirma que o processo nunca mudou; significa que não havia um delta
+anterior verificável. Da execução seguinte em diante, repetir a fonte reutiliza
+essa geração.
+
+Sem `--refresh`, um `delta.json` registrado no manifesto mas inválido continua
+sendo erro. Com `--refresh`, qualquer snapshot anterior que não passe a
+validação completa deixa de ser baseline; o comando publica uma geração nova
+com `SEM_BASELINE` e informa a omissão da comparação no stderr.
 
 ## Qual arquivo enviar
 
@@ -163,8 +176,11 @@ da configuração.
 
 ## Falhas
 
-Em falha, o comando retorna código `1`, imprime
-`LLM_EXPORT_FAILED: <mensagem sanitizada>` no stderr e mantém a exportação anterior.
+Em falha antes da troca de `CURRENT`, o comando retorna código `1`, imprime
+`LLM_EXPORT_FAILED: <mensagem sanitizada>` no stderr e mantém o ponteiro
+anterior. Uma falha ao validar a nova geração também pode deixar uma geração
+órfã em `out/process/snapshots/` ou `out/process-llm/snapshots/`; o ponteiro
+continua apontando para a geração anterior.
 
 - `out/process/CURRENT está ausente`: execute com `--refresh` se tiver acesso ou obtenha uma
   cópia privada completa de `out/process/`.

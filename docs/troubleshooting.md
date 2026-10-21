@@ -3,13 +3,37 @@
 ## `LLM_EXPORT_FAILED: ...`
 
 Esse marcador pertence somente a `scripts/export_process_for_llm.py`. A falha
-não apaga nem troca uma exportação válida anterior.
+antes da troca de `CURRENT` preserva a geração anteriormente selecionada.
 
-- Se cita `out/process/CURRENT`, falta um snapshot de origem completo. Use
-  `--refresh` somente se tiver PAT e acesso ou restaure `out/process/` por canal
-  privado aprovado.
-- Se cita `out/process-llm/CURRENT`, a exportação selecionada falhou na validação.
-  Preserve o ponteiro para diagnóstico e gere uma seleção íntegra:
+Com `--refresh`, a geração antiga em `out/process/CURRENT` não é usada como
+entrada: arquivos ausentes ou extras nela não impedem a nova coleta. O comando
+preserva a comparação do ponteiro `CURRENT` para detectar outra publicação e
+valida por completo a geração recém-coletada antes de selecioná-la. O próprio
+`CURRENT` ainda precisa ser um arquivo regular com identificador válido. Se a
+validação nova falhar, o ponteiro anterior permanece e pode ficar uma geração
+órfã em `out/process/snapshots/`; não remova gerações automaticamente.
+
+Em uma falha com `--refresh`, o stderr também imprime
+`LLM_EXPORT_DIAGNOSTIC` com a etapa (`settings`, `process_refresh` ou
+`local_export`) e a classe da exceção. Para falhas de leitura do Azure, o
+detalhe inclui a rota normalizada e o status HTTP; a rota substitui IDs por
+marcadores. Erros de snapshot mostram somente a razão sanitizada pelo módulo
+de snapshots. Mensagens de exceções desconhecidas são omitidas para evitar
+vazar credenciais ou conteúdo da resposta. Nunca compartilhe `.env`, PAT,
+cabeçalhos ou corpos brutos da API.
+
+- Se cita `out/process/CURRENT`, o ponteiro ou o snapshot selecionado está
+  ausente ou inválido. Um `--refresh` pode substituir um alvo ausente ou com
+  arquivos extras; o próprio `CURRENT` precisa continuar regular e válido. Se
+  o ponteiro estiver malformado ou for link simbólico, preserve-o e restaure
+  um ponteiro seguro por canal privado aprovado.
+- Se cita `out/process-llm/CURRENT`, a exportação offline selecionada falhou na
+  validação. Sem `--refresh`, preserve o ponteiro para diagnóstico e corrija a
+  cópia local antes de exportar novamente. Com `--refresh`, o comando pode
+  descartar esse snapshot como baseline, publicar uma geração nova após validar
+  todos os artefatos e produzir `SEM_BASELINE`. O stderr informa
+  `LLM_EXPORT_WARNING: baseline anterior inválido; refresh concluído sem comparação`.
+  Se a nova geração falhar na validação, `CURRENT` permanece inalterado.
 
   ```sh
   mv out/process-llm/CURRENT out/process-llm/CURRENT.invalid

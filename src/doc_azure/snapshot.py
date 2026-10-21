@@ -86,11 +86,17 @@ _DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 class SnapshotWriter:
     """Stage a generation and publish it only if its baseline remains current."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self, root: Path, *, validate_existing_snapshot: bool = True
+    ) -> None:
         self._root = Path(root)
+        self._validate_existing_snapshot = validate_existing_snapshot
         _ensure_snapshot_container(self._root)
         with _snapshot_lock(self._root):
-            self._expected_publication = _publication_token(self._root)
+            self._expected_publication = _publication_token(
+                self._root,
+                validate_existing_snapshot=self._validate_existing_snapshot,
+            )
         self._generation = uuid.uuid4().hex
         self._staging = Path(
             tempfile.mkdtemp(prefix=".staging-", dir=self._root)
@@ -152,7 +158,13 @@ class SnapshotWriter:
         timestamp = _format_collected_at(collected_at)
 
         with _snapshot_lock(self._root):
-            if _publication_token(self._root) != self._expected_publication:
+            if (
+                _publication_token(
+                    self._root,
+                    validate_existing_snapshot=self._validate_existing_snapshot,
+                )
+                != self._expected_publication
+            ):
                 raise StaleSnapshotWriterError(
                     "stale snapshot writer cannot replace current generation"
                 )
@@ -175,7 +187,8 @@ class SnapshotWriter:
                 PurePosixPath(_MANIFEST),
                 manifest_bytes,
             )
-            self._move_staging_to_generation()
+            generation_root = self._move_staging_to_generation()
+            _validate_complete_snapshot(generation_root, legacy=False)
             _publish_current_pointer(self._root, self._generation)
 
         return manifest
@@ -225,6 +238,29 @@ def resolve_snapshot_root(root: Path) -> Path:
         _validate_complete_snapshot(logical_root, legacy=True)
         return logical_root
     raise SnapshotError("snapshot root has no complete CURRENT or legacy snapshot")
+
+
+def current_snapshot_generation(
+    root: Path, *, validate_complete: bool = True
+) -> str | None:
+    """Read the safe CURRENT identity, optionally validating its generation."""
+
+    logical_root = Path(root)
+    _require_real_directory(logical_root, "snapshot root")
+    current_path = logical_root / _CURRENT
+    if not _lexists(current_path):
+        return None
+
+    generation = _read_current_generation(logical_root)
+    snapshots_root = logical_root / _SNAPSHOTS
+    if validate_complete:
+        _require_real_directory(snapshots_root, "CURRENT target container")
+        target = snapshots_root / generation
+        _require_real_directory(target, "CURRENT target")
+        _validate_complete_snapshot(target, legacy=False)
+    elif _lexists(snapshots_root):
+        _require_real_directory(snapshots_root, "CURRENT target container")
+    return generation
 
 
 def read_snapshot_artifact(root: Path, relative_path: str | Path) -> bytes:
@@ -320,19 +356,18 @@ def select_snapshot_generation(
     return target
 
 
-def _publication_token(root: Path) -> str:
-    current_path = root / _CURRENT
-    if _lexists(current_path):
-        generation = _read_current_generation(root)
-        snapshots_root = root / _SNAPSHOTS
-        _require_real_directory(snapshots_root, "CURRENT target container")
-        target = snapshots_root / generation
-        _require_real_directory(target, "CURRENT target")
-        _validate_complete_snapshot(target, legacy=False)
+def _publication_token(
+    root: Path, *, validate_existing_snapshot: bool = True
+) -> str:
+    generation = current_snapshot_generation(
+        root, validate_complete=validate_existing_snapshot
+    )
+    if generation is not None:
         return f"current:{generation}"
     manifest_path = root / _MANIFEST
     if _lexists(manifest_path):
-        _validate_complete_snapshot(root, legacy=True)
+        if validate_existing_snapshot:
+            _validate_complete_snapshot(root, legacy=True)
         return f"legacy:{hashlib.sha256(_read_regular_file(manifest_path, 'manifest')).hexdigest()}"
     return "empty"
 

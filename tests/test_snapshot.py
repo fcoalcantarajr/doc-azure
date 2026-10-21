@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -150,6 +151,74 @@ def test_stale_writer_cannot_replace_a_newer_generation(tmp_path: Path) -> None:
     assert json.loads((first_generation / "process.json").read_text()) == {
         "name": "first"
     }
+    stale.abort()
+
+
+def test_refresh_writer_rejects_a_new_generation_with_unregistered_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "process"
+    previous = publish_process_snapshot(root, "old")
+    writer = SnapshotWriter(root)
+    writer.write_json("process.json", {"name": "new"})
+    move_to_generation = writer._move_staging_to_generation
+
+    def move_then_add_unregistered_file() -> Path:
+        generation = move_to_generation()
+        (generation / "._late-sidecar").write_bytes(b"unregistered")
+        return generation
+
+    monkeypatch.setattr(
+        writer, "_move_staging_to_generation", move_then_add_unregistered_file
+    )
+
+    with pytest.raises(SnapshotError, match="artifact set"):
+        writer.commit_manifest(collected_at=COLLECTED_AT, requests=())
+
+    assert resolve_snapshot_root(root) == previous
+    orphaned_generations = tuple((root / "snapshots").iterdir())
+    assert len(orphaned_generations) == 2
+    assert any(
+        (generation / "._late-sidecar").is_file()
+        for generation in orphaned_generations
+    )
+
+
+def test_refresh_writer_can_replace_a_missing_selected_generation(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "process"
+    previous = publish_process_snapshot(root, "old")
+    shutil.rmtree(root / "snapshots")
+    writer = SnapshotWriter(root, validate_existing_snapshot=False)
+    writer.write_json("process.json", {"name": "new"})
+
+    writer.commit_manifest(collected_at=COLLECTED_AT, requests=())
+
+    current = resolve_snapshot_root(root)
+    assert current != previous
+    assert json.loads((current / "process.json").read_text()) == {"name": "new"}
+
+
+def test_refresh_writer_preserves_current_compare_and_swap(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "process"
+    previous = publish_process_snapshot(root, "old")
+    (previous / "._local-sidecar").write_bytes(b"unregistered")
+    writer = SnapshotWriter(root, validate_existing_snapshot=False)
+    stale = SnapshotWriter(root, validate_existing_snapshot=False)
+    writer.write_json("process.json", {"name": "new"})
+    stale.write_json("process.json", {"name": "stale"})
+
+    writer.commit_manifest(collected_at=COLLECTED_AT, requests=())
+    published = resolve_snapshot_root(root)
+    with pytest.raises(SnapshotError, match="stale"):
+        stale.commit_manifest(collected_at=COLLECTED_AT, requests=())
+
+    assert resolve_snapshot_root(root) == published
+    assert json.loads((published / "process.json").read_text()) == {"name": "new"}
+    assert (previous / "._local-sidecar").read_bytes() == b"unregistered"
     stale.abort()
 
 

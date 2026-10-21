@@ -247,7 +247,11 @@ async def collect_process(
             return cached_manifest
 
     logical_root = project_root / "out" / "process"
-    writer = SnapshotWriter(logical_root)
+    writer = (
+        SnapshotWriter(logical_root, validate_existing_snapshot=False)
+        if refresh
+        else SnapshotWriter(logical_root)
+    )
     try:
         if not refresh:
             cached_manifest = read_cached_process_manifest(project_root)
