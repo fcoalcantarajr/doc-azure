@@ -113,7 +113,7 @@ identities, and records both byte and semantic hashes. With `--repository-url`,
 it also creates a deterministic, secret-screened CSV and identical adversarial
 review prompt bound to the specified GitHub repository. The project repository
 is `https://github.com/fcoalcantarajr/doc-azure`. This Notion-report review
-packet is distinct from OpenCode review of code or documentation changes. The
+packet is distinct from independent review of code or documentation changes. The
 Python preparation script never creates or updates a Notion page.
 
 The legacy local identity check remains available for diagnosis:

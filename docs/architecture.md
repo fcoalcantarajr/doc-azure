@@ -69,9 +69,9 @@ hashes and pointers, not raw Azure response bodies, but names and selectors can
 still be sensitive. Review before publication. A local receipt proves what the
 client captured; it cannot cryptographically attest to a remote server response.
 The process inventory is intentionally conservative about metadata/order changes.
-Material code and documentation changes receive a read-only adversarial review
-with OpenCode, OMO-Slim, and the `9router` preset from the exact project
-checkout, as described in the [verification guide](guides/verify-repository.md#revisao-adversarial-de-mudancas).
+Material code and documentation changes receive an independent, read-only
+adversarial review from the exact project checkout, as described in the
+[verification guide](guides/verify-repository.md#revisao-adversarial-de-mudancas).
 This review is separate from the Notion publication gate: it does not provide
 the Kimi K3 and Opus 5 receipts required to publish the Notion pages.
 

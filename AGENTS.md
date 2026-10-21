@@ -19,11 +19,20 @@ R6. No prose-only Python module. If a .py file has no executable behavior, it mu
 R7. Python 3.11+, uv, asyncio-first with a single httpx.AsyncClient, one asyncio.run per script,
     Semaphore to cap concurrency, retry only {408,429,500,502,503,504}, honor Retry-After,
     never retry 401/403.
-R8. Conventional Commits, atomic, one logical change per commit. Use the git-commit skill.
-    Never git push --force, never --no-verify, never rebase, never amend a pushed commit.
-    Never commit .env or anything under out/.
-R9. If a check is inconvenient, you prove it wrong with an official-doc URL and @oracle signs off in
-    docs/decisions.md. You never delete, soften or comment out a check to make the gate pass.
+R8. Conventional Commits, atomic, one logical change per commit; commit by verified gate,
+    not by work session. Use the git-commit skill and `.gitmessage`: the body must state why
+    the change is needed and reference its spec or decision record. Add `Agent:` and `Model:`
+    trailers to agent-authored commits. Run installed hooks; never use `--no-verify`, `SKIP`,
+    or an equivalent bypass. Never force-push (including `--force-with-lease`), rebase, hard
+    reset, or rewrite history with `filter-branch`/`filter-repo`. Never amend a pushed commit.
+    Never commit `.env` or anything under `out/`.
+R9. Challenge any check proposed for removal or relaxation with evidence and an official-doc URL;
+    record an independent read-only reviewer signoff in docs/decisions.md. Never delete, soften,
+    or comment out a check just to make a gate pass. For explicit process --refresh, old source
+    contents must not block collection: retain a safe CURRENT identity and compare-and-swap.
+    Validate an old export completely only when reusing it as a delta baseline; if invalid, omit
+    that baseline, emit SEM_BASELINE with a warning, and continue. Fully validate every new
+    generation before publishing CURRENT.
 R10. Language: English in code, tests, commits and agent reasoning. Brazilian Portuguese in
      README.md, the four Notion delta pages, deltas/, and the operational documentation:
      docs/README.md, docs/quickstart.md, docs/configuration.md, docs/audit-runtime.md,
@@ -38,17 +47,14 @@ R10. Language: English in code, tests, commits and agent reasoning. Brazilian Po
 ## Adversarial review workflow
 
 For material changes to CLI behavior, evidence or baseline provenance, security boundaries,
-publication gates, or user-facing contracts, run a hostile read-only review with OpenCode using
-oh-my-opencode-slim and the `9router` preset when available. Start OpenCode from the exact project
-checkout being reviewed; do not reuse a session whose working directory points to another project.
-Bind the request to `https://github.com/fcoalcantarajr/doc-azure`, the base and head SHAs when
-available, and the complete working-tree diff. Ask for standards and specification findings with
-file and line references. The reviewer must not edit files, run external API calls, or publish.
+publication gates, or user-facing contracts, run a hostile read-only review with an independent
+reviewer. Bind the request to `https://github.com/fcoalcantarajr/doc-azure`, the base and head SHAs
+when available, and the complete working-tree diff. Ask for standards and specification findings
+with file and line references. The reviewer must not edit files, run external API calls, or publish.
 
-Treat failed delegated reviewers, provider errors, and unavailable credits as missing review
-coverage, not as clean findings. Report an orchestrator-only pass as such; do not call it an
-independent specialist review. Do not buy credits or silently change the model or preset. Re-review
-the final diff after any accepted correction.
+Treat failed reviewers and unavailable review capacity as missing coverage, not as clean findings.
+Do not present a self-review as independent review. Do not silently change reviewer requirements.
+Re-review the final diff after any accepted correction.
 
 This code/document review is separate from the Notion publication gate. It does not replace the
 Kimi K3 and Opus 5 receipts required by the current Notion publication contract in

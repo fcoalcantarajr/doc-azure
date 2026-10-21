@@ -102,25 +102,21 @@ Se a publicação externa estiver no escopo, siga [Publicar no Notion](publish-n
 
 Para mudanças materiais em comportamento de CLI, proveniência de evidências ou
 baselines, segurança, gates de publicação ou contratos para operadores, faça
-uma revisão hostil, somente de leitura, com OpenCode, OMO-Slim e o preset
-`9router`. Abra uma execução nova no checkout que contém as alterações; não
-reutilize uma janela ou sessão cujo diretório seja outro projeto.
+uma revisão hostil, independente e somente de leitura no checkout que contém as
+alterações.
 
 Antes de enviar a revisão, confirme o caminho de `git rev-parse
 --show-toplevel`, o SHA base, o SHA de `HEAD`, o estado com
-`git status --short` e todo o diff. Execute `opencode run --agent orchestrator`
-a partir da raiz do projeto com uma solicitação que mencione
-`https://github.com/fcoalcantarajr/doc-azure`, os SHAs e a árvore de trabalho.
+`git status --short` e todo o diff. Vincule o pedido a
+`https://github.com/fcoalcantarajr/doc-azure`, aos SHAs e à árvore de trabalho.
 Peça conclusões separadas sobre conformidade com os padrões do repositório e
 comportamento em relação ao requisito, com severidade, arquivo, linha e
 evidência. Não autorize o revisor a alterar arquivos, chamar Azure/Notion ou
 publicar.
 
-Se os revisores especialistas delegados falharem por falta de crédito ou erro
-de provedor, registre essa cobertura como ausente. Um passe direto do
-orquestrador é parcial e não equivale a revisões especialistas independentes.
-Não compre créditos nem troque modelo ou preset sem instrução do operador.
-Resolva os achados sustentados por evidência e revise novamente o diff final.
+Se a revisão independente falhar ou estiver indisponível, registre a cobertura
+como ausente; uma autorrevisão não a substitui. Resolva os achados sustentados
+por evidência e revise novamente o diff final.
 
 Esta revisão de código e documentação não substitui as revisões Kimi K3 e Opus
 5 exigidas pelo contrato de publicação no Notion. Para aquela publicação, siga

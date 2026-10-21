@@ -1,10 +1,9 @@
 # Contrato de publicação no Notion
 
 Este contrato governa a publicação externa dos relatórios, não a revisão de
-mudanças no repositório. Revisões de código e documentação usam OpenCode com
-OMO-Slim e preset `9router`; elas não substituem os recibos Kimi K3 e Opus 5
-descritos abaixo. A porta atual de publicação canônica e a porta de cópias em
-Staging falham fechadas enquanto Notion Search for a única evidência de
+mudanças no repositório. A revisão independente de código e documentação não
+substitui os recibos Kimi K3 e Opus 5 descritos abaixo. As portas de publicação
+canônica e de cópias em Staging falham fechadas enquanto Notion Search for a única evidência de
 unicidade.
 
 ## Localização e identidades das páginas existentes
