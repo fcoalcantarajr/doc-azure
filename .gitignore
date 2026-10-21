@@ -63,6 +63,11 @@ sessions/
 .superpowers/
 .opencode/
 .codex/
+!.codex/
+.codex/*
+!.codex/rules/
+.codex/rules/*
+!.codex/rules/git-safety.rules
 .agents/
 
 # Editors and operating systems

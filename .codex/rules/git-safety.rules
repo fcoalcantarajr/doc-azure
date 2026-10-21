@@ -1,0 +1,67 @@
+prefix_rule(
+    pattern=["git", "commit", "--no-verify"],
+    decision="forbidden",
+    justification="Repository policy requires installed commit hooks to run.",
+)
+
+prefix_rule(
+    pattern=["git", "commit", "-n"],
+    decision="forbidden",
+    justification="Repository policy requires installed commit hooks to run.",
+)
+
+prefix_rule(
+    pattern=["git", "push", ["--force", "--force-with-lease", "-f"]],
+    decision="forbidden",
+    justification="Never force-push repository history.",
+    match=[
+        "git push --force origin main",
+        "git push --force-with-lease origin main",
+        "git push -f origin main",
+    ],
+    not_match=["git push origin main"],
+)
+
+prefix_rule(
+    pattern=["git", "push", "origin", ["--force", "--force-with-lease", "-f"]],
+    decision="forbidden",
+    justification="Never force-push repository history.",
+    match=[
+        "git push origin --force main",
+        "git push origin --force-with-lease main",
+        "git push origin -f main",
+    ],
+    not_match=["git push origin main"],
+)
+
+prefix_rule(
+    pattern=["git", "-c", "core.hooksPath=/dev/null", "commit"],
+    decision="forbidden",
+    justification="Do not bypass repository commit hooks with Git configuration overrides.",
+    match=["git -c core.hooksPath=/dev/null commit -m 'fix: example'"],
+    not_match=["git commit -m 'fix: example'"],
+)
+
+prefix_rule(
+    pattern=["git", "rebase"],
+    decision="forbidden",
+    justification="Repository policy forbids rebasing shared project history.",
+)
+
+prefix_rule(
+    pattern=["git", "reset", "--hard"],
+    decision="forbidden",
+    justification="Never discard project work with a hard reset.",
+)
+
+prefix_rule(
+    pattern=["git", "filter-branch"],
+    decision="forbidden",
+    justification="Never rewrite repository history with filter-branch.",
+)
+
+prefix_rule(
+    pattern=["git", "filter-repo"],
+    decision="forbidden",
+    justification="Never rewrite repository history with filter-repo.",
+)

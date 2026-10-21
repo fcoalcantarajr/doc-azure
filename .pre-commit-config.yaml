@@ -1,0 +1,74 @@
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+repos:
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: Gitleaks staged scan
+        entry: gitleaks git --pre-commit --redact --staged --verbose
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: commit-why
+        name: Commit message must explain why
+        entry: "grep -Eq '^Why: [^<].+'"
+        language: system
+        pass_filenames: true
+        always_run: true
+        stages: [commit-msg]
+
+      - id: commit-refs
+        name: Commit message must reference a spec or decision
+        entry: "grep -Eq '^Refs: [^<].+'"
+        language: system
+        pass_filenames: true
+        always_run: true
+        stages: [commit-msg]
+
+      - id: commit-agent
+        name: Commit message must identify the agent
+        entry: "grep -Eq '^Agent: [^<].+'"
+        language: system
+        pass_filenames: true
+        always_run: true
+        stages: [commit-msg]
+
+      - id: commit-model
+        name: Commit message must identify the model
+        entry: "grep -Eq '^Model: [^<].+'"
+        language: system
+        pass_filenames: true
+        always_run: true
+        stages: [commit-msg]
+
+      - id: ruff-check
+        name: Ruff check (manual baseline)
+        entry: uv run --locked ruff check
+        language: system
+        types: [python]
+        stages: [manual]
+
+      - id: ruff-format
+        name: Ruff format check (manual baseline)
+        entry: uv run --locked ruff format --check
+        language: system
+        types: [python]
+        stages: [manual]
+
+      - id: mypy-strict
+        name: Mypy strict (manual baseline)
+        entry: uv run --locked mypy --strict src/doc_azure
+        language: system
+        pass_filenames: false
+        stages: [manual]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: 91ab4bf57e58b32adf1a122681f6ebe164d081c8
+    hooks:
+      - id: conventional-pre-commit
+        name: Conventional Commit
+        args: [--strict]
+        stages: [commit-msg]

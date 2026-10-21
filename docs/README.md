@@ -14,6 +14,7 @@ Comece com o documento que corresponde à sua tarefa. Você não precisa ler as 
 8. [Solução de problemas](troubleshooting.md) — identifique um erro pela mensagem exata no terminal e siga um caminho de recuperação.
 9. [Contrato de publicação no Notion](notion-publication.md) — referência completa do contrato de publicação.
 10. [Referência de evidências do Notion](reference/notion-evidence.md) — caminhos locais exatos, campos JSON obrigatórios e envelopes de conector brutos para a porta rigorosa.
+11. [Disciplina Git para commits de agentes](guides/git-discipline.md) — instalar hooks, compor mensagens auditáveis e executar as verificações Python.
 
 ## Entender a auditoria
 

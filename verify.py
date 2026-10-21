@@ -318,7 +318,7 @@ def verify_gitignore(root: Path) -> None:
         "editor and OS state": ({".DS_Store", "Thumbs.db"}, {".idea/", ".vscode/"}, {"*.swp", "*.swo"}),
         "logs": ({"*.log", "logs/"},),
         "local databases": ({"*.db", "*.sqlite", "*.sqlite3"},),
-        "local agent state": ({".worktrees/", ".superpowers/", ".opencode/"},),
+        "local agent state": ({".worktrees/", ".superpowers/", ".opencode/", ".codex/", ".agents/"},),
     }
     for category, required_groups in categories.items():
         if any(not (patterns & alternatives) for alternatives in required_groups):

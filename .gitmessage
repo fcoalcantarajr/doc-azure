@@ -1,0 +1,7 @@
+<type>(<scope>): <imperative summary under 72 characters>
+
+Why: <reason the change is needed>
+Refs: <spec, issue, or docs/decisions.md entry>
+
+Agent: <agent name>
+Model: <model id>
